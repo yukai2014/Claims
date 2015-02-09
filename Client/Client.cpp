@@ -10,12 +10,12 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-//#include <sys/types.h>
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
 
 #include "ClientResponse.h"
+#include "../common/Logging.h"
 
 Client::Client() {
 	m_clientFd = -1;
@@ -55,9 +55,9 @@ ClientResponse* Client::submitQuery(std::string args) {
 	ClientResponse *ret = new ClientResponse();
 
 	write(m_clientFd, args.c_str(), args.length() + 1);
-	printf("Client: message from server!\n");
+	ClientLogging::log("Client: message from server!\n");
 
-	const int maxBytes = 65535;
+	const int maxBytes = 10000L;
 	char *buf = new char[maxBytes];
 	memset(buf, 0, sizeof(buf));
 
@@ -73,8 +73,9 @@ ClientResponse* Client::submitQuery(std::string args) {
 		perror(
 				"Client: submit query error, has problem with the communication!\n");
 	}else {
-		printf("receive %d bytes from server.\n", receivedBytesNum);
+		ClientLogging::log("receive %d bytes from server.\n", receivedBytesNum);
 	}
+	assert(maxBytes>=receivedBytesNum);
 	ret->deserialize(buf, receivedBytesNum);
 	delete buf;
 	return ret;
@@ -89,7 +90,7 @@ ClientResponse* Client::receive() {
 
 	ClientResponse* ret = new ClientResponse();
 
-	const int maxBytes = 65535;
+	const int maxBytes = 75536+sizeof(int)*2;
 	char *buf = new char[maxBytes];
 	memset(buf, 0, sizeof(buf));
 
@@ -103,10 +104,12 @@ ClientResponse* Client::receive() {
 
 	if ((receivedBytesNum = recv(m_clientFd, buf, len, MSG_WAITALL)) < 0) {
 		perror(
-				"Client: receive result error, has problem with the communication!\n");
+				"Client: receive result error, has problem with the communication! \n");
+		printf("ERROR: %s",strerror(errno));
 	}else {
-		printf("receive %d bytes from server.\n", receivedBytesNum);
+		ClientLogging::log("receive %d bytes from server.\n", receivedBytesNum);
 	}
+	assert(maxBytes>=receivedBytesNum);
 	ret->deserialize(buf, receivedBytesNum);
 	delete buf;
 	return ret;
@@ -115,4 +118,5 @@ ClientResponse* Client::receive() {
 void Client::shutdown() {
 //	::shutdown(m_clientFd, 2);
 	close(m_clientFd);
+	ClientLogging::log("-----for debug:	close fd %d", m_clientFd);
 }

@@ -5,6 +5,7 @@
 #include "../../LogicalQueryPlan/LogicalQueryPlanRoot.h"
 #include "../../common/ExpressionItem.h"
 #include "../../LogicalQueryPlan/Filter.h"
+#include "../../common/Expression/qnode.h"
 using namespace std;
 static int test_cross_join()
 {
@@ -22,39 +23,28 @@ static int test_cross_join()
 	else
 	{
 		Environment::getInstance(true);
-		startup_multiple_node_environment_of_tpch();
+		startup_multiple_node_environment_of_stock();
 
-		LogicalOperator* scan_part=new LogicalScan(Environment::getInstance()->getCatalog()->getTable(std::string("PART"))->getProjectoin(0));
-		LogicalOperator* scan_supplier=new LogicalScan(Environment::getInstance()->getCatalog()->getTable(std::string("SUPPLIER"))->getProjectoin(0));
-		vector<vector<ExpressionItem> >allexpr;
-		vector<ExpressionItem>expr;
-		ExpressionItem expritem0;
-		expritem0.setVariable("PART.row_id");
-		expr.push_back(expritem0);
-		ExpressionItem expritem2;
-		expritem2.setIntValue(3);
-		expr.push_back(expritem2);
-		ExpressionItem expritem1;
-		expritem1.setOperator("<");
-		expr.push_back(expritem1);
-		allexpr.push_back(expr);
-		LogicalOperator *filter_part=new Filter(scan_part,allexpr);
-		vector<vector<ExpressionItem> >allexpr1;
-		vector<ExpressionItem>expr1;
-		ExpressionItem expritem10;
-		expritem10.setVariable("SUPPLIER.row_id");
-		expr1.push_back(expritem10);
-		ExpressionItem expritem12;
-		expritem12.setIntValue(3);
-		expr1.push_back(expritem12);
-		ExpressionItem expritem11;
-		expritem11.setOperator("<");
-		expr1.push_back(expritem11);
-		allexpr1.push_back(expr1);
-		LogicalOperator *filter_supplier=new Filter(scan_supplier,allexpr1);
+		LogicalOperator* scan_field=new LogicalScan(Environment::getInstance()->getCatalog()->getTable(std::string("a"))->getProjectoin(0));
+		LogicalOperator* scan_area=new LogicalScan(Environment::getInstance()->getCatalog()->getTable(std::string("b"))->getProjectoin(0));
+//		vector<QNode *>exprTree0;
+//		QColcumns *cal0=new QColcumns("field","field.row_id",t_u_long,"field.row_id");
+//		QExpr *qexpr0=new QExpr("3",t_string,"3");
+//		QExpr_binary *qcalnode0=new QExpr_binary(cal0,qexpr0,t_u_long,oper_less,t_qexpr_cmp,"field.row_id<3");
+//		exprTree0.push_back(qcalnode0);
+//		LogicalOperator *filter_field=new Filter(scan_field,exprTree0);
+//
+//		vector<QNode *>exprTree1;
+//		QColcumns *cal1=new QColcumns("area","area.row_id",t_u_long,"area.row_id");
+//		QExpr *qexpr1=new QExpr("2",t_string,"2");
+//		QExpr_binary *qcalnode1=new QExpr_binary(cal1,qexpr1,t_u_long,oper_less,t_qexpr_cmp,"area.row_id<2");
+//		exprTree1.push_back(qcalnode1);
+//		LogicalOperator *filter_area=new Filter(scan_area,exprTree1);
 
-		LogicalOperator* cross_join=new CrossJoin(filter_part,filter_supplier);
-		LogicalOperator* root=new LogicalQueryPlanRoot(0,cross_join,LogicalQueryPlanRoot::PRINT);
+
+		LogicalOperator* cross_join=new CrossJoin(scan_field,scan_area);
+
+		LogicalOperator* root=new LogicalQueryPlanRoot(0,cross_join,LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		cout<<"~~~~~~~~~logical plan~~~~~~~~~~~~~~"<<endl;
 		root->print(0);
 		BlockStreamIteratorBase* physical_iterator_tree=root->getIteratorTree(64*1024);
@@ -65,7 +55,10 @@ static int test_cross_join()
 		physical_iterator_tree->open();
 		while(physical_iterator_tree->next(0));
 		physical_iterator_tree->close();
-
+		ResultSet* result=physical_iterator_tree->getResultSet();
+		result->print();
+		delete result;
+		delete Environment::getInstance(true);
 	}
 	return 0;
 }

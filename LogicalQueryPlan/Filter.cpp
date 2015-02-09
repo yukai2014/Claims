@@ -19,12 +19,12 @@ Filter::Filter(LogicalOperator *child,vector<QNode *>qual)
 :child_(child),qual_(qual)
 {
 	setOperatortype(l_filter);
-	initialize_type_cast_functions();
+//	initialize_type_cast_functions();
 }
 Filter::Filter(LogicalOperator *child, std::vector<std::vector<ExpressionItem> > &exprArray)
 :child_(child),exprArray_(exprArray){
-	initialize_arithmetic_type_promotion_matrix();
-	initialize_type_cast_functions();
+//	initialize_arithmetic_type_promotion_matrix();
+//	initialize_type_cast_functions();
 	setOperatortype(l_filter);
 }
 
@@ -137,10 +137,10 @@ bool Filter::GetOptimalPhysicalPlan(Requirement requirement,PhysicalPlanDescript
 			physical_plan.cost+=physical_plan.dataflow.getAggregatedDatasize();
 
 			ExpandableBlockStreamExchangeEpoll::State state;
-			state.block_size=block_size;
-			state.child=physical_plan.plan;//child_iterator;
-			state.exchange_id=IDsGenerator::getInstance()->generateUniqueExchangeID();
-			state.schema=getSchema(physical_plan.dataflow.attribute_list_);
+			state.block_size_=block_size;
+			state.child_=physical_plan.plan;//child_iterator;
+			state.exchange_id_=IDsGenerator::getInstance()->generateUniqueExchangeID();
+			state.schema_=getSchema(physical_plan.dataflow.attribute_list_);
 
 			std::vector<NodeID> upper_id_list;
 			if(requirement.hasRequiredLocations()){
@@ -157,16 +157,16 @@ bool Filter::GetOptimalPhysicalPlan(Requirement requirement,PhysicalPlanDescript
 					upper_id_list=NodeTracker::getInstance()->getNodeIDList();
 				}
 			}
-			state.upper_ip_list=convertNodeIDListToNodeIPList(upper_id_list);
+			state.upper_ip_list_=convertNodeIDListToNodeIPList(upper_id_list);
 
 			assert(requirement.hasReuiredPartitionKey());
 
-			state.partition_key_index=this->getIndexInAttributeList(physical_plan.dataflow.attribute_list_,requirement.getPartitionKey());
-			assert(state.partition_key_index>=0);
+			state.partition_schema_=partition_schema::set_hash_partition(this->getIndexInAttributeList(physical_plan.dataflow.attribute_list_,requirement.getPartitionKey()));
+			assert(state.partition_schema_.partition_key_index>=0);
 
 			std::vector<NodeID> lower_id_list=getInvolvedNodeID(physical_plan.dataflow.property_.partitioner);
 
-			state.lower_ip_list=convertNodeIDListToNodeIPList(lower_id_list);
+			state.lower_ip_list_=convertNodeIDListToNodeIPList(lower_id_list);
 
 
 			BlockStreamIteratorBase* exchange=new ExpandableBlockStreamExchangeEpoll(state);
@@ -405,6 +405,11 @@ void Filter::generateComparatorList(const Dataflow& dataflow){
 	assert(condition_.comparison_list_.size()==comparator_list_.size());
 }
 void Filter::print(int level)const{
-	condition_.print(level);
+//	condition_.print(level);
+	printf("filter:\n");
+	for(int i=0;i<qual_.size();i++)
+	{
+		printf("	%s\n",qual_[i]->alias.c_str());
+	}
 	child_->print(level+1);
 }

@@ -15,6 +15,7 @@
 #endif
 #include "../Debug.h"
 //#define SQL_Parser
+//#define SQL_Parser This macro is moved to Logging.cpp.
 
 
 class Logging{
@@ -135,11 +136,19 @@ public:
 	static void elog(const char* format,...);
 };
 
+class ClientListenerLogging {
+public:
+	static void log(const char* format,...);
+	static void elog(const char* format,...);
+};
+
 class ClientLogging {
 public:
 	static void log(const char* format,...);
 	static void elog(const char* format,...);
 };
+
+
 
 static void Logging_ExchangeIteratorLowerWithWideDependency(const char* format,...){
 #ifdef DEBUG_ExchangeIteratorWithWideDependency
@@ -277,24 +286,8 @@ static void Logging_BlockStreamExchangeLowerBase(const char* format,...){
 //#endif
 }
 
-static void SQLParse_log(const char* format,...){
-#ifdef SQL_Parser
-	printf("[SQLParse_log]: ");
-	va_list arg;
-	va_start (arg, format);
-	vprintf (format, arg);
-	printf("\n");
-	va_end (arg);
-#endif
-}
-static void SQLParse_elog(const char* format,...){
-	printf("[SQLParse_elog]: ");
-	va_list arg;
-	va_start (arg, format);
-	vprintf (format, arg);
-	printf("\n");
-	va_end (arg);
-}
+void SQLParse_log(const char* format,...);
+void SQLParse_elog(const char* format,...);
 
 
 #endif /* LOGGING_H_ */

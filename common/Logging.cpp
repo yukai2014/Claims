@@ -5,7 +5,8 @@
  *      Author: wangli
  */
 #include "Logging.h"
-#ifndef CLAIMS_QUEIT //If defined, all the output information is binded.
+#define CLAIMS_QUEIT
+#ifdef CLAIMS_QUEIT //If defined, all the output information is binded.
 //#define DEBUG_Config
 //#define DEBUG_ExpanderTracker
 //#define DEBUG_BlockStreamExpander
@@ -28,7 +29,11 @@
 //#define DEBUG_IteratorExecutorSlave
 //#define DEBUG_IteratorExecutorMaster
 //
-#define DEBUG_Client
+
+//#define DEBUG_Client
+//#define DEBUG_ClientLinsener
+
+
 //#define DEBUG_ExchangeIteratorEager
 //#define DEBUG_ExchangeIteratorSenderMaterialized
 //#define DEBUG_ExpandableBlockStreamExchangeMaterialized
@@ -40,8 +45,8 @@
 //#define DEBUG_Catalog
 //#define DEBUG_BufferManager
 
-#define DEBUG_ASTParser
-#define SQL_Parser
+//#define DEBUG_ASTParser
+//#define SQL_Parser
 
 #endif  //CLAIMS_QUEIT
 void IteratorExecutorMasterLogging::log(const char* format,...){
@@ -368,9 +373,9 @@ void ASTParserLogging::elog(const char* format,...){
 }
 
 
-void ClientLogging::log(const char* format,...){
-#ifdef DEBUG_Client
-	printf("Client: ");
+void ClientListenerLogging::log(const char* format,...){
+#ifdef DEBUG_ClientLinsener
+	printf("[ClientListener]: ");
 	va_list arg;
 	va_start (arg, format);
 	vprintf(format,arg);
@@ -378,8 +383,8 @@ void ClientLogging::log(const char* format,...){
 	va_end (arg);
 #endif
 }
-void ClientLogging::elog(const char* format,...){
-	fprintf(stderr,"Error[Client]: ");
+void ClientListenerLogging::elog(const char* format,...){
+	fprintf(stderr,"Error[ClientLinster]: ");
 	va_list arg;
 	va_start (arg, format);
 	vfprintf(stderr,format,arg);
@@ -455,6 +460,46 @@ void BlockStreamJoinLogging::log(const char* format,...) {
 
 void BlockStreamJoinLogging::elog(const char* format,...) {
 	fprintf(stderr,"Error[BlockStreamJoin]: ");
+	va_list arg;
+	va_start (arg, format);
+	vfprintf(stderr,format,arg);
+	printf("\n");
+	va_end (arg);
+}
+
+void SQLParse_log(const char* format,...) {
+#ifdef SQL_Parser
+	printf("[SQLParse_log]: ");
+	va_list arg;
+	va_start (arg, format);
+	vprintf (format, arg);
+	printf("\n");
+	va_end (arg);
+#endif
+}
+
+void SQLParse_elog(const char* format,...) {
+	printf("[SQLParse_elog]: ");
+	va_list arg;
+	va_start (arg, format);
+	vprintf (format, arg);
+	printf("\n");
+	va_end (arg);
+}
+
+void ClientLogging::log(const char* format,...) {
+#ifdef DEBUG_Client
+	printf("Client: ");
+	va_list arg;
+	va_start (arg, format);
+	vprintf(format,arg);
+	printf("\n");
+	va_end (arg);
+#endif
+}
+
+void ClientLogging::elog(const char* format,...) {
+	fprintf(stderr,"Error[Client]: ");
 	va_list arg;
 	va_start (arg, format);
 	vfprintf(stderr,format,arg);

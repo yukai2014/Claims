@@ -330,7 +330,7 @@ static void startup_single_node_environment_of_poc(){
 		Environment::getInstance(true);
 		create_poc_data_one_partitions();
 
-
+//		Environment::getInstance(true)->getCatalog()->saveCatalog();
 		printf("Press any key to continue!\n");
 		getchar();
 //		create_poc_data_four_partitions();
@@ -436,21 +436,6 @@ static void startup_mulitple_node_environment_of_poc(){
 		table_2->addAttribute("order_star",data_type(t_int));
 		table_2->addAttribute("order_restr_type",data_type(t_int));
 		table_2->addAttribute("short_sell_flag",data_type(t_int));		//25
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 		vector<ColumnOffset> sb_proj0_index;
 		sb_proj0_index.push_back(0);
 		sb_proj0_index.push_back(1);
@@ -886,6 +871,85 @@ static void startup_single_node_one_partition_environment_of_tpch(bool master=tr
 	}
 }
 
+static void startup_multiple_node_environment_of_stock(bool master=true){
+	Environment::getInstance(master);
+
+	ResourceManagerMaster *rmms=Environment::getInstance()->getResourceManagerMaster();
+	Catalog* catalog=Environment::getInstance()->getCatalog();
+
+	/////////////////////////////// PART TABLE //////////////////////////////////
+	TableDescriptor* table_1=new TableDescriptor("field", Environment::getInstance()->getCatalog()->allocate_unique_table_id());
+	table_1->addAttribute("row_id", data_type(t_u_long),0,true);
+	table_1->addAttribute("sec_code",data_type(t_string),10);
+	table_1->addAttribute("sec_name",data_type(t_string),40);
+	table_1->addAttribute("sec_field",data_type(t_string),40);
+//	table_1->createHashPartitionedProjectionOnAllAttribute("field.row_id",1);
+	///////////////////////////////////////////////////////////////////////////////
+
+
+	/////////////////////////////// SUPPLIER TABLE //////////////////////////////////
+	TableDescriptor* table_2=new TableDescriptor("area", Environment::getInstance()->getCatalog()->allocate_unique_table_id());
+	table_2->addAttribute("row_id", data_type(t_u_long),0,true);
+	table_2->addAttribute("sec_code",data_type(t_string),10);
+	table_2->addAttribute("sec_name",data_type(t_string),40);
+	table_2->addAttribute("sec_area",data_type(t_string),40);
+//	table_2->createHashPartitionedProjectionOnAllAttribute("area.row_id",1);	///////////////////////////////////////////////////////////////////////////////
+
+
+	/////////////////////////////// PARTSUPP TABLE //////////////////////////////////
+	TableDescriptor* table_3=new TableDescriptor("trade", Environment::getInstance()->getCatalog()->allocate_unique_table_id());
+//	TableDescriptor* table_3=new TableDescriptor("PARTSUPP",2);
+	table_3->addAttribute("row_id", data_type(t_u_long),0,true);
+	table_3->addAttribute("trade_no",data_type(t_decimal),18);  				//0
+	table_3->addAttribute("trade_date",data_type(t_date));
+	table_3->addAttribute("trade_time",data_type(t_time));
+	table_3->addAttribute("trade_time_dec",data_type(t_decimal),8);
+	table_3->addAttribute("order_time",data_type(t_time));
+	table_3->addAttribute("order_time_dec",data_type(t_decimal),8);
+	table_3->addAttribute("order_no",data_type(t_decimal),18);
+	table_3->addAttribute("trade_price",data_type(t_decimal),18);
+	table_3->addAttribute("trade_amt",data_type(t_decimal),18);
+	table_3->addAttribute("trade_vol",data_type(t_int));
+	table_3->addAttribute("sec_code",data_type(t_string),6);
+	table_3->addAttribute("pbu_id",data_type(t_string),5);
+	table_3->addAttribute("acct_id",data_type(t_string),10);
+	table_3->addAttribute("trade_dir",data_type(t_string),1);
+	table_3->addAttribute("Order_prtfil_code",data_type(t_string),1);
+	table_3->addAttribute("tran_type",data_type(t_string),3);
+	table_3->addAttribute("trade_type",data_type(t_string),1);
+	table_3->addAttribute("proc_type",data_type(t_string),1);
+	table_3->addAttribute("order_type",data_type(t_string),2);
+	table_3->addAttribute("stat_pbu_id",data_type(t_string),5);
+
+//	table_3->createHashPartitionedProjectionOnAllAttribute("trade.row_id",1);//should be 4
+	///////////////////////////////////////////////////////////////////////////////
+
+
+	catalog->add_table(table_1);
+	catalog->add_table(table_2);
+	catalog->add_table(table_3);
+
+
+
+	for(unsigned i=0;i<table_1->getProjectoin(0)->getPartitioner()->getNumberOfPartitions();i++){
+
+		catalog->getTable(1)->getProjectoin(0)->getPartitioner()->RegisterPartition(i,1);
+	}
+
+	for(unsigned i=0;i<table_2->getProjectoin(0)->getPartitioner()->getNumberOfPartitions();i++){
+
+		catalog->getTable(2)->getProjectoin(0)->getPartitioner()->RegisterPartition(i,1);
+	}
+
+	for(unsigned i=0;i<table_3->getProjectoin(0)->getPartitioner()->getNumberOfPartitions();i++){
+
+		catalog->getTable(3)->getProjectoin(0)->getPartitioner()->RegisterPartition(i,445);
+	}
+
+	catalog->saveCatalog();
+}
+
+
 
 
 static void startup_multiple_node_environment_of_tpch(bool master=true){
@@ -910,8 +974,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_1->addAttribute("P_COMMENT",data_type(t_string),23);
 
 //	table_1->createHashPartitionedProjectionOnAllAttribute(table_1->getAttribute(1).getName(),4);//should be 4
-	table_1->createHashPartitionedProjectionOnAllAttribute("P_PARTKEY",4);//should be 4
-
+	table_1->createHashPartitionedProjectionOnAllAttribute("PART.P_PARTKEY",4);//should be 4
 	///////////////////////////////////////////////////////////////////////////////
 
 
@@ -927,7 +990,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_2->addAttribute("S_ACCTBAL",data_type(t_decimal),4);
 	table_2->addAttribute("S_COMMENT",data_type(t_string),101);
 
-	table_2->createHashPartitionedProjectionOnAllAttribute("S_SUPPKEY",4);//should be 4
+	table_2->createHashPartitionedProjectionOnAllAttribute("SUPPLIER.S_SUPPKEY",4);//should be 4
 	///////////////////////////////////////////////////////////////////////////////
 
 
@@ -941,7 +1004,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_3->addAttribute("PS_SUPPLYCOST",data_type(t_decimal),2);
 	table_3->addAttribute("PS_COMMENT",data_type(t_string),199);
 
-	table_3->createHashPartitionedProjectionOnAllAttribute("PS_PARTKEY",4);//should be 4
+	table_3->createHashPartitionedProjectionOnAllAttribute("PARTSUPP.PS_PARTKEY",4);//should be 4
 	///////////////////////////////////////////////////////////////////////////////
 
 
@@ -958,7 +1021,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_4->addAttribute("C_MKTSEGMENT",data_type(t_string),10);
 	table_4->addAttribute("C_COMMENT",data_type(t_string),117);
 
-	table_4->createHashPartitionedProjectionOnAllAttribute("C_CUSTKEY",4);//should be 4
+	table_4->createHashPartitionedProjectionOnAllAttribute("CUSTOMER.C_CUSTKEY",4);//should be 4
 	///////////////////////////////////////////////////////////////////////////////
 
 
@@ -975,7 +1038,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_5->addAttribute("O_SHIPPRIORITY",data_type(t_int));
 	table_5->addAttribute("O_COMMENT",data_type(t_string),79);
 
-	table_5->createHashPartitionedProjectionOnAllAttribute("O_ORDERKEY",4);//should be 4
+	table_5->createHashPartitionedProjectionOnAllAttribute("ORDERS.O_ORDERKEY",4);//should be 4
 	///////////////////////////////////////////////////////////////////////////////
 
 	/////////////////////////////// LINEITEM TABLE //////////////////////////////////
@@ -998,7 +1061,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_6->addAttribute("L_SHIPMODE",data_type(t_string),10);
 	table_6->addAttribute("L_COMMENT",data_type(t_string),44);
 
-	table_6->createHashPartitionedProjectionOnAllAttribute("L_ORDERKEY",4); // the number of partition should be 4.
+	table_6->createHashPartitionedProjectionOnAllAttribute("LINEITEM.L_ORDERKEY",4); // the number of partition should be 4.
 	///////////////////////////////////////////////////////////////////////////////
 	/////////////////////////////// NATION TABLE //////////////////////////////////
 	TableDescriptor* table_7=new TableDescriptor("NATION", Environment::getInstance()->getCatalog()->allocate_unique_table_id());
@@ -1008,7 +1071,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_7->addAttribute("N_REGIONKEY",data_type(t_u_long));
 	table_7->addAttribute("N_COMMENT",data_type(t_string),152);
 
-	table_7->createHashPartitionedProjectionOnAllAttribute("N_NATIONKEY",1);
+	table_7->createHashPartitionedProjectionOnAllAttribute("NATION.N_NATIONKEY",1);
 	///////////////////////////////////////////////////////////////////////////////
 
 	/////////////////////////////// REGION TABLE //////////////////////////////////
@@ -1018,9 +1081,9 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	table_8->addAttribute("R_NAME",data_type(t_string),25);
 	table_8->addAttribute("R_COMMENT",data_type(t_string),152);
 
-	table_8->createHashPartitionedProjectionOnAllAttribute("R_REGIONKEY",1);
+	table_8->createHashPartitionedProjectionOnAllAttribute("REGION.R_REGIONKEY",1);
 	///////////////////////////////////////////////////////////////////////////////
-
+//create table REGION(regionkey bigint unsigned,rname varchar(25),rcomment varchar(200));
 
 
 	catalog->add_table(table_1);
@@ -1036,7 +1099,7 @@ static void startup_multiple_node_environment_of_tpch(bool master=true){
 	//T0
 	for(unsigned i=0;i<table_1->getProjectoin(0)->getPartitioner()->getNumberOfPartitions();i++){
 
-		catalog->getTable(0)->getProjectoin(0)->getPartitioner()->RegisterPartition(i,3);
+		catalog->getTable(0)->getProjectoin(0)->getPartitioner()->RegisterPartition(i,1);
 	}
 
 	for(unsigned i=0;i<table_2->getProjectoin(0)->getPartitioner()->getNumberOfPartitions();i++){

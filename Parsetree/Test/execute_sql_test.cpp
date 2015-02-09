@@ -17,10 +17,12 @@ using namespace std;
 static void execute_sql_test()
 {
 	Environment::getInstance(true);
-//	startup_multiple_node_environment_of_tpch();
+//	startup_multiple_node_environment_of_stock();
+	startup_single_node_environment_of_poc();
 
 	Catalog* catalog=Environment::getInstance()->getCatalog();
-	catalog->restoreCatalog();	/* restore Catalog*/
+//	catalog->saveCatalog();
+//	catalog->restoreCatalog();	/* restore Catalog*/
 
 	ResultSet *result_set = NULL;
 	bool result_flag=true;
@@ -43,6 +45,7 @@ static void execute_sql_test()
 			}
 		}
 		result_flag=true;
+
 		ExecuteLogicalQueryPlan(string(sql),result_set,result_flag,error_msg, info);
 		if(result_flag==false)
 		{

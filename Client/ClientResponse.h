@@ -35,6 +35,7 @@
 
 #include "../common/Block/BlockStream.h"
 #include "../common/Schema/SchemaFix.h"
+#include "../common/Logging.h"
 
 #define Error 	0
 #define OK 		1
@@ -190,6 +191,12 @@ struct ClientResponse {
 		return ret;
 	}
 
+	void setData(string s) {
+		content = s;
+		status = DATA;
+		length = s.length();
+	}
+
 	int serialize(char*& buffer) const {
 		int ret = sizeof(int) + sizeof(int) + content.length();
 		buffer = (char *) malloc(ret);
@@ -197,17 +204,34 @@ struct ClientResponse {
 		*((int*) buffer + 1) = length;
 		void* content_start = buffer + sizeof(int) + sizeof(int);
 		memcpy(content_start, content.data(), content.length());
+
+		ClientLogging::log("buffer to send is : %d-%d-%d-%d-%d-%d-%d-%d|	%d=%d",
+				(unsigned int)buffer[0],
+				(unsigned int)buffer[1],
+				(unsigned int)buffer[2],
+				(unsigned int)buffer[3],
+				(unsigned int)buffer[4],
+				(unsigned int)buffer[5],
+				(unsigned int)buffer[6],
+				(unsigned int)buffer[7],
+				status,
+				length
+				);
 		return ret;
 	}
 
 	void deserialize(const char* received_buffer, int recieved_bytes_length) {
 		const int st = *(int*) received_buffer;
 		const int len = *((int*) received_buffer + 1);
-		assert(recieved_bytes_length == sizeof(int) + sizeof(int) + len);
+		if(!(recieved_bytes_length == sizeof(int) + sizeof(int) + len)){
+			printf("recieved_bytes_length %d, len %d\n",recieved_bytes_length, len);
+			assert(false);
+		}
 		status = st;
 		length = len;
 		void* content_start_addr = (char*) received_buffer + sizeof(int) * 2;
 		content = std::string((const char *) content_start_addr, len);
+
 	}
 
 	void setChange(std::string info) {

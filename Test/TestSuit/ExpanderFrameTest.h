@@ -72,7 +72,7 @@ static int test_scan_filter_high_selectivity(){
 	LogicalOperator* root=new LogicalQueryPlanRoot(collector_node_id,filter_1,LogicalQueryPlanRoot::PERFORMANCE);
 
 	BlockStreamPerformanceMonitorTop* executable_query_plan=(BlockStreamPerformanceMonitorTop*)root->getIteratorTree(1024*64 );
-	executable_query_plan->print();
+//	executable_query_plan->print();
 
 	IteratorExecutorSlave::executePhysicalQueryPlan(PhysicalQueryPlan(executable_query_plan));
 //	executable_query_plan->open();
@@ -170,7 +170,7 @@ static int test_scan_filter_Aggregation(){
 	LogicalOperator* root=new LogicalQueryPlanRoot(collector_node_id,aggregation,LogicalQueryPlanRoot::PERFORMANCE);
 
 	BlockStreamPerformanceMonitorTop* executable_query_plan=(BlockStreamPerformanceMonitorTop*)root->getIteratorTree(1024*64 );
-	executable_query_plan->print();
+//	executable_query_plan->print();
 	IteratorExecutorSlave::executePhysicalQueryPlan(PhysicalQueryPlan(executable_query_plan));
 
 //	executable_query_plan
@@ -334,7 +334,7 @@ static int test_complete_repartition_filtered_join(){
 	LogicalOperator* root=new LogicalQueryPlanRoot(collector_node_id,sb_cj_join,LogicalQueryPlanRoot::RESULTCOLLECTOR);
 
 	BlockStreamIteratorBase* executable_query_plan=root->getIteratorTree(1024*64 );
-	executable_query_plan->print();
+//	executable_query_plan->print();
 	IteratorExecutorSlave::executePhysicalQueryPlan(PhysicalQueryPlan(executable_query_plan));
 
 	ResultSet *result_set=executable_query_plan->getResultSet();
@@ -358,16 +358,22 @@ static int test_complete_repartition_scan_join(){
 	LogicalOperator* sb_join_key_scan=new LogicalScan(table_2->getProjectoin(0));
 
 	std::vector<EqualJoin::JoinPair> sb_cj_join_pair_list;
-	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("order_no"),table_2->getAttribute("order_no")));
-	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("trade_date"),table_2->getAttribute("entry_date")));
-	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("trade_dir"),table_2->getAttribute("entry_dir")));
-	LogicalOperator* sb_cj_join=new EqualJoin(sb_cj_join_pair_list,cj_join_key_scan,sb_join_key_scan);
+//	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("order_no"),table_2->getAttribute("order_no")));
+//	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("trade_date"),table_2->getAttribute("entry_date")));
+//	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("trade_dir"),table_2->getAttribute("entry_dir")));
+////	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_1->getAttribute("row_id"),table_2->getAttribute("row_id")));
+//	LogicalOperator* sb_cj_join=new EqualJoin(sb_cj_join_pair_list,cj_join_key_scan,sb_join_key_scan);
+
+
+	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_2->getAttribute("order_no"),table_1->getAttribute("order_no")));
+	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_2->getAttribute("entry_date"),table_1->getAttribute("trade_date")));
+	sb_cj_join_pair_list.push_back(EqualJoin::JoinPair(table_2->getAttribute("entry_dir"),table_1->getAttribute("trade_dir")));
+	LogicalOperator* sb_cj_join=new EqualJoin(sb_cj_join_pair_list,sb_join_key_scan,cj_join_key_scan);
 
 	const NodeID collector_node_id=0;
 	LogicalOperator* root=new LogicalQueryPlanRoot(collector_node_id,sb_cj_join,LogicalQueryPlanRoot::RESULTCOLLECTOR);
 
 	BlockStreamIteratorBase* executable_query_plan=root->getIteratorTree(1024*64 );
-//	executable_query_plan->print();
 	IteratorExecutorSlave::executePhysicalQueryPlan(PhysicalQueryPlan(executable_query_plan));
 
 	ResultSet *result_set=executable_query_plan->getResultSet();
@@ -402,7 +408,6 @@ static int test_no_repartition_scan_join(){
 	LogicalOperator* root=new LogicalQueryPlanRoot(collector_node_id,sb_cj_join,LogicalQueryPlanRoot::RESULTCOLLECTOR);
 
 	BlockStreamIteratorBase* executable_query_plan=root->getIteratorTree(1024*64 );
-	executable_query_plan->print();
 	IteratorExecutorSlave::executePhysicalQueryPlan(PhysicalQueryPlan(executable_query_plan));
 
 	ResultSet *result_set=executable_query_plan->getResultSet();
@@ -435,13 +440,8 @@ static int test_expanderFramework_single_node(int repeated_times=20){
 
 	printf("This test requires one partition of POC sb and cj\n");
 
-//	sleep(5);
-	printf("============Scan->Filter->Expander->Exchange->root============\n");
 	for(unsigned i=0;i<repeated_times;i++){
-////		printf("%d:",i);
-//		test_scan();
-////		sleep(1);
-////		printf("-----------------------------------------\n");
+		test_scan();
 	}
 	for(unsigned i=0;i<repeated_times;i++){
 		test_scan_filter_high_selectivity();
@@ -461,7 +461,6 @@ static int test_expanderFramework_single_node(int repeated_times=20){
 	for(unsigned i=0 ; i < repeated_times ; i++){
 		test_complete_repartition_filtered_join();
 	}
-	printf("______Repartition scan join_________\n");
 	for(unsigned i=0 ; i < repeated_times ; i++){
 		test_complete_repartition_scan_join();
 	}
@@ -469,7 +468,7 @@ static int test_expanderFramework_single_node(int repeated_times=20){
 		test_no_repartition_scan_join();
 	}
 	printf("__________________FINISHED__________________\n");
-	sleep(1);
+//	sleep(1);
 	Environment::getInstance()->~Environment();
 //
 }

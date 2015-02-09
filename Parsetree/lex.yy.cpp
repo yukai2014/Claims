@@ -1,5 +1,5 @@
 
-#line 3 "lex.yy.cpp"
+#line 3 "lex.yy.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -1513,7 +1513,7 @@ extern char linebuf[500];
 
 
 
-#line 1517 "lex.yy.cpp"
+#line 1517 "lex.yy.c"
 
 #define INITIAL 0
 #define COMMENT 1
@@ -1525,6 +1525,7 @@ extern char linebuf[500];
  * The user has a chance to override it with an option.
  */
 #include <unistd.h>
+#include <assert.h>
 #endif
 
 #ifndef YY_EXTRA_TYPE
@@ -1702,7 +1703,7 @@ YY_DECL
 
   /* keywords */
 
-#line 1706 "lex.yy.cpp"
+#line 1706 "lex.yy.c"
 
 	if ( !(yy_init) )
 		{
@@ -3307,7 +3308,7 @@ YY_RULE_SETUP
 #line 410 "sql.l"
 YY_FATAL_ERROR( "flex scanner jammed" );
 	YY_BREAK
-#line 3311 "lex.yy.cpp"
+#line 3311 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(BTWMODE):
 	yyterminate();
@@ -4117,6 +4118,7 @@ YY_BUFFER_STATE yy_scan_bytes  (yyconst char * yybytes, int  _yybytes_len )
 static void yy_fatal_error (yyconst char* msg )
 {
     	(void) fprintf( stderr, "%s\n", msg );
+    	assert(false);
 	exit( YY_EXIT_FAILURE );
 }
 

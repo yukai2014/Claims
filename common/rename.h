@@ -14,10 +14,14 @@
 #include <malloc.h>
 #include <fcntl.h>
 #include <stdio.h>
-
+#include <assert.h>
 typedef int (f)(int);
 
-static f * FileClose=close;
+//static f * FileClose=close;
+static int FileClose(int fd){
+	assert(fd!=0);
+	close(fd);
+}
 
 typedef void (f1)(void*);
 static f1 * memory_free=free;

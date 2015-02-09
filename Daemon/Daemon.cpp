@@ -83,12 +83,32 @@ void* Daemon::worker(void* para) {
 		//assume all commands are sql commands.
 		executed_result result;
 		result.fd = rc.socket_fd;
+		result.status = true;
+
+		// must be delete after loading
+//		rc.cmd = "load table field from \"/home/imdb/data/stock/field\" with '\t','\n';\n\n"
+//				"load table area from \"/home/imdb/data/stock/area\" with '\t','\n';\n\n"
+//				"load table trade from "
+//				"\"/home/imdb/data/poc/CJ/CJ20100901.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100902.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100903.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100906.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100907.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100908.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100909.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100910.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100913.txt\","
+//				"\"/home/imdb/data/poc/CJ/CJ20100914.txt\" with '|','\n';\n\n"
+				;
 
 		// result is a pointer, which now is NULL and should be assigned in function.
-		Executing::run_sql(rc.cmd, result.result, result.status, result.error_info, result.info);
+
+		ClientListener::checkFdValid(result.fd);
+
+		Executing::run_sql(rc.cmd, result.result, result.status, result.error_info, result.info, result.fd);
 		ClientLogging::log("after running sql, the result is : status-%d, err-%s, info-%s",
 				result.status, result.error_info.c_str(), result.info.c_str());
-
+		ClientListener::checkFdValid(result.fd);
 		printf("-Worker add result into the queue!\n");
 		pthis->addExecutedResult(result);
 
@@ -101,9 +121,11 @@ void Daemon::addRemoteCommand(const remote_command& rc) {
 	remote_command_queue_.push_back(rc);
 	lock_.release();
 	semaphore_command_queue_.post();
+//	cout<<"post command queue semaphore"<<endl;
 }
 remote_command Daemon::getRemoteCommand() {
 	semaphore_command_queue_.wait();
+//	cout<<"minus command queue semaphore "<<endl;
 	remote_command ret;
 	lock_.acquire();
 	ret = remote_command_queue_.front();
@@ -115,13 +137,11 @@ remote_command Daemon::getRemoteCommand() {
 executed_result Daemon::getExecutedResult() {
 	semaphore_result_queue_.wait();
 	//	assert(false);
-	printf("-Worker: acquire the get semphore!\n");
 	executed_result ret;
 	lock_.acquire();
 	ret = executed_result_queue_.front();
 	executed_result_queue_.pop_front();
 	lock_.release();
-	printf("------ has been fucked!\n");
 	return ret;
 }
 void Daemon::addExecutedResult(const executed_result& item) {
@@ -129,6 +149,5 @@ void Daemon::addExecutedResult(const executed_result& item) {
 	executed_result_queue_.push_back(item);
 	lock_.release();
 	semaphore_result_queue_.post();
-	printf("-----------------------------------Added! current size:%d\n",executed_result_queue_.size());
 
 }

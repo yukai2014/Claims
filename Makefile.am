@@ -6,7 +6,7 @@ AM_CPPFLAGS=-fPIC -fpermissive -DTHERON_XS\
 -I${BOOST_HOME}/boost/serialization \
 -I${BOOST_HOME}/ \
 -I${GTEST_HOME}/include
-AM_LDFLAGS= -lc -lm -lrt -lpthread -lboost_serialization -lboost_date_time -lboost_system -lconfig++ -lxs -lnuma
+AM_LDFLAGS= -lc -lm -lrt -lpthread -lboost_serialization -lboost_date_time -lboost_system -lconfig++ -lxs -lnuma 
 
 LDADD =  \
 	Test/libtest.a \
@@ -24,7 +24,6 @@ LDADD =  \
 	IndexManager/Test/libtest.a \
 	Parsetree/libparsetree.a \
 	Parsetree/Test/libtest.a \
-	try/libtry.a \
 	LogicalQueryPlan/Test/libtest.a \
 	LogicalQueryPlan/liblogicalqueryplan.a \
 	storage/libstorage.a \
@@ -62,17 +61,23 @@ include_HEADERS = Config.h \
 				IDsGenerator.h \
 				configure.h
 				
-bin_PROGRAMS =  myclaims
+bin_PROGRAMS =  claimsserver \
+				client
+				
+client_SOURCES = Client.cpp \
+					Environment.cpp \
+					Config.cpp \
+					IDsGenerator.cpp 
 
-myclaims_SOURCES = Config.cpp	\
+claimsserver_SOURCES = Config.cpp	\
 				Environment.cpp \
 				IDsGenerator.cpp \
 				Server.cpp
 
 SUBDIRS= BlockStreamIterator Catalog Client common Daemon Executor IndexManager\
 Loader LogicalQueryPlan Parsetree Resource \
-storage Test try utility
+storage Test utility
 
 DIST_SUBDIRS = BlockStreamIterator Catalog Client common Daemon Executor IndexManager\
 Loader LogicalQueryPlan Parsetree Resource \
-storage Test try utility
+storage Test utility

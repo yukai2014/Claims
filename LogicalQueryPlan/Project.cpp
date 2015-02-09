@@ -13,16 +13,16 @@
 
 LogicalProject::LogicalProject(LogicalOperator *child, std::vector<std::vector<ExpressionItem> > &exprArray)
 :child_(child),exprArray_(exprArray){
-	initialize_arithmetic_type_promotion_matrix();
-	initialize_type_cast_functions();
+//	initialize_arithmetic_type_promotion_matrix();
+//	initialize_type_cast_functions();
 	setOperatortype(l_project);
 }
 LogicalProject::LogicalProject(LogicalOperator *child, vector<QNode *>exprTree)
 :child_(child),exprTree_(exprTree)
 {
 	setOperatortype(l_project);
-	initialize_arithmetic_type_promotion_matrix();
-	initialize_type_cast_functions();
+//	initialize_arithmetic_type_promotion_matrix();
+//	initialize_type_cast_functions();
 }
 
 LogicalProject::~LogicalProject(){
@@ -313,10 +313,14 @@ string LogicalProject::recovereyName(Expression ei) {
 
 void LogicalProject::printProjSchema()const
 {
-	printf("project:\n");
+
 }
 
 void LogicalProject::print(int level)const{
-	printProjSchema();
+	printf("project:\n");
+	for(int i=0;i<exprTree_.size();i++)
+	{
+		printf("	%s\n",exprTree_[i]->alias.c_str());
+	}
 	child_->print(level+1);
 }
