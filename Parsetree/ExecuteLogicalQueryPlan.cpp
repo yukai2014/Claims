@@ -1044,7 +1044,7 @@ void ExecuteLogicalQueryPlan()
 				// add for  test, create projection default while creating table
 				cout<<"Name:"<<new_table->getAttribute(0).getName()<<endl;
 
-				new_table->createHashPartitionedProjectionOnAllAttribute(new_table->getAttribute(1).getName(), 1);
+//				new_table->createHashPartitionedProjectionOnAllAttribute(new_table->getAttribute(1).getName(), 1);
 
 				catalog->add_table(new_table);
 

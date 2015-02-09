@@ -30,7 +30,7 @@ libindexmanager_a_SOURCES = \
 	IndexScanIterator.cpp 		IndexScanIterator.h \
 	LogicalCSBIndexBuilding.cpp 	LogicalCSBIndexBuilding.h \
 	LogicalIndexFilter.cpp 		LogicalIndexFilter.h \
-	LogicalIndexScan.cpp 		LogicalIndexScan.h
+	LogicalIndexScan.cpp 		LogicalIndexScan.h 
 
 SUBDIRS = Test
 DIST_SUBDIRS = Test

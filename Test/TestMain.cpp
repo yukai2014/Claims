@@ -88,7 +88,7 @@ int maina(int argc, char** argv){
 //	return generateVariableData_test();
 //	return query_optimization_based_on_statistics_aggregation();
 
-	return query_optimization_outputdata();
+//	return query_optimization_outputdata();
 
 
 //	return test_cross_join();
@@ -116,7 +116,7 @@ int maina(int argc, char** argv){
 //	return test_csb_indexing();
 //	return test_CSBIndexBuilding();		//for physical iterator testing and IndexManager testing
 //	return test_logical_csb_index_building();
-//	return test_index_scan_iterator();
+	return test_index_scan_iterator();
 //	return test_index_manager();
 
 //	in_test();
