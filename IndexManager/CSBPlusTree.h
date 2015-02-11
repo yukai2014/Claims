@@ -12,28 +12,29 @@
 #include <vector>
 #include <assert.h>
 #include <map>
+#include "indexStructures.h"
 #include "../configure.h"
 using namespace std;
 
 
-#define NULL 0
-#define INVALID -1
-#define FLAG_LEFT 1
-#define FLAG_RIGHT 2
-
-typedef unsigned short index_offset;
-
-enum comparison {EQ, L, LEQ, G, GEQ};
-
-//struct for the offset of the real data: leaf node's element struct
-template <typename T>
-struct data_offset
-{
-	data_offset<T>():_key(INVALID), _block_off(INVALID), _tuple_off(INVALID){};
-	T _key;
-	index_offset _block_off;
-	index_offset _tuple_off;
-};
+//#define NULL 0
+//#define INVALID -1
+//#define FLAG_LEFT 1
+//#define FLAG_RIGHT 2
+//
+//typedef unsigned short index_offset;
+//
+//enum comparison {EQ, L, LEQ, G, GEQ};
+//
+////struct for the offset of the real data: leaf node's element struct
+//template <typename T>
+//struct data_offset
+//{
+//	data_offset<T>():_key(INVALID), _block_off(INVALID), _tuple_off(INVALID){};
+//	T _key;
+//	index_offset _block_off;
+//	index_offset _tuple_off;
+//};
 
 //pre-declare of the node_group class
 template <typename T>

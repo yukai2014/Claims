@@ -48,6 +48,7 @@
 #include "../IndexManager/Test/test_logical_csb_index_building.cpp"
 #include "../IndexManager/Test/test_index_scan_iterator.cpp"
 #include "../IndexManager/Test/test_IndexManager_serialize.cpp"
+#include "../IndexManager/Test/test_csb_index.cpp"
 
 #include "common/TestNew.cpp"
 #include "common/issue27.cpp"
@@ -118,11 +119,12 @@ int maina(int argc, char** argv){
 //	return test_csb_indexing();
 //	return test_CSBIndexBuilding();		//for physical iterator testing and IndexManager testing
 //	return test_logical_csb_index_building();
-	return test_index_scan_iterator();
+//	return test_index_scan_iterator();
 //	return test_index_manager();
+	return test_csb_index();
 
 //	in_test();
-	test_expanderFramework_single_node(5);
+//	test_expanderFramework_single_node(5);
 
 //	common_project_tcp_h_test_single_node();
 //	issue27_single_node();
