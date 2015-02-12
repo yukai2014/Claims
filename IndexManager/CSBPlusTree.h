@@ -20,26 +20,6 @@
 #include "../configure.h"
 using namespace std;
 
-
-//#define NULL 0
-//#define INVALID -1
-//#define FLAG_LEFT 1
-//#define FLAG_RIGHT 2
-//
-//typedef unsigned short index_offset;
-//
-//enum comparison {EQ, L, LEQ, G, GEQ};
-//
-////struct for the offset of the real data: leaf node's element struct
-//template <typename T>
-//struct data_offset
-//{
-//	data_offset<T>():_key(INVALID), _block_off(INVALID), _tuple_off(INVALID){};
-//	T _key;
-//	index_offset _block_off;
-//	index_offset _tuple_off;
-//};
-
 //pre-declare of the node_group class
 template <typename T>
 class CCSBNodeGroup;
@@ -49,19 +29,15 @@ template <typename T>
 class CCSBNode
 {
 public:
-	CCSBNode(): used_keys(0), p_father(NULL) { }
+	CCSBNode(): used_keys(0) { }
 	virtual ~CCSBNode()
 	{
 		used_keys = 0;
-		p_father = NULL;
-		//: used_keys(0), p_father(NULL) { }
 	}
 
 	//the get and set function for node_type, node_inner_key_count, node's_father
 	int getUsedKeys() {return used_keys;}
 	virtual bool setUsedKeys(int count) { assert(false); }
-	CCSBNode<T>* getFather() { return p_father;}
-	void setFather(CCSBNode<T>* father) { p_father = father; }
 
 	static unsigned getMaxKeys() { return (cacheline_size-8)/sizeof(T); }
 	static unsigned getMaxDatas() { return cacheline_size/sizeof(data_offset<T>); }
@@ -83,16 +59,12 @@ public:
 	//operations for a index nodes
 	virtual bool Insert(T key) { assert(false); }	//for internal node
 	virtual bool Insert(data_offset<T> value) { assert(false); }	//for leaf node
-	virtual bool Delete(T value) { assert(false); }
 	virtual T SplitInsert(CCSBNode<T>* pNode, T key) { assert(false); }	//internal
 	virtual T SplitInsert(CCSBNode<T>* pNode, data_offset<T> data) { assert(false); }	//leaf
-	virtual bool Combine(CCSBNode<T>* pNode) { assert(false); }
 	virtual bool serialize(FILE* filename) { assert(false); }
 	virtual bool deserialize(FILE* filename) { assert(false); }
 public:
 	int used_keys;  //number of datas/keys in the node
-	CCSBNode<T>* p_father;  //father pointer
-
 };
 
 
@@ -492,7 +464,6 @@ public:
 		for (unsigned j = 0; j < node->getUsedKeys(); j++)
 			internal_nodes[i]->setElement(j, node->getElement(j)._key);
 		internal_nodes[i]->setUsedKeys(node->getUsedKeys());
-		internal_nodes[i]->setFather(node->getFather());
 		internal_nodes[i]->setPointer(node->getPointer());
 	}
 
@@ -596,7 +567,6 @@ public:
 			leaf_nodes[i]->setElement(j, node->getElement(j));
 		leaf_nodes[i]->setUsedKeys(node->getUsedKeys());
 		leaf_nodes[i]->setUsedKeys(node->getUsedKeys());
-		leaf_nodes[i]->setFather(node->getFather());
 	}
 
 	void DeleteChildren();
@@ -739,7 +709,6 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 			leaf->getNode(0)->setElement(i, aray[i]);
 		}
 		leaf->getNode(0)->setUsedKeys(aray_num);
-		leaf->getNode(0)->setFather(NULL);
 
 		//set the root and the leaf doubly linked list
 		this->csb_root = leaf->getNode(0);
@@ -747,17 +716,6 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 		leaf->setTailerNG(NULL);
 		this->leaf_header = leaf;
 		this->leaf_tailer = leaf;
-////For testing begin: print the only node
-//		cout << "\n\n---------------------Leaf Layer---------------------\n";
-//		cout << "Just one node. Used keys: " << ((CCSBNode<T>*)(leaf->getNode(0)))->getUsedKeys() << endl;
-//		for (unsigned i = 0;i < ((CCSBNode<T>*)(leaf->getNode(0)))->getUsedKeys(); i++)
-//		{
-//			cout << "Key: " << ((CCSBNode<T>*)leaf->getNode(0))->getElement(i)._key << " ";
-//			cout << "Block offset: " << ((CCSBNode<T>*)leaf->getNode(0))->getElement(i)._block_off << " ";
-//			cout << "Tuple offset: " << ((CCSBNode<T>*)leaf->getNode(0))->getElement(i)._tuple_off << endl;
-//		}
-////For testing end
-
 	}
 	//more than one layer: bottom up construct
 	else
@@ -772,33 +730,6 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 		//建立最底层叶子结点，并返回其索引internalAray
 		internal_key_array_num = makeLeafNodeGroup(aray, aray_num,leaf,internal_key_array);
 
-
-////For testing begin: print the leaf nodes
-//		cout << "\n\n---------------------Leaf Layer (depth: " << this->csb_depth << ")---------------------\n";
-//		for (int ti = 0; ti < leaf_node_group_num; ti++)
-//		{
-//			cout << "NodeGroup: " << ti << "\t";
-//			cout << "Used nodes: " << leaf[ti]->used_nodes << endl;
-//			for (int i = 0; i < leaf[ti]->used_nodes; i++)
-//			{
-//				cout << "Node: " << i << "\t";
-//				cout << "used keys: " << leaf[ti]->leaf_nodes[i]->used_keys << endl;
-//				for (int k = 0; k < leaf[ti]->leaf_nodes[i]->used_keys; k++)
-//				{
-//					cout << "Key: " << ((CCSBNode<T>*)leaf[ti]->getNode(i))->getElement(k)._key << " ";
-//					cout << "Block offset: " << ((CCSBNode<T>*)leaf[ti]->getNode(i))->getElement(k)._block_off << " ";
-//					cout << "Tuple offset: " << ((CCSBNode<T>*)leaf[ti]->getNode(i))->getElement(k)._tuple_off << endl;
-//				}
-//				cout << endl;
-//			}
-//		}
-//		cout << "Upper layer index keys: \n";
-//		for (int i = 0; i < internal_key_array_num; i++)
-//			cout << internal_key_array[i] << " ";
-//		cout << endl;
-////For tesing end
-
-
 		//used the internal_key_array to build the internal indexing node;
 		//the indexing array is in internal_key_array, internal_key_array_num stands for the number of keys in it
 		//set the p_father and p_child_node_group between index nodes
@@ -812,25 +743,11 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 				internal->getNode(0)->setElement(i, internal_key_array[i]);
 			}
 			((CCSBNode<T>*)(internal->getNode(0)))->setUsedKeys(internal_key_array_num);
-			((CCSBNode<T>*)(internal->getNode(0)))->setFather(NULL);
 
 			//set the parent-child relationship between internal and leaf
 			((CCSBNode<T>*)(internal->getNode(0)))->setPointer((CCSBNodeGroup<T>*)(*leaf));
-			for (unsigned i = 0; i < leaf[0]->used_nodes; i++)
-				((CCSBNode<T>*)(leaf[0]->getNode(i)))->setFather(internal->getNode(0));
 
 			this->csb_root = internal->getNode(0);
-
-
-////For testing begin: print the root node
-//			cout << "\n\n---------------------Root Node (depth: " << this->csb_depth << ")---------------------\n";
-//			cout << "Root: " << "\t";
-//			cout << "used keys: " << internal->internal_nodes[0]->used_keys << endl;
-//			for (int k = 0; k < internal->internal_nodes[0]->used_keys; k++)
-//				cout << ((CCSBNode<T>*)(internal->getNode(0)))->getElement(k)._key << " ";
-//			cout << endl;
-////For testing end
-
 		}
 		else
 		{
@@ -841,32 +758,6 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 			//allocate the key_array for the upper internal_key_array
 			T* upper_internal_key_array = new T [leaf_node_group_num-1];
 			int upper_internal_key_array_num = makeInternalNodeGroup(internal_key_array, internal_key_array_num, internal, leaf_node_group_num, upper_internal_key_array, leaf);
-
-
-////For testing begin: print the internal level
-//			cout << "\n\n---------------------Internal Layer (depth: " << this->csb_depth << ")---------------------\n";
-//			for (int ti = 0; ti < internal_node_group_num; ti++)
-//			{
-//				cout << "NodeGroup: " << ti << "\t";
-//				cout << "Used nodes: " << internal[ti]->used_nodes << endl;
-//				for (int i = 0; i < internal[ti]->used_nodes; i++)
-//				{
-//					cout << "Node: " << i << "\t";
-//					cout << "Used keys: " << internal[ti]->internal_nodes[i]->used_keys << endl;
-//					for (int k = 0; k < internal[ti]->internal_nodes[i]->used_keys; k++)
-//					{
-//						cout << ((CCSBNode<T>*)(internal[ti]->getNode(i)))->getElement(k)._key << " ";
-//					}
-//					cout << endl;
-//				}
-//				cout << endl;
-//			}
-//			cout << "Upper layer index keys: \n";
-//			for (int i = 0; i < upper_internal_key_array_num; i++)
-//				cout << upper_internal_key_array[i] << " ";
-//			cout << endl;
-////For testing end
-
 
 			//loop construct the internal node groups until reach the root
 			while (upper_internal_key_array_num > max_keys)
@@ -886,36 +777,9 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 				upper_internal_key_array = new T [leaf_node_group_num-1];
 
 				upper_internal_key_array_num = makeInternalNodeGroup(internal_key_array, internal_key_array_num, internal, leaf_node_group_num, upper_internal_key_array, leaf);
-
-////For testing begin: print the internal level
-//				cout << "\n\n---------------------Internal Layer (depth: " << this->csb_depth << ")---------------------\n";
-//				for (int ti = 0; ti < internal_node_group_num; ti++)
-//				{
-//					cout << "NodeGroup: " << ti << "\t";
-//					cout << "Used nodes: " << internal[ti]->used_nodes << endl;
-//					for (int i = 0; i < internal[ti]->used_nodes; i++)
-//					{
-//						cout << "Node: " << i << "\t";
-//						cout << "Used keys: " << internal[ti]->internal_nodes[i]->used_keys << endl;
-//						for (int k = 0; k < internal[ti]->internal_nodes[i]->used_keys; k++)
-//						{
-//							cout << ((CCSBNode<T>*)(internal[ti]->getNode(i)))->getElement(k)._key << " ";
-//						}
-//						cout << endl;
-//					}
-//					cout << endl;
-//				}
-//				cout << "Upper layer index keys: \n";
-//				for (int i = 0; i < upper_internal_key_array_num; i++)
-//					cout << upper_internal_key_array[i] << " ";
-//				cout << endl;
-////For testing end
-
 			}
-			if (upper_internal_key_array_num <= max_keys)
+			if (upper_internal_key_array_num <= max_keys)	//建立根结点
 			{
-				//建立根结点
-
 				//释放已经建立索引的internalAray数据，将其上层索引in2Aray赋给该指针准备再次建立索引
 				delete[] internal_key_array;
 				internal_key_array = upper_internal_key_array;
@@ -932,23 +796,11 @@ void CSBPlusTree<T>::BulkLoad(data_offset<T>* aray, unsigned aray_num)
 					internal->internal_nodes[0]->setElement(i, internal_key_array[i]);
 				}
 				internal->internal_nodes[0]->used_keys = internal_key_array_num;
-				internal->internal_nodes[0]->p_father = NULL;
 
 				//设置与叶子层的父子关系
 				((CCSBNode<T>*)internal->getNode(0))->setPointer((CCSBNodeGroup<T>*)leaf[0]);
-				for (int i = 0; i < leaf[0]->used_nodes; i++)
-					((CCSBNode<T>*)(leaf[0]->getNode(i)))->setFather(internal->getNode(0));
 
 				this->csb_root = internal->internal_nodes[0];
-
-////For testing begin: print the root node
-//				cout << "\n\n---------------------Root Node (depth: " << this->csb_depth << ")---------------------\n";
-//				cout << "Root: " << "\t";
-//				cout << "used keys: " << internal->internal_nodes[0]->used_keys << endl;
-//				for (int k = 0; k < internal->internal_nodes[0]->used_keys; k++)
-//					cout << ((CCSBNode<T>*)(internal->getNode(0)))->getElement(k)._key << " ";
-//				cout << endl;
-////For testing end
 			}
 		}
 	}
@@ -1204,81 +1056,45 @@ int CSBPlusTree<T>::makeInternalNodeGroup(T* aray, int aray_num, CCSBNodeGroup<T
 		for (int j = 0; j < internal[counter]->getUsedNodes(); j++)
 		{
 			((CCSBNode<T>*)(internal[counter]->getNode(j)))->setPointer(leaf[leafi]);
-
-			for (int k = 0; k < leaf[leafi]->getUsedNodes(); k++)
-			{
-				((CCSBNode<T>*)(leaf[leafi]->getNode(k)))->setFather(internal[counter]->getNode(j));
-			}
 			leafi += 1;
 		}
-
 	}
 	return upper_key_array_off;
 }
 
 template <typename T>
 map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::Search(T key)
-//vector<search_result*> CSBPlusTree<T>::Search(T key)
 {
 	map<index_offset, vector<index_offset>* >* ret = new map<index_offset, vector<index_offset>* >;
-//	vector<search_result*> ret;
 	ret->clear();
 	int i = 0;
-/*for testing*/	char* sPath = (char*)malloc(1024);
-/*for testing*/	memset((void*)sPath, 0, 1024);
-
-//For testing begin
-	int offset = 0;
-	if (NULL != sPath)
-	{
-		(void)sprintf(sPath+offset, "The serach path is:");
-		offset+=19;
-	}
-//For testing end
 
 	CCSBNode<T>* search_node = csb_root;
+	CCSBNode<T>* p_search_node = NULL;
 
 	//find the leaf node
 	for (unsigned depth = 1; depth < this->csb_depth; depth++)
 	{
 		//find the first search_node.key >= key
 		for (i = 0; (key > search_node->getElement(i)._key)&&(i < search_node->used_keys); i++);
-
-//For testing begin
-		if (NULL != sPath)
-		{
-			(void)sprintf(sPath+offset, " %3d -->", search_node->getElement(0)._key);
-			offset+=8;
-		}
-//For testing end
-
+		p_search_node = search_node;
 		search_node = (search_node->getPointer())->getNode(i);
 	}
 	//not found
 	if (NULL == search_node)
 		return ret;
 
-//For testing begin
-	if (NULL != sPath)
-	{
-		(void)sprintf(sPath+offset, "%3d", search_node->getElement(0)._key);
-		offset+=3;
-	}
-//For testing end
-
 	//finding the first data in leaf_node whose key = search key
-/*for testing*/	bool found = false;
 	for (i = 0; (i < search_node->used_keys); i++)
 	{
 		if (key == search_node->getElement(i)._key)
 		{
-/*for testing*/			found = true;
 			break;
 		}
 	}
 
 	//collect all tuples whose key equals to search key
-	if (search_node->getFather() == NULL)
+	if (p_search_node == NULL)
 	{
 		for (; i < search_node->getUsedKeys(); i++)
 		{
@@ -1294,7 +1110,7 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::Search(T key)
 		}
 		return ret;
 	}
-	CCSBNodeGroup<T>* search_node_group = search_node->getFather()->getPointer();
+	CCSBNodeGroup<T>* search_node_group = p_search_node->getPointer();
 	unsigned j = 0;
 	for (j = 0; j < search_node_group->getUsedNodes(); j++)
 	{
@@ -1323,85 +1139,44 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::Search(T key)
 		j = 0;
 		search_node_group = search_node_group->getTailerNG();
 	}
-
-//For testing begin
-	if (NULL != sPath)
-	{
-		if (true == found)
-
-			(void)sprintf(sPath+offset, " ,succeeded.");
-		else
-			(void)sprintf(sPath+offset, " ,failed.");
-	}
-//For testing end
-
 	return ret;
 }
 
 template <typename T>
 map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_key, T upper_key)
 {
-/*for testing*/	unsigned long count = 0;
 	map<index_offset, vector<index_offset>* >* ret = new map<index_offset, vector<index_offset>* >;
 	ret->clear();
 	if (lower_key > upper_key)
 		return ret;
 	int i = 0;
-/*for testing*/	char* sPath = (char*)malloc(1024);
-/*for testing*/	memset((void*)sPath, 0, 1024);
-
-//For testing begin
-	int offset = 0;
-	if (NULL != sPath)
-	{
-		(void)sprintf(sPath+offset, "The serach path is:");
-		offset+=19;
-	}
-//For testing end
 
 	CCSBNode<T>* search_node = csb_root;
+	CCSBNode<T>* p_search_node = NULL;
 
 	//find the leaf node
 	for (unsigned depth = 1; depth < this->csb_depth; depth++)
 	{
 		//find the first search_node.key >= lower_key
 		for (i = 0; (lower_key > search_node->getElement(i)._key)&&(i < search_node->used_keys); i++);
-
-//For testing begin
-		if (NULL != sPath)
-		{
-			(void)sprintf(sPath+offset, " %3d -->", search_node->getElement(0)._key);
-			offset+=8;
-		}
-//For testing end
-
+		p_search_node = search_node;
 		search_node = (search_node->getPointer())->getNode(i);
 	}
 	//not found
 	if (NULL == search_node)
 		return ret;
 
-//For testing begin
-	if (NULL != sPath)
-	{
-		(void)sprintf(sPath+offset, "%3d", search_node->getElement(0)._key);
-		offset+=3;
-	}
-//For testing end
-
 	//finding the first data in leaf_node whose key >= lower_key
-/*for testing*/	bool found = false;
 	for (i = 0; (i < search_node->used_keys); i++)
 	{
 		if (lower_key <= search_node->getElement(i)._key)
 		{
-/*for testing*/			found = true;
 			break;
 		}
 	}
 
 	//collect all tuples whose key is between lower_key and upper_key
-	if (search_node->getFather() == NULL)
+	if (p_search_node == NULL)
 	{
 		for (; i < search_node->getUsedKeys(); i++)
 		{
@@ -1417,7 +1192,7 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 		}
 		return ret;
 	}
-	CCSBNodeGroup<T>* search_node_group = search_node->getFather()->getPointer();
+	CCSBNodeGroup<T>* search_node_group = p_search_node->getPointer();
 	unsigned j = 0;
 	for (j = 0; j < search_node_group->getUsedNodes(); j++)
 	{
@@ -1436,11 +1211,9 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 					if (ret->find(tmp) == ret->end())
 						(*ret)[tmp] = new vector<index_offset>;
 					(*ret)[tmp]->push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
-/*for testing*/					count++;
 				}
 				else
 				{
-/*for testing*/					cout << "Total count: " << count << endl;
 					return ret;
 				}
 			}
@@ -1450,17 +1223,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 		j = 0;
 		search_node_group = search_node_group->getTailerNG();
 	}
-
-//For testing begin
-	if (NULL != sPath)
-	{
-		if (true == found)
-
-			(void)sprintf(sPath+offset, " ,succeeded.");
-		else
-			(void)sprintf(sPath+offset, " ,failed.");
-	}
-//For testing end
 	return ret;
 }
 
@@ -1485,19 +1247,9 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 	if (lower_key > upper_key)
 		return ret;
 	int i = 0;
-/*for testing*/	char* sPath = (char*)malloc(1024);
-/*for testing*/	memset((void*)sPath, 0, 1024);
-
-//For testing begin
-	int offset = 0;
-	if (NULL != sPath)
-	{
-		(void)sprintf(sPath+offset, "The serach path is:");
-		offset+=19;
-	}
-//For testing end
 
 	CCSBNode<T>* search_node = csb_root;
+	CCSBNode<T>* p_search_node = NULL;
 
 	//find the leaf node
 	for (unsigned depth = 1; depth < this->csb_depth; depth++)
@@ -1508,37 +1260,20 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 		else if (comp_lower == G)
 			for (i = 0; (lower_key >= search_node->getElement(i)._key)&&(i < search_node->used_keys); i++);
 
-//For testing begin
-		if (NULL != sPath)
-		{
-			(void)sprintf(sPath+offset, " %3d -->", search_node->getElement(0)._key);
-			offset+=8;
-		}
-//For testing end
-
+		p_search_node = search_node;
 		search_node = (search_node->getPointer())->getNode(i);
 	}
 	//not found
 	if (NULL == search_node)
 		return ret;
 
-//For testing begin
-	if (NULL != sPath)
-	{
-		(void)sprintf(sPath+offset, "%3d", search_node->getElement(0)._key);
-		offset+=3;
-	}
-//For testing end
-
 	//finding the first data in leaf_node whose key >= lower_key
-/*for testing*/	bool found = false;
 	for (i = 0; (i < search_node->used_keys); i++)
 	{
 		if (comp_lower == GEQ)
 		{
 			if (lower_key <= search_node->getElement(i)._key)
 			{
-/*for testing*/				found = true;
 				break;
 			}
 		}
@@ -1546,14 +1281,13 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 		{
 			if (lower_key < search_node->getElement(i)._key)
 			{
-/*for testing*/				found = true;
 				break;
 			}
 		}
 	}
 
 	//collect all tuples whose key is between lower_key and upper_key
-	if (search_node->getFather() == NULL)
+	if (p_search_node == NULL)
 	{
 		if (comp_lower == GEQ && comp_upper == LEQ)
 		{
@@ -1566,7 +1300,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 						(*ret)[tmp] = new vector<index_offset>;
 					(*ret)[tmp]->push_back(search_node->getElement(i)._tuple_off);
 				}
-//					ret[search_node->getElement(i)._block_off].push_back(search_node->getElement(i)._tuple_off);
 				else
 					return ret;
 			}
@@ -1582,7 +1315,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 						(*ret)[tmp] = new vector<index_offset>;
 					(*ret)[tmp]->push_back(search_node->getElement(i)._tuple_off);
 				}
-//					ret[search_node->getElement(i)._block_off].push_back(search_node->getElement(i)._tuple_off);
 				else
 					return ret;
 			}
@@ -1598,7 +1330,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 						(*ret)[tmp] = new vector<index_offset>;
 					(*ret)[tmp]->push_back(search_node->getElement(i)._tuple_off);
 				}
-//					ret[search_node->getElement(i)._block_off].push_back(search_node->getElement(i)._tuple_off);
 				else
 					return ret;
 			}
@@ -1614,13 +1345,13 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 						(*ret)[tmp] = new vector<index_offset>;
 					(*ret)[tmp]->push_back(search_node->getElement(i)._tuple_off);
 				}
-//					ret[search_node->getElement(i)._block_off].push_back(search_node->getElement(i)._tuple_off);
 				else
 					return ret;
 			}
 		}
+		return ret;
 	}
-	CCSBNodeGroup<T>* search_node_group = search_node->getFather()->getPointer();
+	CCSBNodeGroup<T>* search_node_group = p_search_node->getPointer();
 	unsigned j = 0;
 	for (j = 0; j < search_node_group->getUsedNodes(); j++)
 	{
@@ -1642,7 +1373,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 							(*ret)[tmp] = new vector<index_offset>;
 						(*ret)[tmp]->push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					}
-//						ret[search_node_group->getNode(j)->getElement(i)._block_off].push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					else
 						return ret;
 				}
@@ -1665,7 +1395,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 							(*ret)[tmp] = new vector<index_offset>;
 						(*ret)[tmp]->push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					}
-//						ret[search_node_group->getNode(j)->getElement(i)._block_off].push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					else
 						return ret;
 				}
@@ -1688,7 +1417,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 							(*ret)[tmp] = new vector<index_offset>;
 						(*ret)[tmp]->push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					}
-//						ret[search_node_group->getNode(j)->getElement(i)._block_off].push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					else
 						return ret;
 				}
@@ -1711,7 +1439,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 							(*ret)[tmp] = new vector<index_offset>;
 						(*ret)[tmp]->push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					}
-//						ret[search_node_group->getNode(j)->getElement(i)._block_off].push_back(search_node_group->getNode(j)->getElement(i)._tuple_off);
 					else
 						return ret;
 				}
@@ -1722,18 +1449,6 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 			search_node_group = search_node_group->getTailerNG();
 		}
 	}
-
-//For testing begin
-	if (NULL != sPath)
-	{
-		if (true == found)
-
-			(void)sprintf(sPath+offset, " ,succeeded.");
-		else
-			(void)sprintf(sPath+offset, " ,failed.");
-	}
-//For testing end
-
 	return ret;
 }
 
@@ -2104,8 +1819,6 @@ bool CSBPlusTree<T>::deserialize(FILE* filename)
 
 				//set the parent-children relationship
 				upper_level.back()->getNode(i)->setPointer(node_group);
-				for (unsigned j = 0; j < node_group->getUsedNodes(); j++)
-					node_group->getNode(j)->setFather(upper_level.back()->getNode(i));
 			}
 			upper_level.pop_back();
 		}
