@@ -59,7 +59,7 @@ private:
 
 private:
 //	vector<attr_index_list> csb_index_;
-	map<unsigned long, attr_index_list*> csb_index_;
+	map<unsigned long, attr_index_list*> csb_plus_index_;
 
 	unsigned long attr_index_id_;
 	map<Attribute, unsigned long > column_attribute_to_id;

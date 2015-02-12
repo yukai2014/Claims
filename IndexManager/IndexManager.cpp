@@ -20,7 +20,7 @@ IndexManager* IndexManager::instance_ = 0;
 
 IndexManager::IndexManager() {
 	// TODO Auto-generated constructor stub
-	csb_index_.clear();
+	csb_plus_index_.clear();
 	attr_index_id_ = 0;
 	column_attribute_to_id.clear();
 	id_to_column_attribute.clear();
@@ -43,19 +43,19 @@ bool IndexManager::addIndexToList(unsigned key_indexing, map<ChunkID, void* > at
 	TableID table_id = iter_insert->first.partition_id.projection_id.table_id;
 	Attribute attribute = ((Catalog::getInstance()->getProjection(iter_insert->first.partition_id.projection_id))->getAttributeList())[key_indexing];
 
-	map<unsigned long, attr_index_list*>::iterator iter = csb_index_.begin();
-	for (; iter != csb_index_.end(); iter++)
+	map<unsigned long, attr_index_list*>::iterator iter = csb_plus_index_.begin();
+	for (; iter != csb_plus_index_.end(); iter++)
 	{
 		if (iter->second->attribute == attribute)
 			break;
 	}
 
-	if (iter == csb_index_.end())
+	if (iter == csb_plus_index_.end())
 	{	//When arrivals here, it means that the column has never be indexed, the function called should be insertIndexToList
 		attr_index_list* new_attr_index = new attr_index_list(attribute);
 		for (; iter_insert != attr_index.end(); iter_insert++)
 			new_attr_index->csb_plus_tree_list[iter_insert->first] = iter_insert->second;
-		csb_index_[attr_index_id_] = new_attr_index;
+		csb_plus_index_[attr_index_id_] = new_attr_index;
 
 		column_attribute_to_id[attribute] = attr_index_id_;
 		id_to_column_attribute[attr_index_id_] = attribute;
@@ -85,7 +85,7 @@ bool IndexManager::insertIndexToList(std::string index_name, unsigned key_indexi
 	Attribute attribute = ((Catalog::getInstance()->getProjection(iter_insert->first.partition_id.projection_id))->getAttributeList())[key_indexing];
 
 	//To make sure that the column hasn't be indexed by CSB+ tree
-	for (map<unsigned long, attr_index_list*>::iterator iter = csb_index_.begin(); iter != csb_index_.end(); iter++)
+	for (map<unsigned long, attr_index_list*>::iterator iter = csb_plus_index_.begin(); iter != csb_plus_index_.end(); iter++)
 	{
 		if (iter->second->attribute == attribute)
 		{
@@ -99,7 +99,7 @@ bool IndexManager::insertIndexToList(std::string index_name, unsigned key_indexi
 	attr_index_list* new_attr_index = new attr_index_list(attribute, index_name);
 	for (; iter_insert != attr_index.end(); iter_insert++)
 		new_attr_index->csb_plus_tree_list[iter_insert->first] = iter_insert->second;
-	csb_index_[attr_index_id_] = new_attr_index;
+	csb_plus_index_[attr_index_id_] = new_attr_index;
 
 	column_attribute_to_id[attribute] = attr_index_id_;
 	id_to_column_attribute[attr_index_id_] = attribute;
@@ -119,7 +119,7 @@ std::map<ChunkID, CSBPlusTree<T>* > IndexManager::getIndexList(Attribute attribu
 	else
 	{
 		unsigned long index_id = iter->second;
-		map<unsigned long, attr_index_list*>::iterator iter_index = csb_index_.find(index_id);
+		map<unsigned long, attr_index_list*>::iterator iter_index = csb_plus_index_.find(index_id);
 		for (map<ChunkID, void*>::iterator iter_ = iter_index->second->csb_plus_tree_list.begin(); iter_ != iter_index->second->csb_plus_tree_list.end(); iter_++)
 			ret[iter_->first] = (CSBPlusTree<T>*)(iter_->second);
 	}
@@ -131,11 +131,11 @@ std::map<ChunkID, CSBPlusTree<T>* > IndexManager::getIndexList(unsigned long att
 {
 	map<ChunkID, CSBPlusTree<T>* > ret;
 	ret.clear();
-	if (csb_index_.find(attr_index_id) == csb_index_.end())
+	if (csb_plus_index_.find(attr_index_id) == csb_plus_index_.end())
 		cout << "[WARNING: IndexManager.cpp->getIndexList()]: The index id " << attr_index_id << "hasn't be used to mapping a CSB+ column index!\n";
 	else
 	{
-		map<unsigned long, attr_index_list*>::iterator iter = csb_index_.find(attr_index_id);
+		map<unsigned long, attr_index_list*>::iterator iter = csb_plus_index_.find(attr_index_id);
 		for (map<ChunkID, void*>::iterator iter_ = iter->second->csb_plus_tree_list.begin(); iter_ != iter->second->csb_plus_tree_list.end(); iter_++)
 			ret[iter_->first] = (CSBPlusTree<T>*)(iter_->second);
 	}
@@ -146,11 +146,11 @@ std::map<ChunkID, void* > IndexManager::getAttrIndex(unsigned long attr_index_id
 {
 	map<ChunkID, void* > ret;
 	ret.clear();
-	if (csb_index_.find(attr_index_id) == csb_index_.end())
+	if (csb_plus_index_.find(attr_index_id) == csb_plus_index_.end())
 		cout << "[WARNING: IndexManager.cpp->getIndexList()]: The index id " << attr_index_id << "hasn't be used to mapping a CSB+ column index!\n";
 	else
 	{
-		map<unsigned long, attr_index_list*>::iterator iter = csb_index_.find(attr_index_id);
+		map<unsigned long, attr_index_list*>::iterator iter = csb_plus_index_.find(attr_index_id);
 		for (map<ChunkID, void*>::iterator iter_ = iter->second->csb_plus_tree_list.begin(); iter_ != iter->second->csb_plus_tree_list.end(); iter_++)
 			ret[iter_->first] = (iter_->second);
 	}
@@ -160,14 +160,14 @@ std::map<ChunkID, void* > IndexManager::getAttrIndex(unsigned long attr_index_id
 template <typename T>
 bool IndexManager::deleteIndexFromList(unsigned long index_id)
 {
-	if (csb_index_.find(index_id) == csb_index_.end())
+	if (csb_plus_index_.find(index_id) == csb_plus_index_.end())
 		return true;
 	else
 	{
-		attr_index_list* index_ = csb_index_.find(index_id)->second;
+		attr_index_list* index_ = csb_plus_index_.find(index_id)->second;
 		for (map<ChunkID, void*>::iterator iter = index_->csb_plus_tree_list.begin(); iter != index_->csb_plus_tree_list.end(); iter++)
 			((CSBPlusTree<T>*)(iter->second))->~CSBPlusTree();
-		csb_index_.erase(index_id);
+		csb_plus_index_.erase(index_id);
 		column_attribute_to_id.erase(id_to_column_attribute.find(index_id)->second);
 		id_to_column_attribute.erase(index_id);
 	}
@@ -192,7 +192,7 @@ bool IndexManager::isIndexExist(Attribute attr)
 
 bool IndexManager::isIndexExist(unsigned long index_id)
 {
-	if (csb_index_.find(index_id) != csb_index_.end())
+	if (csb_plus_index_.find(index_id) != csb_plus_index_.end())
 		return true;
 	return false;
 }
@@ -233,15 +233,15 @@ bool IndexManager::serialize(std::string file_name)
 	 * 	       map.second: void*		(CSBPlusTree<T>*)
 	 */
 	attr_index_list* new_attr_index = new attr_index_list();
-	unsigned long tmp = csb_index_.size();
+	unsigned long tmp = csb_plus_index_.size();
 	fwrite((void*)(&tmp), sizeof(unsigned long), 1, filename);
 	for (unsigned long i = 0; i < attr_index_id_; i++)
 	{
-		if (csb_index_.find(i) != csb_index_.end())
+		if (csb_plus_index_.find(i) != csb_plus_index_.end())
 		{
 			fwrite((void*)(&i), sizeof(unsigned long), 1, filename);
 
-			new_attr_index = csb_index_.find(i)->second;
+			new_attr_index = csb_plus_index_.find(i)->second;
 
 			tmp = new_attr_index->attr_index_name.length();
 			fwrite((void*)(&tmp), sizeof(unsigned long), 1, filename);
@@ -333,7 +333,7 @@ bool IndexManager::deserialize(std::string file_name)
 			index_num--;
 		}
 
-		csb_index_[index_id] = index;
+		csb_plus_index_[index_id] = index;
 		column_attribute_to_id[index->attribute] = index_id;
 		id_to_column_attribute[index_id] = index->attribute;
 		attr_index_id_ = index_id+1;
