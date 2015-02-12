@@ -10,6 +10,8 @@
 #include <map>
 #include <vector>
 #include "CSBPlusTree.h"
+#include "CSBTree.h"
+#include "EnhancedCSBTree.h"
 #include "../Catalog/Attribute.h"
 #include "../common/ids.h"
 #include "../common/data_type.h"
@@ -17,11 +19,11 @@
 struct attr_index_list
 {
 	attr_index_list() {};
-	attr_index_list(Attribute attr) :attribute(attr), attr_index_name("\0") { csb_tree_list.clear(); }
-	attr_index_list(Attribute attr, std::string index_name) :attribute(attr), attr_index_name(index_name) { csb_tree_list.clear(); }
+	attr_index_list(Attribute attr) :attribute(attr), attr_index_name("\0") { csb_plus_tree_list.clear(); }
+	attr_index_list(Attribute attr, std::string index_name) :attribute(attr), attr_index_name(index_name) { csb_plus_tree_list.clear(); }
 	Attribute attribute;
 	std::string attr_index_name;
-	std::map<ChunkID, void* > csb_tree_list;
+	std::map<ChunkID, void* > csb_plus_tree_list;
 };
 
 class IndexManager {

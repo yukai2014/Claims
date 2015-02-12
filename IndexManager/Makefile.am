@@ -25,13 +25,13 @@ LDADD =	../BlockStreamIterator/libblockstreamiterator.a \
 noinst_LIBRARIES=libindexmanager.a
 libindexmanager_a_SOURCES = \
 	indexStructures.h 			indexStructures.cpp \
-	CSBPlusTree.cpp 			CSBPlusTree.h \
 	CSBIndexBuilding.cpp 		CSBIndexBuilding.h \
 	IndexScanIterator.cpp 		IndexScanIterator.h \
 	IndexManager.cpp 			IndexManager.h \
 	LogicalCSBIndexBuilding.cpp 	LogicalCSBIndexBuilding.h \
 	LogicalIndexFilter.cpp 		LogicalIndexFilter.h \
 	LogicalIndexScan.cpp 		LogicalIndexScan.h \
+	CSBPlusTree.cpp 			CSBPlusTree.h \
 	CSBTree.h					CSBTree.cpp \
 	EnhancedCSBTree.h 			EnhancedCSBTree.cpp
 SUBDIRS = Test
