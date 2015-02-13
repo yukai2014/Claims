@@ -48,6 +48,15 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
 	ResourceManagerMaster *rmms=Environment::getInstance()->getResourceManagerMaster();
 	Catalog* catalog=Environment::getInstance()->getCatalog();
 	string tablename;
+
+/****************************************************************************************
+ * added by scdong for experiment
+ ****************************************************************************************/
+	cout << "the sql is: " << sql << endl;
+
+
+
+
 	Node* oldnode=getparsetreeroot(sql.c_str());
 	if(oldnode == NULL)
 	{

@@ -210,7 +210,7 @@ bool HdfsLoader::insertRecords(){
 			tSize num_written_every64k_bytes = connector_->flush(i, part, sblock->getBlock(), sblock->getsize());
 #endif
 
-			cout << row_id << "\t64KB has been written to HDFS!\n";
+//			cout << row_id << "\t64KB has been written to HDFS!\n";
 
 			blocks_per_partition[i][part]++;
 			pj_buffer[i][part]->setEmpty();
@@ -254,7 +254,7 @@ bool HdfsLoader::load(){
 		cout << "\n\n\n--------------------------Append Begin!--------------------------\n";
 
 	vector<string>::iterator iter;
-/*for testing*/	int t_count = 1;
+///*for testing*/	int t_count = 1;
 	for (iter = file_list.begin(); iter != file_list.end(); iter++)
 	{
 		ifstream InFile((*iter).c_str());
@@ -267,13 +267,15 @@ bool HdfsLoader::load(){
 			s_record.clear();
 			getline(InFile,s_record,row_separator);
 
-/*for testing*/ if(row_id/t_count > 100000)
-/*for testing*/		break;
+		if (row_id != 0 && row_id % 100000 == 0)
+			cout << row_id << "\trecords have been imported into the system!\n";
+///*for testing*/ if(row_id/t_count > 100000)
+///*for testing*/		break;
 
 			insertRecords();
 		}
 		InFile.close();
-/*for testing*/	t_count++;
+///*for testing*/	t_count++;
 	}
 
 	cout << "----------------------------"<<endl;
@@ -291,15 +293,13 @@ bool HdfsLoader::load(){
 				tSize num_written_every64k_bytes = connector_->flush(i, j, sblock->getBlock(), sblock->getsize());
 				//hdfsWrite(connector_->get_fs(), connector_->get_writefile()[i][j], (void*)sblock->getBlock(), sblock->getsize());
 #endif
-				cout << row_id << "\tThe last block has written to HDFS!\n";
-
 				blocks_per_partition[i][j]++;
 				pj_buffer[i][j]->setEmpty();
 			}
 		}
 
 	}
-
+	cout << row_id << "\tAll records have been imported!\n";
 ///*for testing begin*/
 //	for(int i = 0; i < table_descriptor_->getNumberOfProjection(); i++)
 //	{
