@@ -20,12 +20,12 @@ LDADD =  \
 	Daemon/Test/libtest.a \
 	Executor/libexecutor.a \
 	Executor/Test/libtest.a \
-	IndexManager/libindexmanager.a \
 	IndexManager/Test/libtest.a \
 	Parsetree/libparsetree.a \
 	Parsetree/Test/libtest.a \
 	LogicalQueryPlan/Test/libtest.a \
 	LogicalQueryPlan/liblogicalqueryplan.a \
+	IndexManager/libindexmanager.a \
 	storage/libstorage.a \
 	BlockStreamIterator/ParallelBlockStreamIterator/Test/libtest.a \
 	BlockStreamIterator/ParallelBlockStreamIterator/libparallelblockstreamiterator.a \

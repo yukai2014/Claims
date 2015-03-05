@@ -17,9 +17,11 @@
 #include "../storage/PartitionStorage.h"
 #include "../storage/ChunkStorage.h"
 #include "CSBPlusTree.h"
+#include "CSBTree.h"
+#include "EnhancedCSBTree.h"
 
-template<typename T>
-CSBPlusTree<T>* indexBuilding(Schema* schema, vector<void*> chunk_tuples);
+//template<typename T>
+//CSBPlusTree<T>* indexBuilding(Schema* schema, vector<void*> chunk_tuples);
 
 class bottomLayerCollecting :public ExpandableBlockStreamIteratorBase {
 public:
@@ -101,7 +103,7 @@ public:
 		friend class bottomLayerSorting;
 	public:
 		State() {}
-		State(Schema* schema, BlockStreamIteratorBase* child, const unsigned block_size, ProjectionID projection_id, unsigned key_indexing, std::string index_name);
+		State(Schema* schema, BlockStreamIteratorBase* child, const unsigned block_size, ProjectionID projection_id, unsigned key_indexing, std::string index_name, index_type _index_type = CSBPLUS);
 	public:
 		Schema* schema_;
 		BlockStreamIteratorBase* child_;
@@ -111,11 +113,12 @@ public:
 		ProjectionID projection_id_;
 		unsigned key_indexing_;
 		std::string index_name_;
+		index_type index_type_;
 	private:
 		friend class boost::serialization::access;
 		template<class Archive>
 		void serialize(Archive & ar, const unsigned version) {
-			ar & schema_ & child_ & block_size_ & projection_id_ & key_indexing_ & index_name_;
+			ar & schema_ & child_ & block_size_ & projection_id_ & key_indexing_ & index_name_ & index_type_;
 		}
 	};
 
@@ -138,7 +141,7 @@ private:
 	static bool compare(const compare_node* a, const compare_node* b);
 
 	template<typename T>
-	CSBPlusTree<T>* indexBuilding(vector<compare_node*> chunk_tuples);
+	void* indexBuilding(vector<compare_node*> chunk_tuples);
 
 	void computeVectorSchema();
 
@@ -156,5 +159,71 @@ private:
 		ar & boost::serialization::base_object<ExpandableBlockStreamIteratorBase>(*this) & state_;
 	}
 };
+
+template<typename T>
+void* bottomLayerSorting::indexBuilding(vector<compare_node*> chunk_tuples)
+{
+	switch (state_.index_type_)
+	{
+	case CSBPLUS:
+	{
+		data_offset<T>* aray = new data_offset<T> [chunk_tuples.size()];
+///*for testing*/	cout << "chunk data size: " << chunk_tuples.size() << endl << endl;
+		for (unsigned i = 0; i < chunk_tuples.size(); i++)
+		{
+			aray[i]._key = *(T*)(vector_schema_->getColumnAddess(0, chunk_tuples[i]->tuple_));
+			aray[i]._block_off = *(unsigned short*)(vector_schema_->getColumnAddess(1, chunk_tuples[i]->tuple_));
+			aray[i]._tuple_off = *(unsigned short*)(vector_schema_->getColumnAddess(2, chunk_tuples[i]->tuple_));
+///*for testing*/		cout << aray[i]._key << "\t" << aray[i]._block_off << "\t" << aray[i]._tuple_off << endl;
+		}
+		CSBPlusTree<T>* csb_plus_tree = new CSBPlusTree<T>();
+		csb_plus_tree->BulkLoad(aray, chunk_tuples.size());
+		cout << "*************************CSB indexing build successfully!*************************\n";
+		return csb_plus_tree;
+	}
+	case CSB:
+	{
+		if (vector_schema_->getcolumn(0).type != t_u_long)
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": " << "The column type which will be build CSB-Tree index is not unsigned long!" << endl;
+			return NULL;
+		}
+		data_original* aray = new data_original [chunk_tuples.size()];
+		for (unsigned i = 0; i < chunk_tuples.size(); i++)
+		{
+			aray[i]._key = *(unsigned long*)(vector_schema_->getColumnAddess(0, chunk_tuples[i]->tuple_));
+			aray[i]._block_off = *(unsigned short*)(vector_schema_->getColumnAddess(1, chunk_tuples[i]->tuple_));
+			aray[i]._tuple_off = *(unsigned short*)(vector_schema_->getColumnAddess(2, chunk_tuples[i]->tuple_));
+		}
+		CSBTree* csb_tree = new CSBTree();
+		csb_tree->BulkLoad(aray, chunk_tuples.size());
+		return csb_tree;
+	}
+	case ECSB:
+	{
+		if (vector_schema_->getcolumn(0).type != t_u_long)
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": " << "The column type which will be build Enhanced-CSB-Tree index is not unsigned long!" << endl;
+			return NULL;
+		}
+		data_original* aray = new data_original [chunk_tuples.size()];
+		for (unsigned i = 0; i < chunk_tuples.size(); i++)
+		{
+			aray[i]._key = *(unsigned long*)(vector_schema_->getColumnAddess(0, chunk_tuples[i]->tuple_));
+			aray[i]._block_off = *(unsigned short*)(vector_schema_->getColumnAddess(1, chunk_tuples[i]->tuple_));
+			aray[i]._tuple_off = *(unsigned short*)(vector_schema_->getColumnAddess(2, chunk_tuples[i]->tuple_));
+		}
+		EnhancedCSBTree* e_csb_tree = new EnhancedCSBTree();
+		e_csb_tree->BulkLoad(aray, chunk_tuples.size());
+		return e_csb_tree;
+	}
+	default:
+	{
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The index_type is illegal!\n";
+		return NULL;
+	}
+	}
+
+}
 
 #endif /* CSBINDEXBUILDING_H_ */

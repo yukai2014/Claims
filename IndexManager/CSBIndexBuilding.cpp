@@ -236,8 +236,8 @@ bottomLayerSorting::~bottomLayerSorting()
 
 }
 
-bottomLayerSorting::State::State(Schema* schema, BlockStreamIteratorBase* child, unsigned block_size, ProjectionID projection_id, unsigned key_indexing, std::string index_name)
-: schema_(schema), child_(child), block_size_(block_size), projection_id_(projection_id), key_indexing_(key_indexing), index_name_(index_name) {
+bottomLayerSorting::State::State(Schema* schema, BlockStreamIteratorBase* child, unsigned block_size, ProjectionID projection_id, unsigned key_indexing, std::string index_name, index_type _index_type)
+: schema_(schema), child_(child), block_size_(block_size), projection_id_(projection_id), key_indexing_(key_indexing), index_name_(index_name), index_type_(_index_type) {
 
 }
 bool bottomLayerSorting::open(const PartitionOffset& partition_offset)
@@ -336,28 +336,36 @@ bool bottomLayerSorting::open(const PartitionOffset& partition_offset)
 
 bool bottomLayerSorting::next(BlockStreamBase* block)
 {
+	map<ChunkID, void* > csb_index_list;
+	csb_index_list.clear();
 	switch (vector_schema_->getcolumn(0).type)
 	{
 	case t_int:
 	{
-		map<ChunkID, void* > csb_index_list;
-		csb_index_list.clear();
 		for (std::map<ChunkOffset, vector<compare_node*> >::iterator iter = tuples_in_chunk_.begin(); iter != tuples_in_chunk_.end(); iter++)
 		{
 			ChunkID* chunk_id = new ChunkID();
 			chunk_id->partition_id = partition_id_;
 			chunk_id->chunk_off = iter->first;
 			CSBPlusTree<int>* csb_tree = indexBuilding<int>(iter->second);
+			assert(csb_tree != NULL);
 			csb_index_list[*chunk_id] = csb_tree;
-
-//			char ch;
-//			cout << "Input any key to print the index(except 0 for not print): ";
-//			cin >> ch;
-//			if (ch != '0')
-//				csb_tree->printTree();
-
 		}
 //		IndexManager::getInstance()->addIndexToList(state_.key_indexing_, csb_index_list);
+		IndexManager::getInstance()->insertIndexToList(state_.index_name_, state_.key_indexing_, csb_index_list);
+		break;
+	}
+	case t_u_long:
+	{
+		for (std::map<ChunkOffset, vector<compare_node*> >::iterator iter = tuples_in_chunk_.begin(); iter != tuples_in_chunk_.end(); iter++)
+		{
+			ChunkID* chunk_id = new ChunkID();
+			chunk_id->partition_id = partition_id_;
+			chunk_id->chunk_off = iter->first;
+			void* csb_tree = indexBuilding<unsigned long>(iter->second);
+			assert (csb_tree != NULL);
+			csb_index_list[*chunk_id] = csb_tree;
+		}
 		IndexManager::getInstance()->insertIndexToList(state_.index_name_, state_.key_indexing_, csb_index_list);
 		break;
 	}
@@ -368,52 +376,6 @@ bool bottomLayerSorting::next(BlockStreamBase* block)
 	}
 	}
 	return false;
-
-
-/*	original code for testing the Logical CSB Index Building iterator
-	for (std::map<ChunkOffset, vector<compare_node*> >::iterator iter = tuples_in_chunk_.begin(); iter != tuples_in_chunk_.end(); iter++)
-	{
-		switch (vector_schema_->getcolumn(0).type)
-		{
-		case t_int:
-		{
-			CSBPlusTree<int>* csb_tree = indexBuilding<int>(iter->second);
-
-//for testing the search result
-			vector<search_result*> ret;
-			while (true)
-			{
-				ret.clear();
-				int sec_code = 0;
-				cout << "\nPlease input the sec_code for searching: ";
-				cin >> sec_code;
-				ret = csb_tree->Search(sec_code);
-				if (ret.size() == 0)
-				{
-					cout << "The result set is NULL!\n";
-					continue;
-				}
-				cout << "The result set size is: " << ret.size() << "\nHow many to print? ";
-				cin >> sec_code;
-				for (int i = 0; i < ret.size() && i < sec_code; i++)
-					cout << "<" << ret[i]->_block_off << ", " << ret[i]->_tuple_off << ">\t";
-				cout << endl;
-			}
-//for testing end
-
-			//register csb_tree into index_manager
-
-			break;
-		}
-		default:
-		{
-			cout << "[ERROR: (CSBIndexBuilding.cpp->bottomLayerSorting->next()]: The data type is not defined!\n";
-			break;
-		}
-		}
-	}
-	return false;
-*/
 }
 
 bool bottomLayerSorting::close()
@@ -430,24 +392,6 @@ bool bottomLayerSorting::compare(const compare_node* a, const compare_node* b)
 	const void* right = b->vector_schema_->getColumnAddess(0, b->tuple_);
 	return a->op_->less(left, right);
 
-}
-
-template<typename T>
-CSBPlusTree<T>* bottomLayerSorting::indexBuilding(vector<compare_node*> chunk_tuples)
-{
-	data_offset<T>* aray = new data_offset<T> [chunk_tuples.size()];
-///*for testing*/	cout << "chunk data size: " << chunk_tuples.size() << endl << endl;
-	for (unsigned i = 0; i < chunk_tuples.size(); i++)
-	{
-		aray[i]._key = *(T*)(vector_schema_->getColumnAddess(0, chunk_tuples[i]->tuple_));
-		aray[i]._block_off = *(unsigned short*)(vector_schema_->getColumnAddess(1, chunk_tuples[i]->tuple_));
-		aray[i]._tuple_off = *(unsigned short*)(vector_schema_->getColumnAddess(2, chunk_tuples[i]->tuple_));
-///*for testing*/		cout << aray[i]._key << "\t" << aray[i]._block_off << "\t" << aray[i]._tuple_off << endl;
-	}
-	CSBPlusTree<int>* csb_tree = new CSBPlusTree<int>();
-	csb_tree->BulkLoad(aray, chunk_tuples.size());
-	cout << "*************************CSB indexing build successfully!*************************\n";
-	return csb_tree;
 }
 
 void bottomLayerSorting::computeVectorSchema(){

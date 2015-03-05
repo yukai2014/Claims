@@ -11,6 +11,7 @@ AM_LDFLAGS=-lc -lm -lrt -lboost_system -lboost_serialization -ll -ly -lstdc++ -l
 LDADD = ../Catalog/libcatalog.a \
 		../Catalog/stat/libstat.a \
 		../LogicalQueryPlan/liblogicalqueryplan.a \
+		../IndexManager/libindexmanager.a \
 		../Loader/libloader.a \
 		../BlockStreamIterator/ParallelBlockStreamIterator/libparallelblockstreamiterator.a \
 		../common/libcommon.a \

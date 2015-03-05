@@ -21,6 +21,8 @@ typedef unsigned short index_offset;
 
 enum comparison {EQ, L, LEQ, G, GEQ};
 
+enum index_type {CSBPLUS, CSB, ECSB};
+
 //original data structure for int
 struct data_original
 {

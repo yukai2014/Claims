@@ -34,6 +34,7 @@
 #include "../Loader/Hdfsloader.h"
 
 #include "../Client/ClaimsServer.h"
+#include "../IndexManager/LogicalCSBIndexBuilding.h"
 
 using namespace std;
 
@@ -54,7 +55,52 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
  ****************************************************************************************/
 	cout << "the sql is: " << sql << endl;
 
+    if (strcmp(sql.c_str(), "1 CSBPLUS;") == 0)
+    {
+            //CSB+ Tree Index Building!
+            cout << "build csb+ index\n";
+            TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable("trade_less");
+            LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(0), "index1");
+            LogicalOperator* root = new LogicalQueryPlanRoot(0,index_build,LogicalQueryPlanRoot::RESULTCOLLECTOR);
+            BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+            physical_iterator_tree->open();
+            while(physical_iterator_tree->next(0));
+            physical_iterator_tree->close();
+            result_set = physical_iterator_tree->getResultSet();
+            return;
+    }
+    else if (strcmp(sql.c_str(), "1 CSB;") == 0)
+    {
+            //CSB Tree Index Building!
+            cout << "build csb index\n";
+            TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable("trade_less");
+            LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(0), "index1");
 
+            return;
+    }
+    else if (strcmp(sql.c_str(), "1 ECSB;") == 0)
+    {
+            //Enhanced CSB Tree Index Building!
+            cout << "build e-csb index\n";
+            return;
+    }
+    else if (strcmp(sql.c_str(), "2 CSBPLUS;") == 0)
+    {
+            //CSB+ Tree Based Searching
+            return;
+    }
+    else if (strcmp(sql.c_str(), "2 CSB;") == 0)
+    {
+            //CSB Tree Based Searching
+            return;
+    }
+    else if (strcmp(sql.c_str(), "2 ECSB;") == 0)
+    {
+            //Enhanced CSB+ Tree Based Searching
+            return;
+    }
+
+/**************************** experiment ends ************************/
 
 
 	Node* oldnode=getparsetreeroot(sql.c_str());

@@ -16,8 +16,6 @@
 #include "../common/ids.h"
 #include "../common/data_type.h"
 
-enum index_type {CSBPLUS, CSB, ECSB};
-
 struct attr_index_list
 {
 	attr_index_list() {};
@@ -34,7 +32,7 @@ public:
 	virtual ~IndexManager();
 
 	bool addIndexToList(unsigned key_indexing, map<ChunkID, void* > attr_index);
-	bool insertIndexToList(std::string index_name, unsigned key_indexing, map<ChunkID, void* > attr_index);
+	bool insertIndexToList(std::string index_name, unsigned key_indexing, map<ChunkID, void* > attr_index, index_type index_type_ = CSBPLUS);
 
 	template <typename T>
 	std::map<ChunkID, CSBPlusTree<T>* > getIndexList(Attribute attribute);

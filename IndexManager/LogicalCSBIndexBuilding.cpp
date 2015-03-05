@@ -6,11 +6,9 @@
  */
 
 #include "LogicalCSBIndexBuilding.h"
-#include "../Catalog/Catalog.h"
-#include "CSBIndexBuilding.h"
 
-LogicalCSBIndexBuilding::LogicalCSBIndexBuilding(ProjectionID projection_id, Attribute index_attr, std::string index_name)
-: projection_id_(projection_id), index_attr_(index_attr), index_name_(index_name){
+LogicalCSBIndexBuilding::LogicalCSBIndexBuilding(ProjectionID projection_id, Attribute index_attr, std::string index_name, index_type _index_type)
+: projection_id_(projection_id), index_attr_(index_attr), index_name_(index_name), index_type_(_index_type){
 	scan_projection_ = Catalog::getInstance()->getTable(index_attr_.table_id_)->getProjectoin(projection_id_.projection_off);
 	assert(scan_projection_);
 }
@@ -62,6 +60,7 @@ BlockStreamIteratorBase* LogicalCSBIndexBuilding::getIteratorTree(const unsigned
 	bls_state.projection_id_ = projection_id_;
 	bls_state.key_indexing_ = blc_state.key_indexing_;
 	bls_state.index_name_ = index_name_;
+	bls_state.index_type_ = index_type_;
 
 	return new bottomLayerSorting(bls_state);
 
