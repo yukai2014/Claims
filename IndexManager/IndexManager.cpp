@@ -9,13 +9,6 @@
 #include "../Catalog/Catalog.h"
 #include <stdio.h>
 
-//void cheak_com_index()
-//{
-//	Attribute attr;
-//	IndexManager::getInstance()->getIndexList<int>(attr);
-//	IndexManager::getInstance()->getIndexList<int>(0);
-//}
-
 IndexManager* IndexManager::instance_ = 0;
 
 IndexManager::IndexManager() {
@@ -26,6 +19,10 @@ IndexManager::IndexManager() {
 	attr_index_id_ = 0;
 	column_attribute_to_id.clear();
 	id_to_column_attribute.clear();
+
+	csb_plus_tree_.clear();
+	csb_tree_.clear();
+	enhanced_csb_tree_.clear();
 }
 
 IndexManager::~IndexManager() {
@@ -309,4 +306,114 @@ bool IndexManager::deserialize(std::string file_name)
 	}
 	fclose(filename);
 	return true;
+}
+
+bool IndexManager::insertIndexToList(PartitionID partition_id, map<ChunkID, void* >* attr_index, index_type index_type_ = CSBPLUS)
+{
+	map<ChunkID, void* >::iterator iter_insert = attr_index->begin();
+//	TableID table_id = iter_insert->first.partition_id.projection_id.table_id;
+//	cout << "insert the new index into indexmanager\t Before get Attribute~~~~~~~~~\n";
+//	Attribute attribute = ((Catalog::getInstance()->getProjection(iter_insert->first.partition_id.projection_id))->getAttributeList())[key_indexing];
+//	cout << "insert the new index into indexmanager\t After get Attribute~~~~~~~~~\n";
+	switch (index_type_)
+	{
+	case CSBPLUS:
+	{
+		//To make sure that the column hasn't be indexed by CSB+ tree
+		if (csb_plus_tree_.find(partition_id) != csb_plus_tree_.end())
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The column is already indexed by CSB-PLUS-TREE!\n";
+			return false;
+		}
+		csb_plus_tree_[partition_id] = attr_index;
+		return true;
+	}
+	case CSB:
+	{
+		//To make sure that the column hasn't be indexed by CSB+ tree
+		if (csb_tree_.find(partition_id) != csb_tree_.end())
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The column is already indexed by CSB-TREE!\n";
+			return false;
+		}
+		csb_tree_[partition_id] = attr_index;
+		return true;
+	}
+	case ECSB:
+	{
+		//To make sure that the column hasn't be indexed by CSB+ tree
+		if (enhanced_csb_tree_.find(partition_id) != enhanced_csb_tree_.end())
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The column is already indexed by ENHANCED-CSB-TREE!\n";
+			return false;
+		}
+		enhanced_csb_tree_[partition_id] = attr_index;
+		return true;
+	}
+	default:
+	{
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The index type is illegal!\n";
+		break;
+	}
+	}
+}
+
+std::map<ChunkID, void* > IndexManager::getAttrIndex(PartitionID partition_id, index_type _index_type = CSBPLUS)
+{
+	map<ChunkID, void* > ret;
+	ret.clear();
+	map<PartitionID, map<ChunkID, void*>* >::iterator iter;
+	switch (_index_type)
+	{
+	case CSBPLUS:
+	{
+		iter = csb_plus_tree_.find(partition_id);
+		if (iter != csb_plus_tree_.end())
+		{
+			for (map<ChunkID, void*>::iterator iter_ = iter->second->begin(); iter_ != iter->second->end(); iter_++)
+				ret[iter_->first] = (iter_->second);
+			return ret;
+		}
+		else
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": There is no index support the query!\n";
+			return ret;
+		}
+	}
+	case CSB:
+	{
+		iter = csb_tree_.find(partition_id);
+		if (iter != csb_tree_.end())
+		{
+			for (map<ChunkID, void*>::iterator iter_ = iter->second->begin(); iter_ != iter->second->end(); iter_++)
+				ret[iter_->first] = (iter_->second);
+			return ret;
+		}
+		else
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": There is no index support the query!\n";
+			return ret;
+		}
+	}
+	case ECSB:
+	{
+		iter = enhanced_csb_tree_.find(partition_id);
+		if (iter != enhanced_csb_tree_.end())
+		{
+			for (map<ChunkID, void*>::iterator iter_ = iter->second->begin(); iter_ != iter->second->end(); iter_++)
+				ret[iter_->first] = (iter_->second);
+			return ret;
+		}
+		else
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": There is no index support the query!\n";
+			return ret;
+		}
+	}
+	default:
+	{
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The index type is illegal!\n";
+		return ret;
+	}
+	}
 }

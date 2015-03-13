@@ -47,7 +47,7 @@ BlockStreamIteratorBase* LogicalIndexScan::getIteratorTree(const unsigned & bloc
 	state.projection_id_ = projection_id_;
 	state.block_size_ = blocksize;
 	state.query_range_ = query_range_;
-	state.index_id_ = IndexManager::getInstance()->getIndexID(index_attr_);
+//	state.index_id_ = IndexManager::getInstance()->getIndexID(index_attr_);
 
 	return new IndexScanIterator(state);
 }

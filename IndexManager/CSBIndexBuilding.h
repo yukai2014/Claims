@@ -178,7 +178,7 @@ void* bottomLayerSorting::indexBuilding(vector<compare_node*> chunk_tuples)
 		}
 		CSBPlusTree<T>* csb_plus_tree = new CSBPlusTree<T>();
 		csb_plus_tree->BulkLoad(aray, chunk_tuples.size());
-		cout << "*************************CSB indexing build successfully!*************************\n";
+		cout << "*************************CSB-PLUS-TREE indexing build successfully!*************************\n";
 		return csb_plus_tree;
 	}
 	case CSB:
@@ -197,6 +197,7 @@ void* bottomLayerSorting::indexBuilding(vector<compare_node*> chunk_tuples)
 		}
 		CSBTree* csb_tree = new CSBTree();
 		csb_tree->BulkLoad(aray, chunk_tuples.size());
+		cout << "*************************CSB-TREE indexing build successfully!*************************\n";
 		return csb_tree;
 	}
 	case ECSB:
@@ -215,6 +216,7 @@ void* bottomLayerSorting::indexBuilding(vector<compare_node*> chunk_tuples)
 		}
 		EnhancedCSBTree* e_csb_tree = new EnhancedCSBTree();
 		e_csb_tree->BulkLoad(aray, chunk_tuples.size());
+		cout << "*************************ENHANCED-CSB-TREE indexing build successfully!*************************\n";
 		return e_csb_tree;
 	}
 	default:

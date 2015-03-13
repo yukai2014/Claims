@@ -66,6 +66,14 @@ private:
 	map<Attribute, unsigned long > column_attribute_to_id;
 	map<unsigned long, Attribute> id_to_column_attribute;
 
+//for experiments
+public:
+	bool insertIndexToList(PartitionID partition_id, map<ChunkID, void* >* attr_index, index_type index_type_ = CSBPLUS);
+	std::map<ChunkID, void* > getAttrIndex(PartitionID partition_id, index_type _index_type = CSBPLUS);
+private:
+	map<PartitionID, map<ChunkID, void*>* > csb_plus_tree_;
+	map<PartitionID, map<ChunkID, void*>* > csb_tree_;
+	map<PartitionID, map<ChunkID, void*>* > enhanced_csb_tree_;
 
 	static IndexManager* instance_;
 };
@@ -123,5 +131,18 @@ bool IndexManager::deleteIndexFromList(unsigned long index_id)
 		id_to_column_attribute.erase(index_id);
 	}
 }
+
+struct index_figure {
+	Attribute index_attr_;
+	index_type index_type_;
+};
+
+class IndexManagerMaster {
+public:
+
+public:
+	map<index_figure, unsigned long> index_to_id;
+	unsigned long index_id;
+};
 
 #endif /* INDEXMANAGER_H_ */

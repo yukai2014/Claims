@@ -39,7 +39,13 @@ bool IndexScanIterator::open(const PartitionOffset& partition_off)
 	if(tryEntryIntoSerializedSection()){
 
 		/* this is the first expanded thread*/
-		csb_index_list_ = IndexManager::getInstance()->getAttrIndex(state_.index_id_);
+//		csb_index_list_ = IndexManager::getInstance()->getAttrIndex(state_.index_id_);
+
+		PartitionID partition_id;
+		partition_id.projection_id = state_.projection_id_;
+		partition_id.partition_off = partition_off;
+		csb_index_list_ = IndexManager::getInstance()->getAttrIndex(partition_id);
+
 		PartitionStorage* partition_handle_;
 		if((partition_handle_=BlockManager::getInstance()->getPartitionHandle(PartitionID(state_.projection_id_,partition_off)))==0){
 			printf("The partition[%s] does not exists!\n",PartitionID(state_.projection_id_,partition_off).getName().c_str());

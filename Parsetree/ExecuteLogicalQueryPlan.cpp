@@ -35,6 +35,7 @@
 
 #include "../Client/ClaimsServer.h"
 #include "../IndexManager/LogicalCSBIndexBuilding.h"
+#include "../IndexManager/LogicalIndexScan.h"
 
 using namespace std;
 
@@ -53,51 +54,82 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
 /****************************************************************************************
  * added by scdong for experiment
  ****************************************************************************************/
-	cout << "the sql is: " << sql << endl;
+	string table_name = "trade_1";
+	unsigned index_offset = 0;
+	TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable(table_name);
+	unsigned long lower = 0;
+	unsigned long higher = 10;
 
     if (strcmp(sql.c_str(), "1 CSBPLUS;") == 0)
     {
-            //CSB+ Tree Index Building!
-            cout << "build csb+ index\n";
-            TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable("trade_less");
-            LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(0), "index1");
-            LogicalOperator* root = new LogicalQueryPlanRoot(0,index_build,LogicalQueryPlanRoot::RESULTCOLLECTOR);
-            BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-            physical_iterator_tree->open();
-            while(physical_iterator_tree->next(0));
-            physical_iterator_tree->close();
-            result_set = physical_iterator_tree->getResultSet();
-            return;
+		//CSB+ Tree Index Building!
+		cout << "build csb+ index\n";
+		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1");
+		LogicalOperator* root = new LogicalQueryPlanRoot(0,index_build,LogicalQueryPlanRoot::RESULTCOLLECTOR);
+		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+		physical_iterator_tree->open();
+		while(physical_iterator_tree->next(0));
+		physical_iterator_tree->close();
+		result_set = physical_iterator_tree->getResultSet();
+		return;
     }
     else if (strcmp(sql.c_str(), "1 CSB;") == 0)
     {
-            //CSB Tree Index Building!
-            cout << "build csb index\n";
-            TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable("trade_less");
-            LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(0), "index1");
-
-            return;
+		//CSB Tree Index Building!
+		cout << "build csb index\n";
+		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 1);
+		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+		physical_iterator_tree->open();
+		while (physical_iterator_tree->next(0));
+		physical_iterator_tree->close();
+		result_set = physical_iterator_tree->getResultSet();
+		return;
     }
     else if (strcmp(sql.c_str(), "1 ECSB;") == 0)
     {
-            //Enhanced CSB Tree Index Building!
-            cout << "build e-csb index\n";
-            return;
+		//Enhanced CSB Tree Index Building!
+		cout << "build e-csb index\n";
+		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 2);
+		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+		physical_iterator_tree->open();
+		while (physical_iterator_tree->next(0));
+		physical_iterator_tree->close();
+		result_set = physical_iterator_tree->getResultSet();
+		return;
     }
     else if (strcmp(sql.c_str(), "2 CSBPLUS;") == 0)
     {
-            //CSB+ Tree Based Searching
-            return;
+		//CSB+ Tree Based Searching
+    	cout << "csb based searching~";
+    	vector<IndexScanIterator::query_range> q_range;
+    	IndexScanIterator::query_range q1;
+    	q1.comp_low = G;
+    	q1.value_low = malloc(sizeof(unsigned long));
+    	q1.value_low = (void*)(&lower);
+    	q1.comp_high = L;
+    	q1.value_high = malloc(sizeof(unsigned long));
+    	q1.value_high = (void*)(&higher);
+    	q1.c_type = t_u_long;
+    	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range);
+		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+		physical_iterator_tree->open();
+		while (physical_iterator_tree->next(0));
+		physical_iterator_tree->close();
+		result_set = physical_iterator_tree->getResultSet();
+		return;
     }
     else if (strcmp(sql.c_str(), "2 CSB;") == 0)
     {
-            //CSB Tree Based Searching
-            return;
+		//CSB Tree Based Searching
+		return;
     }
     else if (strcmp(sql.c_str(), "2 ECSB;") == 0)
     {
-            //Enhanced CSB+ Tree Based Searching
-            return;
+		//Enhanced CSB+ Tree Based Searching
+		return;
     }
 
 /**************************** experiment ends ************************/

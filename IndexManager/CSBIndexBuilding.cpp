@@ -347,12 +347,13 @@ bool bottomLayerSorting::next(BlockStreamBase* block)
 			ChunkID* chunk_id = new ChunkID();
 			chunk_id->partition_id = partition_id_;
 			chunk_id->chunk_off = iter->first;
-			CSBPlusTree<int>* csb_tree = indexBuilding<int>(iter->second);
+			void* csb_tree = indexBuilding<int>(iter->second);
 			assert(csb_tree != NULL);
 			csb_index_list[*chunk_id] = csb_tree;
 		}
 //		IndexManager::getInstance()->addIndexToList(state_.key_indexing_, csb_index_list);
-		IndexManager::getInstance()->insertIndexToList(state_.index_name_, state_.key_indexing_, csb_index_list);
+//		IndexManager::getInstance()->insertIndexToList(state_.index_name_, state_.key_indexing_, csb_index_list);
+		IndexManager::getInstance()->insertIndexToList(partition_id_, &csb_index_list, state_.index_type_);
 		break;
 	}
 	case t_u_long:
@@ -366,7 +367,8 @@ bool bottomLayerSorting::next(BlockStreamBase* block)
 			assert (csb_tree != NULL);
 			csb_index_list[*chunk_id] = csb_tree;
 		}
-		IndexManager::getInstance()->insertIndexToList(state_.index_name_, state_.key_indexing_, csb_index_list);
+//		IndexManager::getInstance()->insertIndexToList(state_.index_name_, state_.key_indexing_, csb_index_list);
+		IndexManager::getInstance()->insertIndexToList(partition_id_, &csb_index_list, state_.index_type_);
 		break;
 	}
 	default:
