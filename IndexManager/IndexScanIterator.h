@@ -79,7 +79,7 @@ public:
 	public:
 		State() {}
 //		State(ProjectionID projection_id, Schema* schema, unsigned long index_id, void* value_low, void* value_high, unsigned block_size);
-		State(ProjectionID projection_id, Schema* schema, unsigned long index_id, vector<query_range> query_range__, unsigned block_size);
+		State(ProjectionID projection_id, Schema* schema, unsigned long index_id, vector<query_range> query_range__, unsigned block_size, index_type _index_type = CSBPLUS);
 
 	public:
 		ProjectionID projection_id_;
@@ -90,12 +90,13 @@ public:
 //		void* value_high_;
 		vector<query_range> query_range_;
 		unsigned block_size_;
+		index_type index_type_;
 
 		friend class boost::serialization::access;
 		template<class Archive>
 		void serialize(Archive & ar, const unsigned int version) {
 //			ar & projection_id_ & schema_ & index_id_ & value_low_ & value_high_ & block_size_;
-			ar & projection_id_ & schema_ & index_id_ & query_range_ & block_size_;
+			ar & projection_id_ & schema_ & index_id_ & query_range_ & block_size_ & index_type_;
 		}
 	};
 

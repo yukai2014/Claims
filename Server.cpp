@@ -37,6 +37,7 @@ int main(int argc, char** argv){
 			sleep(1);
 	}
 	else {
+		sleep(1);	//wait for server init...
 		Environment::getInstance(master);
 		while(true)
 			sleep(1);

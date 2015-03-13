@@ -14,8 +14,8 @@ LogicalIndexScan::LogicalIndexScan() {
 
 }
 
-LogicalIndexScan::LogicalIndexScan(ProjectionID projection_id, Attribute index_attr, vector<IndexScanIterator::query_range> q_range)
-: projection_id_(projection_id), index_attr_(index_attr), query_range_(q_range)
+LogicalIndexScan::LogicalIndexScan(ProjectionID projection_id, Attribute index_attr, vector<IndexScanIterator::query_range> q_range, index_type _index_type)
+: projection_id_(projection_id), index_attr_(index_attr), query_range_(q_range), index_type_(_index_type)
 {
 	scan_projection_ = Catalog::getInstance()->getTable(index_attr_.table_id_)->getProjectoin(projection_id_.projection_off);
 	assert(scan_projection_);
@@ -47,6 +47,7 @@ BlockStreamIteratorBase* LogicalIndexScan::getIteratorTree(const unsigned & bloc
 	state.projection_id_ = projection_id_;
 	state.block_size_ = blocksize;
 	state.query_range_ = query_range_;
+	state.index_type_ = index_type_;
 //	state.index_id_ = IndexManager::getInstance()->getIndexID(index_attr_);
 
 	return new IndexScanIterator(state);

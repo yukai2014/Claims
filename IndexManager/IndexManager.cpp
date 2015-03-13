@@ -358,26 +358,27 @@ bool IndexManager::insertIndexToList(PartitionID partition_id, map<ChunkID, void
 	}
 }
 
-std::map<ChunkID, void* > IndexManager::getAttrIndex(PartitionID partition_id, index_type _index_type = CSBPLUS)
+std::map<ChunkID, void* > IndexManager::getAttrIndex(PartitionID partition_id, index_type _index_type)
 {
-	map<ChunkID, void* > ret;
-	ret.clear();
+	map<ChunkID, void* >* ret = new map<ChunkID, void*>;
+	ret->clear();
 	map<PartitionID, map<ChunkID, void*>* >::iterator iter;
 	switch (_index_type)
 	{
 	case CSBPLUS:
 	{
 		iter = csb_plus_tree_.find(partition_id);
+//		ret = iter->second;
 		if (iter != csb_plus_tree_.end())
 		{
 			for (map<ChunkID, void*>::iterator iter_ = iter->second->begin(); iter_ != iter->second->end(); iter_++)
-				ret[iter_->first] = (iter_->second);
-			return ret;
+				(*ret)[iter_->first] = (iter_->second);
+			return *ret;
 		}
 		else
 		{
 			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": There is no index support the query!\n";
-			return ret;
+			return *ret;
 		}
 	}
 	case CSB:
@@ -386,13 +387,13 @@ std::map<ChunkID, void* > IndexManager::getAttrIndex(PartitionID partition_id, i
 		if (iter != csb_tree_.end())
 		{
 			for (map<ChunkID, void*>::iterator iter_ = iter->second->begin(); iter_ != iter->second->end(); iter_++)
-				ret[iter_->first] = (iter_->second);
-			return ret;
+				(*ret)[iter_->first] = (iter_->second);
+			return *ret;
 		}
 		else
 		{
 			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": There is no index support the query!\n";
-			return ret;
+			return *ret;
 		}
 	}
 	case ECSB:
@@ -401,19 +402,19 @@ std::map<ChunkID, void* > IndexManager::getAttrIndex(PartitionID partition_id, i
 		if (iter != enhanced_csb_tree_.end())
 		{
 			for (map<ChunkID, void*>::iterator iter_ = iter->second->begin(); iter_ != iter->second->end(); iter_++)
-				ret[iter_->first] = (iter_->second);
-			return ret;
+				(*ret)[iter_->first] = (iter_->second);
+			return *ret;
 		}
 		else
 		{
 			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": There is no index support the query!\n";
-			return ret;
+			return *ret;
 		}
 	}
 	default:
 	{
 		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The index type is illegal!\n";
-		return ret;
+		return *ret;
 	}
 	}
 }

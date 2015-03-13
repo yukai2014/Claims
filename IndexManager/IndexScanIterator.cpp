@@ -28,8 +28,8 @@ IndexScanIterator::~IndexScanIterator() {
 //
 //}
 
-IndexScanIterator::State::State(ProjectionID projection_id, Schema* schema, unsigned long index_id, vector<query_range> query_range__, unsigned block_size)
-: projection_id_(projection_id), schema_(schema), index_id_(index_id), query_range_(query_range__), block_size_(block_size) {
+IndexScanIterator::State::State(ProjectionID projection_id, Schema* schema, unsigned long index_id, vector<query_range> query_range__, unsigned block_size, index_type _index_type)
+: projection_id_(projection_id), schema_(schema), index_id_(index_id), query_range_(query_range__), block_size_(block_size), index_type_(_index_type) {
 
 }
 
@@ -44,7 +44,7 @@ bool IndexScanIterator::open(const PartitionOffset& partition_off)
 		PartitionID partition_id;
 		partition_id.projection_id = state_.projection_id_;
 		partition_id.partition_off = partition_off;
-		csb_index_list_ = IndexManager::getInstance()->getAttrIndex(partition_id);
+		csb_index_list_ = IndexManager::getInstance()->getAttrIndex(partition_id, state_.index_type_);
 
 		PartitionStorage* partition_handle_;
 		if((partition_handle_=BlockManager::getInstance()->getPartitionHandle(PartitionID(state_.projection_id_,partition_off)))==0){
@@ -197,8 +197,30 @@ bool IndexScanIterator::askForNextBlock(remaining_block& rb)
 		chunk_reader_iterator_->nextBlock(rb.block);
 		rb.block_off = 0;
 
+//		/***** for experiment *****/
+//		switch (state_.index_type_)
+//		{
+//		case CSBPLUS:
+//		{
+//			break;
+//		}
+//		case CSB:
+//		{
+//			break;
+//		}
+//		case ECSB:
+//		{
+//			break;
+//		}
+//		default:
+//		{
+//			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": The index type is illegal!\n";
+//			return false;
+//		}
+//		}
+
 		//search the CSB+-Tree index to get the new chunk's search-result
-		data_type type = IndexManager::getInstance()->getIndexType(state_.index_id_);
+		data_type type = t_u_long;//IndexManager::getInstance()->getIndexType(state_.index_id_);
 		switch (type)
 		{
 		case t_smallInt:
@@ -251,7 +273,35 @@ bool IndexScanIterator::askForNextBlock(remaining_block& rb)
 		}
 		case t_u_long:
 		{
-			assert(false);
+			map<ChunkID, void*>::iterator iter = csb_index_list_.begin();
+			CSBPlusTree<unsigned long>* index_tree = (CSBPlusTree<unsigned long>*)iter->second;
+			csb_index_list_.erase(iter++);
+
+			rb.result_set->clear();
+			map<index_offset, vector<index_offset>* >* result_set;
+			for (vector<query_range>::iterator iter_ = state_.query_range_.begin(); iter_ != state_.query_range_.end(); iter_++)
+			{
+				result_set = index_tree->rangeQuery(*(unsigned long*)iter_->value_low, iter_->comp_low, *(unsigned long*)iter_->value_high, iter_->comp_high);
+				cout << "for debugging...\t" << "number of result_set: " << result_set->size() << endl;
+				if (result_set->size() != 0)
+				{
+					for (map<index_offset, vector<index_offset>* >::iterator iter_map = result_set->begin(); iter_map != result_set->end(); iter_map++)
+					{
+						cout << "for debugging...\t" << "pair in result_set: " << iter_map->first << "\t" << iter_map->second->size() << endl;
+						if (rb.result_set->find(iter_map->first) == rb.result_set->end())
+							(*rb.result_set)[iter_map->first] = new vector<index_offset>;
+						(*rb.result_set)[iter_map->first]->insert((*rb.result_set)[iter_map->first]->end(), iter_map->second->begin(), iter_map->second->end());
+					}
+				}
+			}
+
+			if (rb.result_set->size() == 0)
+			{
+				chunk_reader_iterator_ = 0;
+				return askForNextBlock(rb);
+			}
+			rb.iter_result_map = rb.result_set->begin();
+			rb.iter_result_vector = rb.iter_result_map->second->begin();
 			return true;
 		}
 		case t_float:

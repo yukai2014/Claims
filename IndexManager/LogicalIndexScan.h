@@ -16,7 +16,7 @@
 class LogicalIndexScan :public LogicalOperator{
 public:
 	LogicalIndexScan();
-	LogicalIndexScan(ProjectionID projection_id, Attribute index_attr, vector<IndexScanIterator::query_range> q_range);
+	LogicalIndexScan(ProjectionID projection_id, Attribute index_attr, vector<IndexScanIterator::query_range> q_range, index_type _index_type = CSBPLUS);
 	virtual ~LogicalIndexScan();
 
 	Dataflow getDataflow();
@@ -27,6 +27,7 @@ public:
 private:
 	ProjectionID projection_id_;
 	Attribute index_attr_;
+	index_type index_type_;
 	vector<IndexScanIterator::query_range> query_range_;
 	ProjectionDescriptor* scan_projection_;
 	Dataflow dataflow_;
