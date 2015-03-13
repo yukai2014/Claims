@@ -224,7 +224,7 @@ bool HdfsLoader::insertRecords(){
 	return true;
 }
 
-bool HdfsLoader::load(){
+bool HdfsLoader::load(double sample_rate){
 #ifdef HDFS_LOAD
 	if(Config::local_disk_mode) {
 		connector_ = new LocalDiskConnector(writepath);
@@ -267,8 +267,11 @@ bool HdfsLoader::load(){
 			s_record.clear();
 			getline(InFile,s_record,row_separator);
 
-		if (row_id != 0 && row_id % 100000 == 0)
-			cout << row_id << "\trecords have been imported into the system!\n";
+			if (row_id != 0 && row_id % 100000 == 0)
+				cout << row_id << "\trecords have been imported into the system!\n";
+
+			if((double)rand()/RAND_MAX>sample_rate)
+				continue;
 ///*for testing*/ if(row_id/t_count > 100000)
 ///*for testing*/		break;
 

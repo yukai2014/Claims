@@ -50,6 +50,8 @@ ExpandableBlockStreamExchangeEpoll::ExpandableBlockStreamExchangeEpoll(){
 }
 ExpandableBlockStreamExchangeEpoll::~ExpandableBlockStreamExchangeEpoll() {
 	delete logging_;
+	delete state.schema_;
+	delete state.child_;
 }
 
 bool ExpandableBlockStreamExchangeEpoll::open(const PartitionOffset& partition_offset){
@@ -268,8 +270,8 @@ bool ExpandableBlockStreamExchangeEpoll::isMaster(){
 bool ExpandableBlockStreamExchangeEpoll::SerializeAndSendToMulti(){
 	IteratorExecutorMaster* IEM=IteratorExecutorMaster::getInstance();
 	if(Config::pipelined_exchange){
-		ExpandableBlockStreamExchangeLowerEfficient::State EIELstate(state.schema_,state.child_,state.upper_ip_list_,state.block_size_,state.exchange_id_,state.partition_schema_);
 		for(unsigned i=0;i<state.lower_ip_list_.size();i++){
+			ExpandableBlockStreamExchangeLowerEfficient::State EIELstate(state.schema_->duplicateSchema(),state.child_,state.upper_ip_list_,state.block_size_,state.exchange_id_,state.partition_schema_);
 			/* set the partition offset*/
 			EIELstate.partition_offset_=i;
 			BlockStreamIteratorBase *EIEL=new ExpandableBlockStreamExchangeLowerEfficient(EIELstate);
@@ -278,12 +280,13 @@ bool ExpandableBlockStreamExchangeEpoll::SerializeAndSendToMulti(){
 				logging_->elog("[%ld] Cannot send the serialized iterator tree to the remote node!\n",state.exchange_id_);
 				return false;
 			}
+			((ExpandableBlockStreamExchangeLowerEfficient*)EIEL)->state_.child_=0;
 			delete EIEL;
 		}
 	}
 	else{
-		ExpandableBlockStreamExchangeLowerMaterialized::State EIELstate(state.schema_,state.child_,state.upper_ip_list_,state.block_size_,state.exchange_id_,state.partition_schema_);
 		for(unsigned i=0;i<state.lower_ip_list_.size();i++){
+			ExpandableBlockStreamExchangeLowerMaterialized::State EIELstate(state.schema_->duplicateSchema(),state.child_,state.upper_ip_list_,state.block_size_,state.exchange_id_,state.partition_schema_);
 			/* set the partition offset*/
 			EIELstate.partition_offset=i;
 			BlockStreamIteratorBase *EIEL=new ExpandableBlockStreamExchangeLowerMaterialized(EIELstate);
@@ -292,6 +295,7 @@ bool ExpandableBlockStreamExchangeEpoll::SerializeAndSendToMulti(){
 				logging_->elog("[%ld] Cannot send the serialized iterator tree to the remote node!\n",state.exchange_id_);
 				return false;
 			}
+			((ExpandableBlockStreamExchangeLowerEfficient*)EIEL)->state_.child_=0;
 			delete EIEL;
 		}
 	}
