@@ -36,6 +36,7 @@
 #include "../Client/ClaimsServer.h"
 #include "../IndexManager/LogicalCSBIndexBuilding.h"
 #include "../IndexManager/LogicalIndexScan.h"
+#include <iosfwd>
 
 using namespace std;
 
@@ -54,21 +55,28 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
 /****************************************************************************************
  * added by scdong for experiment
  ****************************************************************************************/
-	string table_name = "trade_less";
+	static ifstream inFile("/home/imdb/mount/dsc/Claims/exp_con", ios::in);
+	TableID table_name = 0;
 	unsigned index_offset = 0;
-	TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable(table_name);
 	unsigned long lower = 0;
 	unsigned long higher = 0;
+	int com_low = 0;
+	int com_high = 0;
 	vector<IndexScanIterator::query_range> q_range;
 	IndexScanIterator::query_range q1;
-	q1.comp_low = EQ;
+	inFile >> table_name >> lower >> higher >> com_low >> com_high;
+	TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable(table_name);
+	assert(table != NULL);
+	q1.comp_low = com_low;
 	q1.value_low = malloc(sizeof(unsigned long));
 	q1.value_low = (void*)(&lower);
-	q1.comp_high = L;
+	q1.comp_high = com_high;
 	q1.value_high = malloc(sizeof(unsigned long));
 	q1.value_high = (void*)(&higher);
 	q1.c_type = t_u_long;
 	q_range.push_back(q1);
+	cout << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+
 
     if (strcmp(sql.c_str(), "1 CSBPLUS;") == 0)
     {
