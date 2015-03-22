@@ -254,6 +254,78 @@ data_pointer* EnhancedCSBTree::Search(key_type_8 &key)
 	return NULL;
 }
 
+map<index_offset, vector<index_offset>* >* EnhancedCSBTree::search(key_type_8 &key)
+{
+	map<index_offset, vector<index_offset>* >* ret = new map<index_offset, vector<index_offset>* >;
+	ret->clear();
+	int node_type = INVALID;
+	if (key < INVALID_NODE4 || key > MAX_KEY4)
+		node_type = 3;
+	else if (key < INVALID_NODE2 || key > MAX_KEY2)
+		node_type = 2;
+	else if (key < INVALID_NODE1 || key > MAX_KEY1)
+		node_type = 1;
+	else
+		node_type = 0;
+	if (this->root[node_type] == NULL)
+		return ret;
+
+	EnhancedCSBNodeGroup* cur_group = this->root[node_type];	counter_layer += 1;
+	unsigned cur_off = 0;
+	EnhancedCSBNode* cur_node = cur_group->nodes[cur_off];
+	int cur_i = 0;
+	for (unsigned cur_depth = 0; cur_depth < this->depth[node_type]; cur_depth++)
+	{
+
+		for (cur_i = 0; (cur_i < cur_node->getUsedKeys()) && (key > cur_node->getkey(cur_i)); cur_i++);
+
+		//find equal => return
+		if (cur_i < cur_node->getUsedKeys() && key == cur_node->getkey(cur_i))
+		{
+			if (ret->find(cur_group->p_datas[cur_off]->block_off[cur_i]) == ret->end())
+				(*ret)[cur_group->p_datas[cur_off]->block_off[cur_i]] = new vector<index_offset>;
+			(*ret)[cur_group->p_datas[cur_off]->block_off[cur_i]]->push_back(cur_group->p_datas[cur_off]->tuple_off[cur_i]);
+			return ret;
+		}
+
+		//search the child-layer of cur_node
+		if (cur_depth < this->depth[node_type]-1)
+		{	counter_layer += 1;
+			cur_group = cur_node->getChild();
+			cur_off = cur_i;
+			cur_node = cur_group->nodes[cur_off];
+		}
+	}
+	return ret;
+}
+
+map<index_offset, vector<index_offset>* >* EnhancedCSBTree::rangeQuery(key_type_8 lower_key, comparison comp_lower, key_type_8 upper_key, comparison comp_upper)
+{
+	map<index_offset, vector<index_offset>* >* ret = new map<index_offset, vector<index_offset>* >;
+	ret->clear();
+
+	//For point query
+	if (comp_lower == EQ)
+	{
+		if (lower_key != upper_key)
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": For the equal point query, the lower_key " << lower_key << " != the upper_key " << upper_key << "!\n";
+			return ret;
+		}
+		return search(lower_key);
+	}
+	//Range Query
+	else if ((!(comp_lower == G || comp_lower == GEQ)) || (!(comp_upper == L || comp_upper == LEQ)))
+	{
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": For the range query, the given two compare operator isn't a range!\n";
+		return ret;
+	}
+	else if (lower_key > upper_key)
+	{
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": For the range query, the given two key isn't a range!\n";
+		return ret;
+	}
+}
 
 data_pointer* EnhancedCSBTree::SearchSIMD(key_type_8 &key)
 {

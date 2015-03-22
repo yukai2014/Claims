@@ -17,6 +17,7 @@
 #include "indexStructures.h"
 #include "../utility/lock.h"
 #include <string.h>
+#include <map>
 using namespace std;
 
 #define MAX_NODE1_KEYS 40
@@ -909,6 +910,8 @@ public:
 	}
 	void BulkLoad(data_original* cur_aray, unsigned cur_aray_num);
 	data_pointer* Search(key_type_8 &key);
+	map<index_offset, vector<index_offset>* >* search(key_type_8 &key);
+	map<index_offset, vector<index_offset>* >* rangeQuery(key_type_8 lower_key, comparison comp_lower, key_type_8 upper_key, comparison comp_upper);
 	data_pointer* SearchSIMD(key_type_8 &key);
 	bool Insert(data_original &data);
 	bool copyInsert(data_original &data);

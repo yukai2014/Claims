@@ -1384,19 +1384,25 @@ map<index_offset, vector<index_offset>* >* CSBPlusTree<T>::rangeQuery(T lower_ke
 	if (comp_lower == EQ)
 	{
 		if (lower_key != upper_key)
-			cout << "[ERROR: CSBPlusTree.cpp->rangeQuery()]: For the equal point query, the lower_key " << lower_key << " != the upper_key " << upper_key << endl;
+		{
+			cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": For the equal point query, the lower_key " << lower_key << " != the upper_key " << upper_key << "!\n";
+			return ret;
+		}
 		return Search(lower_key);
 	}
 	// Range Query
 	else if ((!(comp_lower == G || comp_lower == GEQ)) || (!(comp_upper == L || comp_upper == LEQ)))
 	{
-		cout << "[ERROR: CSBPlusTree.cpp->rangeQuery()]: For the range query, the given two key isn't a range\n";
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": For the range query, the given two compare operator isn't a range!\n";
 		return ret;
 	}
 	if (lower_key > upper_key)
+	{
+		cout << "[ERROR FILE: " << __FILE__ << "] In function " << __func__ << " line " << __LINE__ << ": For the range query, the given two key isn't a range!\n";
 		return ret;
-	int i = 0;
+	}
 
+	int i = 0;
 	CCSBNode<T>* search_node = csb_root;
 	CCSBNode<T>* p_search_node = NULL;
 

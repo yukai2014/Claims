@@ -15,6 +15,7 @@
 #include <iostream>
 #include <vector>
 #include "indexStructures.h"
+#include <map>
 using namespace std;
 
 #define MAX_KEYS 6
@@ -119,6 +120,8 @@ public:
 	}
 	void BulkLoad(data_original* cur_aray, unsigned cur_aray_num);
 	data_pointer* Search(key_type &key);
+	map<index_offset, vector<index_offset>* >* search(key_type &key);
+	map<index_offset, vector<index_offset>* >* rangeQuery(key_type lower_key, comparison comp_lower, key_type upper_key, comparison comp_upper);
 	data_pointer* SearchSIMD(key_type &key);
 	bool Insert(data_original data);
 	csb_node_data* SearchInsertNode(key_type key, stack <csb_node_data* > &insert_path);
