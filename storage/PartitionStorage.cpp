@@ -89,13 +89,13 @@ PartitionStorage::AtomicPartitionReaderIterator::~AtomicPartitionReaderIterator(
 
 }
 ChunkReaderIterator* PartitionStorage::AtomicPartitionReaderIterator::nextChunk(){
-//	lock_.acquire();
+	lock_.acquire();
 	ChunkReaderIterator* ret;
 	if(chunk_cur_<ps->number_of_chunks_)
 		ret= ps->chunk_list_[chunk_cur_++]->createChunkReaderIterator();
 	else
 		ret= 0;
-//	lock_.release();
+	lock_.release();
 	return ret;
 }
 
@@ -152,4 +152,26 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
 			return false;
 		}
 	}
+}
+
+PartitionStorage::NumaSensitivePartitionReaderIterator::NumaSensitivePartitionReaderIterator(
+		PartitionStorage* partitino_storage):
+		PartitionReaderItetaor(partitino_storage) {
+}
+
+PartitionStorage::NumaSensitivePartitionReaderIterator::~NumaSensitivePartitionReaderIterator() {
+}
+
+ChunkReaderIterator* PartitionStorage::NumaSensitivePartitionReaderIterator::nextChunk() {
+	printf("NumaSensitivePartitionReaderIterator::nextChunk is currently not implemented!\n")
+	assert(false);
+	return 0;
+
+}
+
+bool PartitionStorage::NumaSensitivePartitionReaderIterator::nextBlock(
+		BlockStreamBase*& block) {
+
+
+
 }

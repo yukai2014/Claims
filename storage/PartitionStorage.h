@@ -41,6 +41,18 @@ public:
 		Lock lock_;
 	};
 
+	class NumaSensitivePartitionReaderIterator:public PartitionReaderItetaor{
+	public:
+		NumaSensitivePartitionReaderIterator(PartitionStorage* partitino_storage);
+		virtual ~NumaSensitivePartitionReaderIterator();
+		ChunkReaderIterator* nextChunk();
+		bool nextBlock(BlockStreamBase* &block);
+	private:
+		boost::unordered_map<int32_t, ChunkReaderIterator*> socket_index_to_chunk_reader_iterator_;
+
+
+	};
+
 	friend class PartitionReaderItetaor;
 	PartitionStorage(const PartitionID &partition_id,const unsigned &number_of_chunks,const StorageLevel&);
 	virtual ~PartitionStorage();
