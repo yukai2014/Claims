@@ -85,11 +85,17 @@ bool AdaptiveEndPoint::SayHelloToCoordinator(std::string ip,std::string port){
 	serv_addr.sin_port=htons(atoi(coord_port.c_str()));
 	serv_addr.sin_addr=*((struct in_addr*)host.h_addr);
 	bzero(&(serv_addr.sin_zero),8);
-	if(connect(socket_coor,(struct sockaddr *)&serv_addr, sizeof(struct sockaddr))==-1)
+	int attemps_times=10;
+	while(connect(socket_coor,(struct sockaddr *)&serv_addr, sizeof(struct sockaddr))==-1)
 	{
-		logging_->elog("connection errors when connecting to %s:%s! Reason:%s",inet_ntoa(serv_addr.sin_addr),coord_port.c_str(),strerror(errno));
-		assert(false);
-		return false;
+		sleep(1);
+		logging_->elog("cannot connect to the master. Retry in 1 second...\n");
+		attemps_times--;
+		if(attemps_times==0){
+			logging_->elog("connection errors when connecting to %s:%s! Reason:%s",inet_ntoa(serv_addr.sin_addr),coord_port.c_str(),strerror(errno));
+			assert(false);
+			return false;
+		}
 	}
 
 	int port_send=atoi(port.c_str());

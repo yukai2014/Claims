@@ -132,7 +132,7 @@ void Config::initialize() {
 
 	pipelined_exchange=getBoolean("pipelined_exchange",true);
 
-	client_listener_port=getInt("client_listener_port",10005);
+	client_listener_port=getInt("client_listener_port",11100);
 #ifdef DEBUG_Config
 	print_configure();
 #endif

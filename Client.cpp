@@ -17,6 +17,7 @@
 #include "startup.h"
 #include "utility/command_line.h"
 #include "utility/rdtsc.h"
+#include <iosfwd>
 
 void readStrigFromTerminal(string & input){
 	while(true){
@@ -43,7 +44,7 @@ void readStrigFromTerminal(string & input){
 int main(int argc, char** argv){
 	/* Client */
 
-	if(argc!=3){
+	if(argc!=3 && argc != 4){
 		printf("argc=%d, Illegal input. \nPlease use client master_ip client_listener_port.\n",argc);
 		printf("HINT: the master ip and the client_listener_port can be found in the configure file.\n");
 		return 0;
@@ -59,26 +60,45 @@ int main(int argc, char** argv){
 
 	while(1){
 		std::string query;
+		if (argc == 3)
+		{
+//original code begin
+			std::string input;
+//			readStrigFromTerminal(input);
+
+			get_one_command(input);
+//			sleep(3);
+//			input = "select count(*) from (select row_id ,count(*) from cj group by row_id order by sec_code) as b;";
 
 
+			query.append(input.c_str());
+//original code en
+		}
 
-		std::string input;
-//		readStrigFromTerminal(input);
+/****************************************************************************************
+ * added by scdong for experiment
+****************************************************************************************/
+		if (argc == 4)
+		{
+			static std::ifstream inFile(argv[3], std::ios::in);
+			char* input = malloc(1024);
+//			cout << "press any key to continue: \n";
+//			cin >> input;
+			inFile.getline(input, 1024);
+			query = input;
+			cout << "query: " << query << endl;
+		}
+/**************************** experiment ends ************************/
 
-		get_one_command(input);
-//		sleep(3);
-//		input = "select count(*) from (select row_id ,count(*) from cj group by row_id order by sec_code) as b;";
 
-
-		query.append(input.c_str());
-		if( query == "exit" ){
+		if( query == "exit;" ){
 			break;
 		}else if( query.empty() ){
 			continue;
 		}
 		ClientResponse* response = client.submitQuery(query);
 
-		if( query == "shutdown" ){
+		if( query == "shutdown;" ){
 			break;
 		}
 

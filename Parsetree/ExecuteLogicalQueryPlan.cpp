@@ -64,24 +64,16 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
 	int com_high = 0;
 	vector<IndexScanIterator::query_range> q_range;
 	IndexScanIterator::query_range q1;
-	inFile >> table_name >> lower >> higher >> com_low >> com_high;
-	TableDescriptor* table = Environment::getInstance()->getCatalog()->getTable(table_name);
-	assert(table != NULL);
-	q1.comp_low = com_low;
-	q1.value_low = malloc(sizeof(unsigned long));
-	q1.value_low = (void*)(&lower);
-	q1.comp_high = com_high;
-	q1.value_high = malloc(sizeof(unsigned long));
-	q1.value_high = (void*)(&higher);
-	q1.c_type = t_u_long;
-	q_range.push_back(q1);
-	cout << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+	TableDescriptor* table;// = Environment::getInstance()->getCatalog()->getTable(table_name);
 
 
     if (strcmp(sql.c_str(), "1 CSBPLUS;") == 0)
     {
 		//CSB+ Tree Index Building!
-		cout << "build csb+ index\n";
+		inFile >> table_name;
+		cout << "build csb+ index~~~ Table: " << table_name << endl;
+		table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    	assert(table != NULL);
 		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1");
 		LogicalOperator* root = new LogicalQueryPlanRoot(0,index_build,LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
@@ -94,7 +86,10 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
     else if (strcmp(sql.c_str(), "1 CSB;") == 0)
     {
 		//CSB Tree Index Building!
-		cout << "build csb index\n";
+    	inFile >> table_name;
+		cout << "build csb index~~~ Table: " << table_name << endl;
+		table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    	assert(table != NULL);
 		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 1);
 		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
@@ -107,7 +102,10 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
     else if (strcmp(sql.c_str(), "1 ECSB;") == 0)
     {
 		//Enhanced CSB Tree Index Building!
-		cout << "build e-csb index\n";
+    	inFile >> table_name;
+		cout << "build e-csb index~~~ Table: " << table_name << endl;
+		table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    	assert(table != NULL);
 		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 2);
 		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
@@ -120,7 +118,18 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
     else if (strcmp(sql.c_str(), "2 CSBPLUS;") == 0)
     {
 		//CSB+ Tree Based Searching
-    	cout << "csb plus based searching\n";
+    	inFile >> table_name >> lower >> higher >> com_low >> com_high;
+    	cout << "csb plus based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+		table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    	assert(table != NULL);
+    	q1.comp_low = com_low;
+    	q1.value_low = malloc(sizeof(unsigned long));
+    	q1.value_low = (void*)(&lower);
+    	q1.comp_high = com_high;
+    	q1.value_high = malloc(sizeof(unsigned long));
+    	q1.value_high = (void*)(&higher);
+    	q1.c_type = t_u_long;
+    	q_range.push_back(q1);
     	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range);
 		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
@@ -133,7 +142,18 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
     else if (strcmp(sql.c_str(), "2 CSB;") == 0)
     {
 		//CSB Tree Based Searching
-    	cout << "csb based searching\n";
+    	inFile >> table_name >> lower >> higher >> com_low >> com_high;
+    	cout << "csb based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+		table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    	assert(table != NULL);
+    	q1.comp_low = com_low;
+    	q1.value_low = malloc(sizeof(unsigned long));
+    	q1.value_low = (void*)(&lower);
+    	q1.comp_high = com_high;
+    	q1.value_high = malloc(sizeof(unsigned long));
+    	q1.value_high = (void*)(&higher);
+    	q1.c_type = t_u_long;
+    	q_range.push_back(q1);
     	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range, 1);
 		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
@@ -146,7 +166,18 @@ void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &resu
     else if (strcmp(sql.c_str(), "2 ECSB;") == 0)
     {
 		//Enhanced CSB+ Tree Based Searching
-    	cout << "enhanced csb based searching\n";
+    	inFile >> table_name >> lower >> higher >> com_low >> com_high;
+    	cout << "enhanced csb based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+		table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    	assert(table != NULL);
+    	q1.comp_low = com_low;
+    	q1.value_low = malloc(sizeof(unsigned long));
+    	q1.value_low = (void*)(&lower);
+    	q1.comp_high = com_high;
+    	q1.value_high = malloc(sizeof(unsigned long));
+    	q1.value_high = (void*)(&higher);
+    	q1.c_type = t_u_long;
+    	q_range.push_back(q1);
     	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range, 2);
 		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
 		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);

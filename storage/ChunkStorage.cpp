@@ -115,11 +115,12 @@ bool InMemoryChunkReaderItetaor::nextBlock(BlockStreamBase* &block){
 		lock_.release();
 		return false;
 	}
+	unsigned assigned = cur_block_;
 	cur_block_++;
 	lock_.release();
 //	printf("Read Block:%d:%d\n",chunk_id_.chunk_off,cur_block_);
 	/* calculate the block start address.*/
-	const char* block_start_address=(char*)start_+cur_block_*block_size_;
+	const char* block_start_address=(char*)start_+assigned*block_size_;
 
 	/* Create a block, which will not free block_start_address when destructed.*/
 	Block temp_block(block_size_,block_start_address);

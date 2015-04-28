@@ -17,13 +17,15 @@
 
 #define HDFS_LOAD
 
-HdfsLoader::HdfsLoader(TableDescriptor* tableDescriptor, const char c_separator, const char r_separator, open_flag open_flag_)
-:table_descriptor_(tableDescriptor), col_separator(c_separator), row_separator(r_separator), open_flag_(open_flag_), block_size(64*1024)
+HdfsLoader::HdfsLoader(TableDescriptor* tableDescriptor, const char c_separator, const char r_separator, open_flag _open_flag_)
+:table_descriptor_(tableDescriptor), col_separator(c_separator), row_separator(r_separator), open_flag_(_open_flag_), block_size(64*1024)
 {
 	if (open_flag_ == APPEND)
 		row_id = table_descriptor_->getRowNumber();
 	else
 		row_id = 0;
+	if (row_id == 0)
+		open_flag_ = CREATE;
 
 	table_schema = table_descriptor_->getSchema();
 	vector <unsigned> prj_index;
@@ -84,13 +86,15 @@ HdfsLoader::HdfsLoader(TableDescriptor* tableDescriptor, const char c_separator,
 	///////////////////////////////////////////////////////////////////////////////////////////
 }
 
-HdfsLoader::HdfsLoader(const char c_separator,const char r_separator, std::vector<std::string> file_name, TableDescriptor* tableDescriptor, open_flag open_flag_)
-:table_descriptor_(tableDescriptor), col_separator(c_separator), row_separator(r_separator), file_list(file_name), open_flag_(open_flag_), block_size(64*1024)
+HdfsLoader::HdfsLoader(const char c_separator,const char r_separator, std::vector<std::string> file_name, TableDescriptor* tableDescriptor, open_flag _open_flag_)
+:table_descriptor_(tableDescriptor), col_separator(c_separator), row_separator(r_separator), file_list(file_name), open_flag_(_open_flag_), block_size(64*1024)
 {
 	if (open_flag_ == APPEND)
 		row_id = table_descriptor_->getRowNumber();
 	else
 		row_id = 0;
+	if (row_id == 0)
+		open_flag_ = CREATE;
 
 	table_schema = table_descriptor_->getSchema();
 	vector <unsigned> prj_index;
@@ -150,16 +154,6 @@ HdfsLoader::HdfsLoader(const char c_separator,const char r_separator, std::vecto
 		tuples_per_partition.push_back(tmp_tuple_count);
 	}
 	///////////////////////////////////////////////////////////////////////////////////////////
-}
-
-const char HdfsLoader::get_c_separator(){
-	return col_separator;
-}
-const char HdfsLoader::get_r_separator(){
-	return row_separator;
-}
-vector<string> HdfsLoader::get_file_list(){
-	return file_list;
 }
 
 
