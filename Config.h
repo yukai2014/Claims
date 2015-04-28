@@ -45,6 +45,8 @@ private:
 	 */
 	bool getBoolean(std::string attribute_name, bool defalut_value);
 
+	static void setConfigFile(std::string file_name);
+
 public:
 
 	static std::string config_file;
@@ -66,6 +68,8 @@ public:
 	static bool local_disk_mode;
 	static bool pipelined_exchange;
 	static int client_listener_port;
+	static bool enable_codegen;
+	static std::string catalog_file;
 private:
 	static Config* instance_;
 	libconfig::Config cfg;

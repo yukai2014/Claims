@@ -72,8 +72,13 @@ public:
 	bool next(BlockStreamBase *block);
 	bool close();
 	void print();
-	BlockStreamBase* AtomicPopFreeHtBlockStream();
-	void AtomicPushFreeHtBlockStream(BlockStreamBase* block);
+private:
+	/* prepare all sorts of indices to facilitate aggregate*/
+	void prepareIndex();
+
+	/* prepare the aggregation functions */
+	void prepareAggregateFunctions();
+
 
 public:
 	State state_;
@@ -83,16 +88,9 @@ private:
 	PartitionFunction *hash_;
 	std::map<unsigned,unsigned> inputGroupByToOutput_;
 	std::map<unsigned,unsigned> inputAggregationToOutput_;
-	std::vector<fun> aggregationFunctions_;
+	std::vector<fun> globalAggregationFunctions_;
+	std::vector<fun> privateAggregationFunctions_;
 
-	//in the open func and build the hashtable
-	std::list<BlockStreamBase *> ht_free_block_stream_list_;
-	semaphore sema_open_;
-	semaphore sema_open_end_;
-	bool open_finished_;
-	bool open_finished_end_;
-	Lock lock_;
-	Barrier barrier_;
 
 	//hashtable traverse and in the next func
 	Lock ht_cur_lock_;

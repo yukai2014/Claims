@@ -14,7 +14,7 @@
 #include <string>
 #include <sstream>
 using namespace std;
-#define DEBUG_Config
+//#define DEBUG_Config
 
 string gete(){
 //	char *p=getenv("CLAIMS_HOME");
@@ -29,7 +29,7 @@ string get_default_logfile_name(){
 	sp<<string(p).c_str()<<"/log/claims.log";
 	return sp.str();
 }
-std::string Config::config_file=gete().c_str();
+std::string Config::config_file;
 Config* Config::instance_=0;
 
 /**
@@ -82,6 +82,10 @@ bool Config::local_disk_mode;
 /* the port of the ClientListener in the master */
 int Config::client_listener_port;
 
+bool Config::enable_codegen = true ;
+
+std::string Config::catalog_file;
+
 Config* Config::getInstance() {
 	if(instance_==0){
 		instance_=new Config();
@@ -98,6 +102,9 @@ Config::~Config() {
 }
 
 void Config::initialize() {
+
+	if(config_file.empty())
+		config_file=gete().c_str();
 
 	/**
 	 * open configure file, which path is specified in CONFIG.
@@ -133,6 +140,9 @@ void Config::initialize() {
 	pipelined_exchange=getBoolean("pipelined_exchange",true);
 
 	client_listener_port=getInt("client_listener_port",11100);
+
+	catalog_file=getString("catalog_file","catalogData.dat");
+
 #ifdef DEBUG_Config
 	print_configure();
 #endif
@@ -188,4 +198,9 @@ void Config::print_configure() const {
 	std::cout<<"master:"<<master<<std::endl;
 	std::cout<<"local disk mode:"<<local_disk_mode<<std::endl;
 	std::cout<<"client_lisener_port:"<<client_listener_port<<std::endl;
+	std::cout<<"catalog_file:"<<catalog_file<<std::endl;
+}
+
+void Config::setConfigFile(std::string file_name) {
+	config_file=file_name;
 }

@@ -37,14 +37,14 @@
 #include "../common/Schema/SchemaFix.h"
 #include "../common/Logging.h"
 
-#define Error 	0
+#define ERROR 	0
 #define OK 		1
 #define SCHEMA	2
 #define HEADER	3
 #define DATA	4
 #define END		5
-#define CHANGE 6
 struct ColumnHeader {
+#define CHANGE 6
 	std::vector<std::string> header_list;
 	void add_header(std::string name) {
 		header_list.push_back(name);
@@ -67,7 +67,7 @@ struct ClientResponse {
 
 	std::string getMessage(){
 		switch(status){
-		case Error:
+		case ERROR:
 			return "Error";
 			break;
 		case OK:
@@ -90,12 +90,12 @@ struct ClientResponse {
 	}
 
 	void setError(std::string reason) {
-		status = Error;
+		status = ERROR;
 		length = reason.length();
 		content = reason;
 	}
 	std::string getError() const {
-		assert(status==Error);
+		assert(status==ERROR);
 		return content;
 	}
 	void setEnd(double query_time) {
@@ -199,7 +199,7 @@ struct ClientResponse {
 
 	int serialize(char*& buffer) const {
 		int ret = sizeof(int) + sizeof(int) + content.length();
-		buffer = (char *) malloc(ret);
+		buffer = (char *) malloc(ret);		//newmalloc
 		*(int*) buffer = status;		// 小端字节序
 		*((int*) buffer + 1) = length;
 		void* content_start = buffer + sizeof(int) + sizeof(int);

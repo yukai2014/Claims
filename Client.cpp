@@ -41,6 +41,49 @@ void readStrigFromTerminal(string & input){
 	}
 }
 
+void submit_command(Client& client, std::string &command){
+	ResultSet rs;
+	std::string message;
+	switch(client.submit(command,message,rs)){
+	case Client::result:
+		rs.print();
+		break;
+	case Client::message:
+		printf("%s",message.c_str());
+		break;
+	case Client::error:
+		printf("%s",message.c_str());
+		break;
+	default:
+		assert(false);
+		break;
+	}
+}
+
+void submit_command_repeated(Client& client, std::string &command,int repeated){
+	double total_time=0;
+	for(int i=0;i<repeated;i++){
+		ResultSet rs;
+		std::string message;
+		switch(client.submit(command,message,rs)){
+		case Client::result:
+			if(i!=0)
+				total_time+=rs.query_time_;
+			break;
+		case Client::message:
+			printf("%s",message.c_str());
+			break;
+		case Client::error:
+			printf("%s",message.c_str());
+			break;
+		default:
+			assert(false);
+			break;
+		}
+	}
+}
+
+
 int main(int argc, char** argv){
 	/* Client */
 
@@ -59,21 +102,20 @@ int main(int argc, char** argv){
 
 
 	while(1){
-		std::string query;
+		std::string command;
 		if (argc == 3)
 		{
 //original code begin
-			std::string input;
-//			readStrigFromTerminal(input);
+//			readStrigFromTerminal(command);
 
-			get_one_command(input);
+			get_one_command(command);
 //			sleep(3);
-//			input = "select count(*) from (select row_id ,count(*) from cj group by row_id order by sec_code) as b;";
+//			command = "select count(*) from (select row_id ,count(*) from cj group by row_id order by sec_code) as b;";
 
 
-			query.append(input.c_str());
 //original code en
 		}
+		command=trimSpecialCharactor(command);
 
 /****************************************************************************************
  * added by scdong for experiment
@@ -85,59 +127,23 @@ int main(int argc, char** argv){
 //			cout << "press any key to continue: \n";
 //			cin >> input;
 			inFile.getline(input, 1024);
-			query = input;
-			cout << "query: " << query << endl;
+			command = input;
+			cout << "query: " << command << endl;
 		}
 /**************************** experiment ends ************************/
 
 
-		if( query == "exit;" ){
+		if( command == "exit;"||command=="shutdown;" ){
 			break;
-		}else if( query.empty() ){
+		}else if( command.empty() ){
 			continue;
 		}
-		ClientResponse* response = client.submitQuery(query);
+		submit_command(client,command);
 
-		if( query == "shutdown;" ){
-			break;
-		}
-
-		if (response->status == OK) {
-			ResultSet rs;
-			ClientLogging::log("Client get server response ok: %s\n",
-					response->content.c_str());
-			if(response->status == CHANGE){
-				printf("%s\n",
-						response->content.c_str());
-			}
-			else{
-				while (response->status != END) {
-
-					switch(response->status){
-					case SCHEMA:
-						rs.schema_=response->getSchema();
-						break;
-					case HEADER:
-						rs.column_header_list_=response->getAttributeName().header_list;
-						break;
-					case DATA:
-						assert(rs.schema_!=0);
-						rs.appendNewBlock(response->getDataBlock(rs.schema_));
-						break;
-					}
-
-					response = client.receive();
-
-					ClientLogging::log("Message: %s\n", response->getMessage().c_str());
-				}
-				rs.query_time_=atof(response->content.c_str());
-
-				rs.print();
-			}
-		} else {
-			printf("%s\n",
-					response->content.c_str());
-		}
+		/*
+		 * the following command execute the query for a given time and p
+		 * rint the averaged query response time.*/
+//		submit_command_repeated(client,command,50);
 	}
 	client.shutdown();
 }

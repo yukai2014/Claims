@@ -109,7 +109,7 @@ public:
 
 		inline void * readCurrent()const{
 			void *ret;
-
+			assert((((char*)free-(char*)cur))<buck_actual_size);
 			if(cur<free){
 				ret=cur;
 				return ret;
