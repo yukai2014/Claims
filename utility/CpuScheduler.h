@@ -18,7 +18,7 @@
 
 /* get number of sockets on this machine */
 static int getNumberOfSockets(){
-	return numa_max_node();
+	return numa_max_node()+1;
 }
 
 /* get the total number of cores */

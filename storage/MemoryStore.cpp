@@ -10,6 +10,7 @@
 #include "MemoryStore.h"
 #include "../configure.h"
 #include "../Resource/BufferManager.h"
+#include "../utility/CpuScheduler.h"
 using namespace std;
 MemoryChunkStore* MemoryChunkStore::instance_=0;
 MemoryChunkStore::MemoryChunkStore():chunk_pool_(CHUNK_SIZE),block_pool_(BLOCK_SIZE){
@@ -21,9 +22,9 @@ MemoryChunkStore::~MemoryChunkStore() {
 	chunk_pool_.purge_memory();
 	block_pool_.purge_memory();
 }
-bool MemoryChunkStore::applyChunk(ChunkID chunk_id, void*& start_address){
+bool MemoryChunkStore::applyChunk(ChunkID chunk_id, void*& start_address, bool numa){
 	lock_.acquire();
-	boost::unordered_map<ChunkID,HdfsInMemoryChunk>::const_iterator it=chunk_list_.find(chunk_id);
+	boost::unordered_map<ChunkID,HdfsInMemoryChunk>::iterator it=chunk_list_.find(chunk_id);
 	if(it!=chunk_list_.cend()){
 		printf("chunk id already exists (chunk id =%d)!\n",chunk_id.chunk_off);
 		lock_.release();
@@ -34,8 +35,18 @@ bool MemoryChunkStore::applyChunk(ChunkID chunk_id, void*& start_address){
 		lock_.release();
 		return false;
 	}
-	if((start_address=chunk_pool_.malloc())!=0){
+	// allocate memory in a random socket
+	int node = random()%getNumberOfSockets();
+	if (false == numa) {
+		start_address = chunk_pool_.malloc();
+	}
+	else {
+		start_address = numa_alloc_onnode(CHUNK_SIZE, node);	//TODO: start_addres should be stored to delete
+	}
+
+	if(start_address!=0){
 		chunk_list_[chunk_id]=HdfsInMemoryChunk(start_address,CHUNK_SIZE);
+		chunk_list_[chunk_id].numa_index = node;
 		lock_.release();
 		return true;
 	}

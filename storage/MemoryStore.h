@@ -41,12 +41,13 @@ using boost::pool;
 struct HdfsBlock{
 //	/*可以直接使用hdfs的blockid*/
 //	unsigned blockId;
-	HdfsBlock():hook(0),length(0){}
-	HdfsBlock(void* add,int length):hook(add),length(length){}
+	HdfsBlock():hook(0),length(0), numa_index(-1){}
+	HdfsBlock(void* add,int length):hook(add),length(length),numa_index(-1){}
 	/*是将block mmap操作之后返回的内存地址*/
 	void *hook;
 	/*记录每个block大小也就是文件长度*/
 	int length;
+	size_t numa_index;
 	// 是否被序列化过
 };
 
@@ -74,7 +75,7 @@ public:
 	};
 
 
-	bool applyChunk(ChunkID chunk_id,void*& start_address);
+	bool applyChunk(ChunkID chunk_id,void*& start_address, bool numa = false);
 
 	void returnChunk(const ChunkID& chunk_id);
 

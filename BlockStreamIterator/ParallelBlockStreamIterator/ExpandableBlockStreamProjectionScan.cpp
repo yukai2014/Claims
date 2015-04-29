@@ -49,7 +49,11 @@ bool ExpandableBlockStreamProjectionScan::open(const PartitionOffset& partition_
 			setReturnStatus(false);
 		}
 		else{
-			partition_reader_iterator_=partition_handle_->createAtomicReaderIterator();
+			if (partition_handle_->is_in_memory())
+				partition_reader_iterator_=partition_handle_->createNumaSensitiveReaderIterator();
+			else
+				partition_reader_iterator_ = partition_handle_->createAtomicReaderIterator();
+
 			setReturnStatus(true);
 		}
 

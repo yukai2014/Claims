@@ -9,8 +9,10 @@
 #include "../Debug.h"
 #include "MemoryStore.h"
 #include "../Config.h"
+#include "../utility/CpuScheduler.h"
+#include "BlockManager.h"
 PartitionStorage::PartitionStorage(const PartitionID &partition_id,const unsigned &number_of_chunks,const StorageLevel& storage_level)
-:partition_id_(partition_id),number_of_chunks_(number_of_chunks),desirable_storage_level_(storage_level){
+:partition_id_(partition_id),number_of_chunks_(number_of_chunks),desirable_storage_level_(storage_level),load_in_memory(false){
 	for(unsigned i=0;i<number_of_chunks_;i++){
 		chunk_list_.push_back(new ChunkStorage(ChunkID(partition_id_,i),BLOCK_SIZE,desirable_storage_level_));
 	}
@@ -54,6 +56,7 @@ void PartitionStorage::removeAllChunks(const PartitionID &partition_id)
 		chunk_list_.clear();
 		number_of_chunks_ = 0;
 	}
+	setInMemory(false);
 }
 
 PartitionStorage::PartitionReaderItetaor* PartitionStorage::createReaderIterator(){
@@ -63,6 +66,9 @@ PartitionStorage::PartitionReaderItetaor* PartitionStorage::createAtomicReaderIt
 	return new AtomicPartitionReaderIterator(this);
 }
 
+PartitionStorage::PartitionReaderItetaor* PartitionStorage::createNumaSensitiveReaderIterator() {
+	return new NumaSensitivePartitionReaderIterator(this);
+}
 
 
 PartitionStorage::PartitionReaderItetaor::PartitionReaderItetaor(PartitionStorage* partition_storage)
@@ -110,6 +116,7 @@ bool PartitionStorage::PartitionReaderItetaor::nextBlock(
 			return nextBlock(block);
 		}
 		else{
+			ps->setInMemory(true);
 			return false;
 		}
 	}
@@ -143,7 +150,7 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
 		return true;
 	}
 	else{
-		if((chunk_it_=nextChunk())>0){
+		if((chunk_it_=PartitionReaderItetaor::nextChunk())>0){
 			lock_.release();
 			return nextBlock(block);
 		}
@@ -156,22 +163,65 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
 
 PartitionStorage::NumaSensitivePartitionReaderIterator::NumaSensitivePartitionReaderIterator(
 		PartitionStorage* partitino_storage):
-		PartitionReaderItetaor(partitino_storage) {
+				PartitionReaderItetaor(partitino_storage),
+				socket_map_cur_(getNumberOfSockets(), 0),
+				socket_iterator_(getNumberOfSockets(), 0) {
+	for (int i = 0; i < ps->chunk_list_.size(); ++i) {
+		ChunkID chunk_id = ps->chunk_list_[i]->getChunkID();
+		HdfsInMemoryChunk chunk;
+		BlockManager::getInstance()->getMemoryChunkStore()->getChunk(chunk_id, chunk);
+		int node_index = chunk.numa_index;
+		assert(node_index < getNumberOfSockets() && "node index must less than number of Sockets");
+		ChunkReaderIterator* chunk_reader = ps->chunk_list_[i]->createChunkReaderIterator();
+		socket_index_to_chunk_reader_iterator_.insert(pair<int32_t, ChunkReaderIterator*>(node_index, chunk_reader));
+	}
+//	socket_map_cur_.insert()
+	assert(socket_map_cur_.size()==5
+			&& socket_map_cur_[0] == 0
+			&& socket_map_cur_[getNumberOfSockets()] == 0);
 }
 
 PartitionStorage::NumaSensitivePartitionReaderIterator::~NumaSensitivePartitionReaderIterator() {
 }
 
+// lock-free
 ChunkReaderIterator* PartitionStorage::NumaSensitivePartitionReaderIterator::nextChunk() {
-	printf("NumaSensitivePartitionReaderIterator::nextChunk is currently not implemented!\n")
-	assert(false);
-	return 0;
+	printf("NumaSensitivePartitionReaderIterator::nextChunk is currently implemented!\n");
+	ChunkReaderIterator* ret = NULL;
 
+	// get chunk located in closest socket
+	int current_socket_index = getCurrentSocketAffility();
+//	socket_index_to_chunk_reader_iterator_.
+	int cur = 0;
+	auto range = socket_index_to_chunk_reader_iterator_.equal_range(current_socket_index);
+	for (auto it = range.first; it != range.second; ++it) {
+		if (cur++ == socket_map_cur_[current_socket_index]) {
+			__sync_fetch_and_add(&socket_map_cur_[current_socket_index], 1);
+			return it->second;
+		}
+	}
+	return NULL;
 }
 
 bool PartitionStorage::NumaSensitivePartitionReaderIterator::nextBlock(
 		BlockStreamBase*& block) {
-
-
-
+	lock_.acquire();
+	int current_socket_id = getCurrentSocketAffility();
+	ChunkReaderIterator* &socket_iterator = socket_iterator_[current_socket_id];
+	ChunkReaderIterator::block_accessor* ba;
+	if(socket_iterator!=0&&socket_iterator->getNextBlockAccessor(ba)){
+		lock_.release();
+		ba->getBlock(block);
+		return true;
+	}
+	else{
+		if((socket_iterator=nextChunk())>0){
+			lock_.release();
+			return nextBlock(block);
+		}
+		else{
+			lock_.release();
+			return false;
+		}
+	}
 }

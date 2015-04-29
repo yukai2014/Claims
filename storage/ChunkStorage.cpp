@@ -33,7 +33,7 @@ ChunkStorage::~ChunkStorage() {
 	// TODO Auto-generated destructor stub
 }
 
-ChunkReaderIterator* ChunkStorage::createChunkReaderIterator(){
+ChunkReaderIterator* ChunkStorage::createChunkReaderIterator(bool numa){
 //	printf("level value:%d\n",current_storage_level_);
 	ChunkReaderIterator* ret;
 	lock_.acquire();
@@ -57,7 +57,7 @@ ChunkReaderIterator* ChunkStorage::createChunkReaderIterator(){
 			if(desirable_storage_level_==MEMORY){
 				HdfsInMemoryChunk chunk_info;
 				chunk_info.length=CHUNK_SIZE;
-				if(BlockManager::getInstance()->getMemoryChunkStore()->applyChunk(chunk_id_,chunk_info.hook)){
+				if(BlockManager::getInstance()->getMemoryChunkStore()->applyChunk(chunk_id_,chunk_info.hook, numa)){
 					/* there is enough memory storage space, so the storage level can be shifted.*/
 					if(Config::local_disk_mode) {
 						chunk_info.length = BlockManager::getInstance()->loadFromDisk(chunk_id_, chunk_info.hook, chunk_info.length);
