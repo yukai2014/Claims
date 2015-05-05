@@ -29,18 +29,23 @@ static int getNumberOfCpus(){
 /* get the id of the cpu running the current thread */
 static int getCurrentCpuAffility(){
 	cpu_set_t mask;
-	if(sched_getaffinity(pthread_self(),sizeof(mask),&mask)<0)
+	if(sched_getaffinity(0,sizeof(mask),&mask)<0) {
+		printf("ERROR:%s\n", strerror(errno));
+		assert(false && "can not get cpu affility");
 		return -1;
+	}
 	for(int i=0;i<getNumberOfCpus();i++){
 		 if (CPU_ISSET(i, &mask)) {
 			 return i;
 		}
 	}
+	assert(false && "can not get cpu affility");
 	return -1;
 }
 
 /* bind the current thread on the specified cpu*/
 static bool setCpuAffility(int cpu){
+	assert(cpu >= 0 && "cpu is unavailable");
 	cpu_set_t mask;
 	CPU_SET(cpu,&mask);
 	if(sched_setaffinity(pthread_self(),sizeof(mask),&mask)<0)
@@ -50,6 +55,7 @@ static bool setCpuAffility(int cpu){
 
 /* get the NUMA socket index of the specified thread */
 static int getSocketAffility(int cpu){
+	assert(cpu >= 0 && "cpu is unavailable");
 	return numa_node_of_cpu(cpu);
 }
 

@@ -116,7 +116,6 @@ bool PartitionStorage::PartitionReaderItetaor::nextBlock(
 			return nextBlock(block);
 		}
 		else{
-			ps->setInMemory(true);
 			return false;
 		}
 	}
@@ -155,6 +154,7 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
 			return nextBlock(block);
 		}
 		else{
+			ps->setInMemory(true);
 			lock_.release();
 			return false;
 		}
@@ -176,9 +176,9 @@ PartitionStorage::NumaSensitivePartitionReaderIterator::NumaSensitivePartitionRe
 		socket_index_to_chunk_reader_iterator_.insert(pair<int32_t, ChunkReaderIterator*>(node_index, chunk_reader));
 	}
 //	socket_map_cur_.insert()
-	assert(socket_map_cur_.size()==5
+	assert(socket_map_cur_.size()==1
 			&& socket_map_cur_[0] == 0
-			&& socket_map_cur_[getNumberOfSockets()] == 0);
+			&& socket_map_cur_[getNumberOfSockets()-1] == 0);
 }
 
 PartitionStorage::NumaSensitivePartitionReaderIterator::~NumaSensitivePartitionReaderIterator() {
