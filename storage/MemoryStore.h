@@ -38,20 +38,24 @@ using boost::pool;
  * 是catalog来管理的，所以这个地方只是负责存取，知道那些信息也没用，那
  * 些信息是做优化的
  * */
-struct HdfsBlock{
+typedef struct HdfsBlock{
 //	/*可以直接使用hdfs的blockid*/
 //	unsigned blockId;
 	HdfsBlock():hook(0),length(0), numa_index(-1){}
-	HdfsBlock(void* add,int length):hook(add),length(length),numa_index(-1){}
+	HdfsBlock(void* add,int length, int numa = -1):hook(add),length(length),numa_index(numa){}
+	HdfsBlock& operator= (const HdfsBlock& r) {
+		hook = r.hook;
+		length = r.length;
+		numa_index = r.numa_index;
+		return *this;
+	}
 	/*是将block mmap操作之后返回的内存地址*/
 	void *hook;
 	/*记录每个block大小也就是文件长度*/
 	int length;
-	size_t numa_index;
+	int numa_index;
 	// 是否被序列化过
-};
-
-typedef HdfsBlock HdfsInMemoryChunk;
+}HdfsInMemoryChunk;
 
 /*
  * memorystore只是负责数据的存取，而和数据的管理和为什么存储是没有关系的，
@@ -75,7 +79,7 @@ public:
 	};
 
 
-	bool applyChunk(ChunkID chunk_id,void*& start_address, bool numa = false);
+	bool applyChunk(ChunkID chunk_id,void*& start_address, int& index, bool numa = false);
 
 	void returnChunk(const ChunkID& chunk_id);
 

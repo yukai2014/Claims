@@ -26,9 +26,13 @@ BlockStreamExpander::BlockStreamExpander()
 }
 
 BlockStreamExpander::~BlockStreamExpander() {
+	logging_->log("[%d]\t%lx\t~BlockStreamExpander()", expander_id_, this);
 	delete logging_;
+	logging_ = NULL;
 	delete state_.child_;
+	state_.child_ = NULL;
 	delete state_.schema_;
+	state_.schema_ = NULL;
 }
 
 BlockStreamExpander::State::State(Schema* schema,BlockStreamIteratorBase* child,unsigned thread_count,unsigned block_size, unsigned block_count_in_buffer)
@@ -47,6 +51,7 @@ bool BlockStreamExpander::open(const PartitionOffset& partitoin_offset){
 	input_data_complete_=false;
 	one_thread_finished_=false;
 	finished_thread_count_=0;
+	all_created_thread_count_ = 0;
 	block_stream_buffer_=new BlockStreamBuffer(state_.block_size_,state_.block_count_in_buffer_*10,state_.schema_);
 
 	in_work_expanded_thread_list_.clear();
@@ -101,7 +106,13 @@ bool BlockStreamExpander::close(){
 //	pthread_join(coordinate_pid_,&res);
 	ExpanderTracker::getInstance()->unregisterExpander(expander_id_);
 	if (true == g_thread_pool_used){
-		//do nothing
+		//waiting for exit of all in work threads
+//		int working_thread_count = in_work_expanded_thread_list_.size();
+
+		logging_->log("[%d]:all created thread count is %d", expander_id_, all_created_thread_count_);
+		for (int i = 0; i < all_created_thread_count_; ++i)	// implement pthread_join with post()
+			end_thread_sem.wait();
+		logging_->log("[%d]:all created thread have been exit", expander_id_);
 	}
 	else{
 		for(std::set<pthread_t>::iterator it=in_work_expanded_thread_list_.begin();it!=in_work_expanded_thread_list_.end();it++){
@@ -160,6 +171,8 @@ void* BlockStreamExpander::expanded_work(void* arg){
 
 	if(Pthis->ChildExhausted()){
 		ExpanderTracker::getInstance()->deleteExpandedThreadStatus(pthread_self());
+//		Pthis->removeFromInWorkingExpandedThreadList(pthread_self());
+		Pthis->end_thread_sem.post();	// implement pthread_join with wait()
 		return 0;
 	}
 
@@ -233,13 +246,14 @@ void* BlockStreamExpander::expanded_work(void* arg){
 				Pthis->removeFromBeingCalledBackExpandedThreadList(pthread_self());
 				Pthis->tid_to_shrink_semaphore[pid]->post();
 			}
-		}
-	}
+		}// end if-else
+	}// end if-else
 
 
 	/* delete its stauts from expander tracker before exit*/
 	ExpanderTracker::getInstance()->deleteExpandedThreadStatus(pthread_self());
-	Pthis->logging_->log("[%ld] One expande thread finished!\n",Pthis->expander_id_);
+	Pthis->logging_->log("[%ld] One expande thread %lx finished!\n",Pthis->expander_id_, pthread_self());
+	Pthis->end_thread_sem.post();	// implement pthread_join with wait()
 	return 0;
 
 }
@@ -276,7 +290,7 @@ bool BlockStreamExpander::createNewExpandedThread(){
 	ticks start=curtick();
 	if(exclusive_expanding_.try_acquire()){
 		if (true == g_thread_pool_used){
-			Environment::getInstance()->getThreadPool()->add_task(expanded_work, &para);
+			Environment::getInstance()->getThreadPool()->AddTastInSocket(expanded_work, &para, GetNextSocket());
 		}
 		else {
 			const int error=pthread_create(&tid,NULL,expanded_work,&para);
@@ -295,10 +309,11 @@ bool BlockStreamExpander::createNewExpandedThread(){
 		}
 
 		lock_.acquire();
+		++all_created_thread_count_;
 		thread_count_++;
 		lock_.release();
 	//	in_work_expanded_thread_list_.insert(tid);
-		printf("Expand time :%lf \n",getSecond(start));
+		logging_->log("Expand time :%lf \n",getSecond(start));
 		return true;
 	}
 	else{

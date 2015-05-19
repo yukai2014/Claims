@@ -11,7 +11,7 @@
 #include <assert.h>
 #include "../../common/ExpressionCalculator.h"
 #include "../../common/Expression/execfunc.h"
-#include "../../common/Expression/qnode.h"
+//#include "../../common/Expression/qnode.h"
 #include "../../Parsetree/sql_node_struct.h"
 #include "../../common/Expression/initquery.h"
 #include "../../common/Expression/queryfunc.h"

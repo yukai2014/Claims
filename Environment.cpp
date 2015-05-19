@@ -23,6 +23,14 @@ Environment::Environment(bool ismaster):ismaster_(ismaster) {
 	Config::getInstance();
 	CodeGenerator::getInstance();
 	logging_=new EnvironmentLogging();
+
+	if (true == g_thread_pool_used){
+		logging_->log("Initializing the ThreadPool...");
+		if (false == initializeThreadPool()) {
+			logging_->elog("initialize ThreadPool failed");
+		}
+	}
+
 	readConfigFile();
 	initializeExpressionSystem();
 	portManager=PortManager::getInstance();
@@ -35,12 +43,6 @@ Environment::Environment(bool ismaster):ismaster_(ismaster) {
 
 	}
 
-	if (true == g_thread_pool_used){
-		logging_->log("Initializing the ThreadPool...");
-		if (false == initializeThreadPool()) {
-			logging_->elog("initialize ThreadPool failed");
-		}
-	}
 	logging_->log("Initializing the AdaptiveEndPoint...");
 	initializeEndPoint();
 /**
@@ -211,7 +213,7 @@ void Environment::destoryClientListener() {
 bool Environment::initializeThreadPool() {
 	thread_pool_ = new ThreadPool();
 //	return thread_pool_->Thread_Pool_init(2*sysconf(_SC_NPROCESSORS_CONF));
-	return thread_pool_->Thread_Pool_init(100);
+	return thread_pool_->ThreadPoolInit(100);
 
 }
 

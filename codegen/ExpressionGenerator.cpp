@@ -228,6 +228,7 @@ llvm::Function* getExprLLVMFucn(QNode* qnode, Schema* schema) {
 	/* try to generate the code and get the return value
 	 * If we cannot generate the code, return_value is NULL*/
 	llvm::Value* return_value=codegen(qnode,schema,tuple_addr);
+//	return_value = CodeGenerator::getInstance()->getBuilder()->CreateAnd(return_value, );
 
 	if(!return_value){
 		CodeGenerator::getInstance()->release();
@@ -781,7 +782,7 @@ llvm_memcpy getMemcpy(unsigned length) {
 	builder->CreateRetVoid();
 
 	verifyFunction(*F);
-	F->dump();
+//	F->dump();
 	CodeGenerator::getInstance()->getFunctionPassManager()->run(*F);
 	llvm_memcpy ret=CodeGenerator::getInstance()->getExecutionEngine()->getPointerToFunction(F);
 	CodeGenerator::getInstance()->release();
@@ -824,7 +825,7 @@ llvm_memcat getMemcat(unsigned length1, unsigned length2) {
 	builder->CreateRetVoid();
 
 	verifyFunction(*F);
-	F->dump();
+//	F->dump();
 	CodeGenerator::getInstance()->getFunctionPassManager()->run(*F);
 	llvm_memcat ret= CodeGenerator::getInstance()->getExecutionEngine()->getPointerToFunction(F);
 	CodeGenerator::getInstance()->release();

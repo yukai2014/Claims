@@ -11,9 +11,9 @@
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
-#include "../BlockStreamIteratorBase.h"
+//#include "../BlockStreamIteratorBase.h"
 #include "../ExpandableBlockStreamIteratorBase.h"
-#include "../../common/Schema/Schema.h"
+//#include "../../common/Schema/Schema.h"
 #include "../../common/Comparator.h"
 #include "../../common/Block/BlockStream.h"
 #include "../../utility/lock.h"
@@ -25,9 +25,15 @@
 #include <map>
 #include <string>
 #include <boost/serialization/map.hpp>
-#include "../../common/Expression/qnode.h"
+//#include "../../common/Expression/qnode.h"
 #include "../../codegen/ExpressionGenerator.h"
 //typedef vector<ExpressionItem> ExpressItem_List;
+
+class QNode;
+class BlockStreamBase;
+class BlockStreamBase::BlockStreamTraverseIterator;
+class Schema;
+
 class ExpandableBlockStreamFilter:public ExpandableBlockStreamIteratorBase {
 public:
 	class filter_thread_context:public thread_context{

@@ -9,6 +9,7 @@
 #include "../utility/rdtsc.h"
 
 #include <fstream>
+
 using namespace std;
 
 BlockStreamPerformanceTest::BlockStreamPerformanceTest(State state)
@@ -29,10 +30,15 @@ bool BlockStreamPerformanceTest::open(const PartitionOffset& partition_offset){
 	tuplecount1_ = 0;
 	tuplecount2_ = 0;
 	int error;
-	error=pthread_create(&report_tid_,NULL,report,this);
-	if(error!=0){
-		std::cout<<"create threads error!"<<std::endl;
-	}
+//	if (true == g_thread_pool_used) {
+//		Environment::getInstance()->getThreadPool()->AddTask(report, this);
+//	}
+//	else {
+		error=pthread_create(&report_tid_,NULL,report,this);
+		if(error!=0){
+			std::cout<<"create threads error!"<<std::endl;
+		}
+//	}
 	start_=curtick();
 	return true;
 }
@@ -68,7 +74,9 @@ bool BlockStreamPerformanceTest::next(BlockStreamBase*){
 }
 
 bool BlockStreamPerformanceTest::close(){
-	pthread_cancel(report_tid_);
+//	if (false == g_thread_pool_used) {
+		pthread_cancel(report_tid_);
+//	}
 	double eclipsed_seconds=getSecond(start_);
 	double processed_data_in_bytes=tuplecount_*state_.schema_->getTupleMaxSize();
 

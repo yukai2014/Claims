@@ -43,12 +43,15 @@ Coordinator::Coordinator() {
 }
 
 Coordinator::~Coordinator() {
-	pthread_cancel(prochaseId);
-	void *res=0;
-	while(res!=PTHREAD_CANCELED){
-		pthread_join(prochaseId,&res);
-	}
-
+//	if (true == g_thread_pool_used) {
+//	}
+//	else{
+		pthread_cancel(prochaseId);
+		void *res=0;
+		while(res!=PTHREAD_CANCELED){
+			pthread_join(prochaseId,&res);
+		}
+//	}
 	FileClose(socket_fd);
 //	logging->elog("-----for debug: fd %d is closed", socket_fd);
 //	std::cout<<"in "<<__FILE__<<":"<<__LINE__;printf("-----for debug: fd %d is closed\n", socket_fd);
@@ -116,12 +119,16 @@ bool Coordinator::SetupTheTheron() {
 
 }
 bool Coordinator::CreateListeningThread() {
+//	if (true == g_thread_pool_used) {
+//		Environment::getInstance()->getThreadPool()->AddTask(ListeningNewNode, this);
+//	}
+//	else {
+		const int error = pthread_create(&prochaseId, NULL, ListeningNewNode, this);
 
-	const int error = pthread_create(&prochaseId, NULL, ListeningNewNode, this);
+		logging->log("[Coordinator]: The listening thread is created!");
 
-	logging->log("[Coordinator]: The listening thread is created!");
-
-	return error == 0;
+		return error == 0;
+//	}
 }
 
 void* Coordinator::ListeningNewNode(void *arg) {

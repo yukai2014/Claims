@@ -46,7 +46,7 @@
 
 //#define DEBUG_ASTParser
 //#define DEBUG_ThreadPool
-#define SQL_Parser
+//#define SQL_Parser
 
 #endif  //CLAIMS_QUEIT
 void IteratorExecutorMasterLogging::log(const char* format,...){
@@ -510,7 +510,7 @@ void ClientLogging::elog(const char* format,...) {
 
 void ThreadPoolLogging::log(const char* format,...) {
 #ifdef DEBUG_ThreadPool
-	printf("ThreadPool: ");
+	printf("[ThreadPool]: ");
 	va_list arg;
 	va_start (arg, format);
 	vprintf(format,arg);

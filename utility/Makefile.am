@@ -16,4 +16,5 @@ libutility_a_SOURCES = \
 	ThreadPool.h					ThreadPool.cpp \
 	data_distribution_generator.cpp 	data_distribution_generator.h \
 	command_line.cpp 					command_line.h\
-	string_process.cpp					string_process.h
+	string_process.cpp					string_process.h \
+	Task.h								Task.cpp

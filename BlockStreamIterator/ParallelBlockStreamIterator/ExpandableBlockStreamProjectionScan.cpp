@@ -138,7 +138,9 @@ bool ExpandableBlockStreamProjectionScan::next(BlockStreamBase* block) {
 		//		printf("<<<<<<<<<<<<<<<<<Scan detected call back signal!>>>>>>%lx>>>>>>>>>>>\n",pthread_self());
 		return false;
 	}
-	perf_info->processed_one_block();
+//	perf_info->processed_one_block();
+	ExpanderTracker::getInstance()->getPerformanceInfo(pthread_self())->processed_one_block();
+	usleep(1);
 	return partition_reader_iterator_->nextBlock(block);
 
 #endif
@@ -191,6 +193,8 @@ bool ExpandableBlockStreamProjectionScan::next(BlockStreamBase* block) {
 
 bool ExpandableBlockStreamProjectionScan::close() {
 	delete partition_reader_iterator_;
+	partition_reader_iterator_ = NULL;
+//	printf("in close(): %lx partition_reader_iterator is deleted ", partition_reader_iterator_);
 
 	destoryAllContext();
 

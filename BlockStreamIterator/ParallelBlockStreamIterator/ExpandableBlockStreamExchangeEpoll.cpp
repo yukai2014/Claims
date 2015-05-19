@@ -329,7 +329,7 @@ bool ExpandableBlockStreamExchangeEpoll::SerializeAndSendToMulti(){
 bool ExpandableBlockStreamExchangeEpoll::CreateReceiverThread(){
 	int error;
 //	if (true == g_thread_pool_used) {
-//		Environment::getInstance()->getThreadPool()->add_task(receiver, this);
+//		Environment::getInstance()->getThreadPool()->AddTask(receiver, this);
 //	}
 //	else{
 		error=pthread_create(&receiver_tid,NULL,receiver,this);
@@ -342,11 +342,15 @@ bool ExpandableBlockStreamExchangeEpoll::CreateReceiverThread(){
 	return true;
 }
 void ExpandableBlockStreamExchangeEpoll::CancelReceiverThread(){
-	pthread_cancel(receiver_tid);
-	void *res=0;
-	while(res!=PTHREAD_CANCELED){
-		pthread_join(receiver_tid,&res);
-	}
+//	if (true == g_thread_pool_used) {
+//	}
+//	else {
+		pthread_cancel(receiver_tid);
+		void *res=0;
+		while(res!=PTHREAD_CANCELED){
+			pthread_join(receiver_tid,&res);
+		}
+//	}
 //	pthread_cancel(debug_tid);
 }
 
@@ -529,7 +533,7 @@ void* ExpandableBlockStreamExchangeEpoll::receiver(void* arg){
 	                     from the set of descriptors which are monitored. */
 	                  FileClose (events[i].data.fd);
 				}
-			}
+			}// end if-else
 		}
 	}
 

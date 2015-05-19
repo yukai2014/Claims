@@ -1062,7 +1062,6 @@ void outputSpace(int f)
 }
 void output(Node * oldnode, int floor)
 {
-#ifdef DEBUG_ASTParser
 	//puts("there is output()");
 	if(oldnode == NULL)
 	{
@@ -1454,7 +1453,6 @@ void output(Node * oldnode, int floor)
 			printf("output type not exist!!!\n");
 		}
 	}
-#endif
 }
 
 void FreeAllNode()	// 2014-3-6---增加释放所有节点的函数---by余楷	// 2014-4-2---存放节点指针的数组改为vector---by Yu

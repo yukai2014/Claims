@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include "../Config.h"
 #include "../common/ids.h"
+#include "../Environment.h"
 
 #define DECISION_SHRINK 0
 #define DECISION_EXPAND 1
@@ -34,13 +35,21 @@ ExpanderTracker* ExpanderTracker::instance_=0;
 ExpanderTracker::ExpanderTracker(){
 	// TODO Auto-generated constructor stub
 	log_=new ExpanderTrackerLogging();
-
-	pthread_create(&monitor_thread_id_,0,monitoringThread,this);
-	log_->log("************Monitoring thread id=%lx\n",monitor_thread_id_);
+//	if (true == g_thread_pool_used) {
+//		Environment::getInstance()->getThreadPool()->AddTask(monitoringThread, this);
+//	}
+//	else {
+		pthread_create(&monitor_thread_id_,0,monitoringThread,this);
+		log_->log("************Monitoring thread id=%lx\n",monitor_thread_id_);
+//	}
 }
 
 ExpanderTracker::~ExpanderTracker() {
-	pthread_cancel(monitor_thread_id_);
+//	if (true == g_thread_pool_used) {
+//	}
+//	else{
+		pthread_cancel(monitor_thread_id_);
+//	}
 	instance_=0;
 	delete log_;
 }
@@ -70,6 +79,7 @@ bool ExpanderTracker::registerNewExpandedThreadStatus(expanded_thread_id id,Expa
 	}
 	else{
 		thread_id_to_expander_id_[id]=exp_id;
+		log_->log("[ExpanderTracker]: %lx now is inserted into thread_id_to_expander_id_!\n",id);
 
 		if(expander_id_to_expand_shrink_.find(exp_id)==expander_id_to_expand_shrink_.cend()){
 			printf("error!  not exists: expander_id = %d\n", exp_id);
@@ -97,8 +107,8 @@ bool ExpanderTracker::deleteExpandedThreadStatus(expanded_thread_id id){
 	}
 	else{
 		id_to_status_.erase(id);
+		log_->log("[ExpanderTracker]: %lx has been deleted from id_to_status_!\n",id);
 	}
-////		log_->log("[ExpanderTracker]: %lx is delete!\n",id);
 //		lock_.release();
 //		return true;
 
@@ -109,6 +119,7 @@ bool ExpanderTracker::deleteExpandedThreadStatus(expanded_thread_id id){
 	}
 
 	thread_id_to_expander_id_.erase(id);
+	log_->log("[ExpanderTracker]: %lx now is deleted from thread_id_to_expander_id_!\n",id);
 	lock_.release();
 	return true;
 
@@ -199,7 +210,9 @@ void ExpanderTracker::unregisterExpander(ExpanderID expander_id){
 	}
 //	delete expander_id_to_status_[expander_id];
 	expander_id_to_status_.erase(expander_id);
+	log_->log("[ExpanderTracker]: %ld now is deleted from expander_id_to_status_!\n",expander_id);
 	expander_id_to_expand_shrink_.erase(expander_id);
+	log_->log("[ExpanderTracker]: %ld now is deleted from expander_id_to_expand_shrink_!\n",expander_id);
 	lock_.release();
 
 }
@@ -570,7 +583,7 @@ void ExpanderTracker::printStatus() {
 
 	printf("expanded thread id: ExpandedThreadStatus\n");
 	for(std::map<expanded_thread_id,ExpandedThreadStatus>::iterator it=id_to_status_.begin();it!=id_to_status_.end();it++){
-		printf("(%ld, %llx)", it->first,&it->second);
+		printf("(%lx, %llx)", it->first,&it->second);
 	}
 	printf("\n");
 }

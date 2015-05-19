@@ -4,6 +4,7 @@ AM_CPPFLAGS=-fPIC -fpermissive -DTHERON_XS\
 -I${JAVA_HOME}/include/linux \
 -I${THERON_HOME}/Include \
 -I${BOOST_HOME}/boost/serialization \
+-I${BOOST_HOME}/boost/date_time \
 -I${BOOST_HOME}/ \
 -I${GTEST_HOME}/include
 
@@ -48,9 +49,11 @@ LDADD =  \
 	common/types/Test/libtest.a \
 	common/types/ttmath/libttmath.a \
 	utility/libutility.a \
-      codegen/libcodegen.a\
+    codegen/libcodegen.a\
 	${BOOST_HOME}/stage/lib/libboost_serialization.a \
 	${BOOST_HOME}/stage/lib/libboost_serialization.so \
+	${BOOST_HOME}/stage/lib/libboost_date_time.a \
+	${BOOST_HOME}/stage/lib/libboost_date_time.so \
 	${BOOST_HOME}/stage/lib/libboost_system.a \
 	${BOOST_HOME}/stage/lib/libboost_system.so \
 	${HADOOP_HOME}/c++/Linux-amd64-64/lib/libhdfs.so \

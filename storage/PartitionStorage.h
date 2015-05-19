@@ -48,9 +48,6 @@ public:
 		ChunkReaderIterator* nextChunk();
 		bool nextBlock(BlockStreamBase* &block);
 	private:
-		// optimized for NUMA
-		boost::unordered_multimap<int32_t, ChunkReaderIterator*> socket_index_to_chunk_reader_iterator_;
-//		boost::unordered_multimap<int32_t, ChunkReaderIterator*>::iterator it_in_multimap_;
 		vector<ChunkReaderIterator*> socket_iterator_;
 		vector<size_t> socket_map_cur_;
 		Lock lock_;
@@ -67,11 +64,19 @@ public:
 	PartitionReaderItetaor* createNumaSensitiveReaderIterator();
 	inline bool is_in_memory() { return load_in_memory; };
 	inline void setInMemory(bool is_memory) { load_in_memory = is_memory; };
+
+	void GenerateNumaStorageInfo();
 protected:
 	PartitionID partition_id_;
 	unsigned number_of_chunks_;
 	std::vector<ChunkStorage*> chunk_list_;
 	StorageLevel desirable_storage_level_;
+
+	// optimized for NUMA
+	multimap<int32_t, ChunkReaderIterator*> socket_index_to_chunk_reader_iterator_;
+//		boost::unordered_multimap<int32_t, ChunkReaderIterator*>::iterator it_in_multimap_;
+
+
 private:
 	bool load_in_memory;
 

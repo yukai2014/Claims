@@ -91,6 +91,7 @@ private:
 	BlockStreamBuffer* block_stream_buffer_;
 	volatile unsigned finished_thread_count_;
 	volatile unsigned thread_count_;
+	volatile unsigned all_created_thread_count_;
 
 	/*
 	 * whether at least one work thread has successfully finished!
@@ -111,6 +112,8 @@ private:
 	 */
 
 	unsigned long int received_tuples_;
+
+	semaphore end_thread_sem;
 
 	Logging* logging_;
 private:

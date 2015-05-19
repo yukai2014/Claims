@@ -16,6 +16,7 @@
 #include "../BlockStreamIterator/BlockStreamIteratorBase.h"
 #include "../common/Schema/Schema.h"
 #include "../common/Logging.h"
+#include "../Environment.h"
 
 class BlockStreamPerformanceMonitorTop:public BlockStreamIteratorBase {
 public:

@@ -27,11 +27,14 @@ bool BlockStreamPerformanceMonitorTop::open(const PartitionOffset& partition_off
 	state_.child_->open(partition_offset);
 	block_=BlockStreamBase::createBlock(state_.schema_,state_.block_size_);
 	tuplecount_=0;
-	int error;
-	error=pthread_create(&report_tid_,NULL,report,this);
-	if(error!=0){
-		std::cout<<"create threads error!"<<std::endl;
-	}
+//	if (true == g_thread_pool_used) {
+//		Environment::getInstance()->getThreadPool()->AddTask(report, this);
+//	}
+//	else {
+		if(pthread_create(&report_tid_,NULL,report,this)!=0){
+			std::cout<<"create threads error!"<<std::endl;
+		}
+//	}
 
 	return true;
 }

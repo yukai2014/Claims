@@ -25,11 +25,16 @@ Daemon::Daemon() {
 	// TODO Auto-generated constructor stub
 	//TODO: create work threads
 	for (unsigned i = 0; i < WORK_THREAD_COUNT; i++) {
-		pthread_t tid;
-		const int error = pthread_create(&tid, NULL, worker, this);
-		if (error != 0) {
-			std::cout << "cannot create thread!" << std::endl;
-			return;
+		if (true == g_thread_pool_used) {
+			Environment::getInstance()->getThreadPool()->AddTask(worker, this);
+		}
+		else {
+			pthread_t tid;
+			const int error = pthread_create(&tid, NULL, worker, this);
+			if (error != 0) {
+				std::cout << "cannot create thread!" << std::endl;
+				return;
+			}
 		}
 	}
 }

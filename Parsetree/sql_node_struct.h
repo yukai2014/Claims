@@ -23,12 +23,6 @@ extern "C" void emit(char *s, ...);
 extern "C" void yyerror(const char *s, ...);
 extern int yylineno;
 
-/*
- * enum data_type{
- * 	t_smallInt,t_int,t_u_long,t_float,t_double,t_string, t_date, t_time, t_datetime, t_decimal, t_boolean, t_u_smallInt};
- * from data_type.h
- */
-
 enum nodetype
 {
 	t_none,
@@ -43,26 +37,24 @@ enum nodetype
 	t_having_list,
 	t_orderby_list,t_orderby_expr,
 	t_limit_list,t_limit_expr,
-	t_insert_stmt,	t_insert_val_list, t_insert_vals, t_insert_assign, // 2014-4-17---增加---by Yu
-	t_create_database_stmt, t_create_table_stmt, t_create_col_list, t_create_def, t_create_projection_stmt,// 2014-2-24---新增t_create_projection_stmt类型---by余楷
+	t_insert_stmt,	t_insert_val_list, t_insert_vals, t_insert_assign,
+	t_create_database_stmt, t_create_table_stmt, t_create_col_list, t_create_def, t_create_projection_stmt,
 	t_alter_database_stmt, t_alter_table_stmt, t_alter_def,
 	t_create_select_stmt,t_column_atts, t_opt_csc,
 	t_datatype,t_length,t_enum_list,
-	t_create_index_stmt,	t_index_col_list,	t_drop_index,	// 2014-3-24---增加---by Yu
-	t_drop_database_stmt,t_drop_table_stmt, t_table_list,	// 2014-3-24---增加---by Yu
-	t_load_table_stmt,	// 2014-3-24---add---by Yu
-	t_show_stmt,	// 2014-5-4---add---by Yu
+	t_create_index_stmt,	t_index_col_list,	t_drop_index,
+	t_drop_database_stmt,t_drop_table_stmt, t_table_list,
+	t_load_table_stmt,
+	t_show_stmt,
 	t_drop_stmt
 };
-
-// 2014-4-14---delete union dataval, because only char* is need---by Yu
 
 struct Node//基本节点
 {
 	nodetype type;
 };
 
-struct Stmt	//语句列表 2014-3-4---增加语句列表结构体---by余楷
+struct Stmt
 {
 	nodetype type;
 	Node *data;

@@ -40,25 +40,38 @@ void readStrigFromTerminal(string & input){
 	}
 }
 
-void submit_command(Client& client, std::string &command){
+void submit_command(Client& client, std::string &commands){
 	ResultSet rs;
 	std::string message;
-	switch(client.submit(command,message,rs)){
-	case Client::result:
-		rs.print();
-//				if(i!=0)
-//					total_time+=rs.query_time_;
-		break;
-	case Client::message:
-		printf("%s",message.c_str());
-		break;
-	case Client::error:
-		printf("%s",message.c_str());
-		break;
-	default:
-		assert(false);
-		break;
+	/*
+	 * split a string that consist of many SQL statements into many string,
+	 * and commit one by one
+	 */
+	string::size_type last_command_end = 0;	// index of last ';' + 1
+	string::size_type cur_command_end = 0;	//
+	while ((cur_command_end = commands.find(';', last_command_end)) != string::npos) {
+		string sql_command = commands.substr(last_command_end, cur_command_end-last_command_end+1);
+		std::cout<<sql_command<<endl;
+		switch(client.submit(sql_command,message,rs)){
+		case Client::result:
+			rs.print();
+			//				if(i!=0)
+			//					total_time+=rs.query_time_;
+			break;
+		case Client::message:
+			printf("%s",message.c_str());
+			break;
+		case Client::error:
+			printf("%s",message.c_str());
+			break;
+		default:
+			assert(false);
+			break;
+		}
+
+		last_command_end = cur_command_end + 1;
 	}
+
 }
 
 void submit_command_repeated(Client& client, std::string &command,int repeated){

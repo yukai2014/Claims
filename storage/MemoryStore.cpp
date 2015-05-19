@@ -22,7 +22,7 @@ MemoryChunkStore::~MemoryChunkStore() {
 	chunk_pool_.purge_memory();
 	block_pool_.purge_memory();
 }
-bool MemoryChunkStore::applyChunk(ChunkID chunk_id, void*& start_address, bool numa){
+bool MemoryChunkStore::applyChunk(ChunkID chunk_id, void*& start_address, int& index, bool numa){
 	lock_.acquire();
 	boost::unordered_map<ChunkID,HdfsInMemoryChunk>::iterator it=chunk_list_.find(chunk_id);
 	if(it!=chunk_list_.cend()){
@@ -45,8 +45,14 @@ bool MemoryChunkStore::applyChunk(ChunkID chunk_id, void*& start_address, bool n
 	}
 
 	if(start_address!=0){
-		chunk_list_[chunk_id]=HdfsInMemoryChunk(start_address,CHUNK_SIZE);
-		chunk_list_[chunk_id].numa_index = node;
+		index = node;
+		chunk_list_[chunk_id]=HdfsInMemoryChunk(start_address, CHUNK_SIZE, node);
+//debug
+//		cout<<"chunk_list_ has "<<chunk_list_.size()<<" members"<<endl;
+//		for (auto it:chunk_list_) {
+//			cout<<it.first.chunk_off<<"\t"<<it.second.numa_index<<endl;
+//		}
+
 		lock_.release();
 		return true;
 	}
@@ -75,6 +81,13 @@ void MemoryChunkStore::returnChunk(const ChunkID& chunk_id){
 
 bool MemoryChunkStore::getChunk(const ChunkID& chunk_id,HdfsInMemoryChunk& chunk_info){
 	lock_.acquire();
+
+//debug
+//	cout<<"chunk_list_ has "<<chunk_list_.size()<<" members"<<endl;
+//	for (auto it:chunk_list_) {
+//		cout<<it.first.chunk_off<<"\t"<<it.second.numa_index<<endl;
+//	}
+
 	boost::unordered_map<ChunkID,HdfsInMemoryChunk>::const_iterator it=chunk_list_.find(chunk_id);
 	if(it!=chunk_list_.cend()){
 		chunk_info=it->second;

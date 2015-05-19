@@ -121,8 +121,7 @@ bool PartitionStorage::PartitionReaderItetaor::nextBlock(
 	}
 }
 
-bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
-		BlockStreamBase*& block) {
+bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(BlockStreamBase*& block) {
 ////	lock_.acquire();
 //	if(chunk_it_>0&&chunk_it_->nextBlock(block)){
 ////		lock_.release();
@@ -154,7 +153,10 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
 			return nextBlock(block);
 		}
 		else{
+			if (false == ps->is_in_memory())
+				ps->GenerateNumaStorageInfo();
 			ps->setInMemory(true);
+
 			lock_.release();
 			return false;
 		}
@@ -162,21 +164,11 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
 }
 
 PartitionStorage::NumaSensitivePartitionReaderIterator::NumaSensitivePartitionReaderIterator(
-		PartitionStorage* partitino_storage):
-				PartitionReaderItetaor(partitino_storage),
-				socket_map_cur_(getNumberOfSockets(), 0),
-				socket_iterator_(getNumberOfSockets(), 0) {
-	for (int i = 0; i < ps->chunk_list_.size(); ++i) {
-		ChunkID chunk_id = ps->chunk_list_[i]->getChunkID();
-		HdfsInMemoryChunk chunk;
-		BlockManager::getInstance()->getMemoryChunkStore()->getChunk(chunk_id, chunk);
-		int node_index = chunk.numa_index;
-		assert(node_index < getNumberOfSockets() && "node index must less than number of Sockets");
-		ChunkReaderIterator* chunk_reader = ps->chunk_list_[i]->createChunkReaderIterator();
-		socket_index_to_chunk_reader_iterator_.insert(pair<int32_t, ChunkReaderIterator*>(node_index, chunk_reader));
-	}
-//	socket_map_cur_.insert()
-	assert(socket_map_cur_.size()==1
+		PartitionStorage* partitino_storage):PartitionReaderItetaor(partitino_storage),
+		socket_map_cur_(getNumberOfSockets(), 0),
+		socket_iterator_(getNumberOfSockets(), 0){
+
+	assert(socket_map_cur_.size()==getNumberOfSockets()
 			&& socket_map_cur_[0] == 0
 			&& socket_map_cur_[getNumberOfSockets()-1] == 0);
 }
@@ -186,17 +178,18 @@ PartitionStorage::NumaSensitivePartitionReaderIterator::~NumaSensitivePartitionR
 
 // lock-free
 ChunkReaderIterator* PartitionStorage::NumaSensitivePartitionReaderIterator::nextChunk() {
-	printf("NumaSensitivePartitionReaderIterator::nextChunk is currently implemented!\n");
+//	printf("NumaSensitivePartitionReaderIterator::nextChunk is currently implemented!\n");
 	ChunkReaderIterator* ret = NULL;
 
 	// get chunk located in closest socket
 	int current_socket_index = getCurrentSocketAffility();
 //	socket_index_to_chunk_reader_iterator_.
 	int cur = 0;
-	auto range = socket_index_to_chunk_reader_iterator_.equal_range(current_socket_index);
+	auto range = ps->socket_index_to_chunk_reader_iterator_.equal_range(current_socket_index);
 	for (auto it = range.first; it != range.second; ++it) {
 		if (cur++ == socket_map_cur_[current_socket_index]) {
 			__sync_fetch_and_add(&socket_map_cur_[current_socket_index], 1);
+			it->second->cur_block_ = 0;
 			return it->second;
 		}
 	}
@@ -224,4 +217,31 @@ bool PartitionStorage::NumaSensitivePartitionReaderIterator::nextBlock(
 			return false;
 		}
 	}
+}
+
+void PartitionStorage::GenerateNumaStorageInfo() {
+//	socket_map_cur_.insert(0);
+//	socket_map_cur_.clear();
+//	socket_iterator_.clear();
+//	socket_iterator_.insert(socket_iterator_.begin(), getNumberOfSockets(), 0);
+//	socket_map_cur_.insert(socket_map_cur_.begin(), getNumberOfSockets(), 0);
+	for (int i = 0; i < chunk_list_.size(); ++i) {
+			ChunkID chunk_id = chunk_list_[i]->getChunkID();
+			HdfsInMemoryChunk chunk;
+			BlockManager::getInstance()->getMemoryChunkStore()->getChunk(chunk_id, chunk);
+			int node_index = chunk.numa_index;
+			assert(	node_index < getNumberOfSockets()
+					&& 0 <= node_index
+					&& "node index must less than number of Sockets");
+			ChunkReaderIterator* chunk_reader = chunk_list_[i]->createChunkReaderIterator();
+			socket_index_to_chunk_reader_iterator_.insert(pair<int32_t, ChunkReaderIterator*>(node_index, chunk_reader));
+	//		cout<<"socket_iterator_ has "<<socket_iterator_.size()<<" members"<<endl;
+	//		cout<<"socket_index_to_chunk_reader_iterator_ has "
+	//				<<socket_index_to_chunk_reader_iterator_.size()<<" members"<<endl;
+		}
+	//debug
+	//	for (auto it:socket_index_to_chunk_reader_iterator_) {
+	//		cout<<it.first<<"	"<<it.second<<endl;
+	//	}
+	//	socket_map_cur_.insert()
 }

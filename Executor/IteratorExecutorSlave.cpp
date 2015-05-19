@@ -96,10 +96,15 @@ void IteratorExecutorSlave::createNewThreadAndRun(PhysicalQueryPlan* it){
 	void** arg=new void*[2];
 	arg[0]=it;
 	arg[1]=this;
-	pthread_create(&thread,NULL,run_iterator,arg);
-	lock_.acquire();
-	busy_thread_list_.insert(thread);
-	lock_.release();
+	if (true == g_thread_pool_used) {
+		Environment::getInstance()->getThreadPool()->AddTask(run_iterator, arg);
+	}
+	else {
+		pthread_create(&thread,NULL,run_iterator,arg);
+		lock_.acquire();
+		busy_thread_list_.insert(thread);
+		lock_.release();
+	}
 
 	logging_->log("A new Running thread is created!");
 }
@@ -121,11 +126,15 @@ void* IteratorExecutorSlave::run_iterator(void* arg){
 //	CPUResourceManager::getInstance()->print();
 	delete it;
 	Pthis->logging_->log("A iterator tree is successfully executed!\n");
-	assert(Pthis->busy_thread_list_.find(pthread_self())!=Pthis->busy_thread_list_.end());
-	Pthis->lock_.acquire();
-	Pthis->busy_thread_list_.erase(pthread_self());
-	Pthis->lock_.release();
-//	p_green("Job in thread (%lx) finished.\n",pthread_self());
+	if (true == g_thread_pool_used) {
+	}
+	else {
+		assert(Pthis->busy_thread_list_.find(pthread_self())!=Pthis->busy_thread_list_.end());
+		Pthis->lock_.acquire();
+		Pthis->busy_thread_list_.erase(pthread_self());
+		Pthis->lock_.release();
+	}
+	//	p_green("Job in thread (%lx) finished.\n",pthread_self());
 	delete[] ((void**)arg);
 }
 

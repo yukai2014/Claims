@@ -214,6 +214,7 @@ struct Arg{
 	PartitionStorage::PartitionReaderItetaor* partition_reader;
 	Barrier* barrier;
 	unsigned tid;
+	semaphore end_sem_;
 };
 
 BasicHashTable* generate_hashtable(unsigned tuple_size, unsigned nbuckets, unsigned bucketsize, unsigned nthreads=1);
@@ -307,12 +308,20 @@ static double projection_scan(unsigned degree_of_parallelism){
 	unsigned long long int start=curtick();
 	for(unsigned i=0;i<nthreads;i++){
 		arg.tid=i;
-		pthread_create(&pid[i],0,insert_into_hash_table_from_projection,&arg);
+//		if (true == g_thread_pool_used) {
+//			Environment::getInstance()->getThreadPool()->AddTask(insert_into_insert_optimized_hash_table, &arg);
+//		}
+//		else {
+			pthread_create(&pid[i],0,insert_into_hash_table_from_projection,&arg);
+//		}
 	}
-
-	for(unsigned i=0;i<nthreads;i++){
-		pthread_join(pid[i],0);
-	}
+//	if (true == g_thread_pool_used) {
+//	}
+//	else {
+		for(unsigned i=0;i<nthreads;i++){
+			pthread_join(pid[i],0);
+		}
+//	}
 //	hashtable->report_status();
 	printf("time:%4.4f\n",getSecond(start));
 	ret=getSecond(start);
@@ -435,13 +444,21 @@ double fill_basic_hash_table(unsigned degree_of_parallelism){
 
 		args[i]=arg;
 		args[i].tid=i;
-		pthread_create(&pid[i],0,insert_into_hash_table,&args[i]);
+		if (true == g_thread_pool_used) {
+			Environment::getInstance()->getThreadPool()->AddTask(insert_into_insert_optimized_hash_table, &args[i]);
+		}
+		else {
+			pthread_create(&pid[i],0,insert_into_hash_table,&args[i]);
+		}
 	}
-
-	for(unsigned i=0;i<nthreads;i++){
-		pthread_join(pid[i],0);
+	if (true == g_thread_pool_used) {
 	}
-//	hashtable->report_status();
+	else {
+		for(unsigned i=0;i<nthreads;i++){
+			pthread_join(pid[i],0);
+		}
+	}
+	//	hashtable->report_status();
 	printf("time:%4.4f\n",getSecond(start));
 	ret=getSecond(start);
 	int cycles_per_allocate=((double)curtick()-start)/(data_size_in_MB*1024*1024/tuple_size)*nthreads;

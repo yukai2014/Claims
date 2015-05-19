@@ -24,6 +24,7 @@ struct parallel_insert_args{
 	InsertOptimizedHashTable* hashtable;
 	unsigned nbuckets;
 	Barrier *barrier;
+	semaphore end_sem_;
 };
 void* insert_into_insert_optimized_hash_table(void* args){
 //	printf("****\n");
@@ -48,6 +49,8 @@ void* insert_into_insert_optimized_hash_table(void* args){
 		}
 		delete bit;
 	}
+	if (true == g_thread_pool_used)
+		arg->end_sem_.post();
 }
 
 
@@ -105,11 +108,22 @@ unsigned long long parallel_insert_to_insert_optimized_hash(InsertOptimizedHashT
 	for(unsigned i=0;i<nthreads;i++){
 		paras[i]=tmp_arg;
 		paras[i].pid=i;
-		pthread_create(&pid[i],0,insert_into_insert_optimized_hash_table,&paras[i]);
+		if (true == g_thread_pool_used) {
+			Environment::getInstance()->getThreadPool()->AddTask(insert_into_insert_optimized_hash_table, &paras[i]);
+		}
+		else {
+			pthread_create(&pid[i],0,insert_into_insert_optimized_hash_table,&paras[i]);
+		}
 	}
-
-	for(unsigned i=0;i<nthreads;i++){
-		pthread_join(pid[i],0);
+	if (true == g_thread_pool_used) {
+		for (unsigned i = 0; i < nthreads; ++i) {
+			paras[i].end_sem_.wait();
+		}
+	}
+	else {
+		for(unsigned i=0;i<nthreads;i++){
+			pthread_join(pid[i],0);
+		}
 	}
 	return curtick()-ret;
 }

@@ -13,6 +13,7 @@
 #endif
 #include "../BlockStreamIterator/BlockStreamIteratorBase.h"
 #include "../common/Schema/Schema.h"
+#include "../Environment.h"
 
 class BlockStreamPerformanceTest:public BlockStreamIteratorBase {
 public:

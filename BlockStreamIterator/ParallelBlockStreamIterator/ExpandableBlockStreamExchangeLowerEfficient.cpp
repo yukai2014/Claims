@@ -84,7 +84,7 @@ bool ExpandableBlockStreamExchangeLowerEfficient::open(const PartitionOffset&){
 
 	/** create the sender thread **/
 //	if (true == g_thread_pool_used) {
-//		Environment::getInstance()->getThreadPool()->add_task(sender, this);
+//		Environment::getInstance()->getThreadPool()->AddTask(sender, this);
 //	}
 //	else {
 		int error;
@@ -277,10 +277,14 @@ void* ExpandableBlockStreamExchangeLowerEfficient::debug(void* arg){
 }
 
 void ExpandableBlockStreamExchangeLowerEfficient::cancelSenderThread() {
-	pthread_cancel(sender_tid);
-	void* res;
-	pthread_join(sender_tid,&res);
-	if(res!=PTHREAD_CANCELED)
-		printf("thread is not canceled!\n");
-	sender_tid=0;
+//	if (true == g_thread_pool_used) {
+//	}
+//	else{
+		pthread_cancel(sender_tid);
+		void* res;
+		pthread_join(sender_tid,&res);
+		if(res!=PTHREAD_CANCELED)
+			printf("thread is not canceled!\n");
+		sender_tid=0;
+//	}
 }

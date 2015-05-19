@@ -687,6 +687,8 @@ void *ClientListener::sendHandler(void *para) {
 							cliRes.status, cliRes.length, cliRes.content.c_str());
 			server->write(result.fd, cliRes);
 		}
+
+		delete result.result;
 	}
 	return NULL;
 }

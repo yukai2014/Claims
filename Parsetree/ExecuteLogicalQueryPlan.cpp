@@ -34,10 +34,10 @@
 #include "../Loader/Hdfsloader.h"
 
 #include "../Client/ClaimsServer.h"
-#define SQL_Parser
+//#define SQL_Parser
 using namespace std;
 
-#define SQL_Parser
+//#define SQL_Parser
 
 const int INT_LENGTH = 10;
 const int FLOAT_LENGTH = 10;
@@ -518,6 +518,9 @@ void CreateTable(Catalog *catalog, Node *node, ResultSet *&result_set, bool &res
 				}
 				else
 				{
+					cout<<"======================================================================="<<endl;
+					cout<<"===========WARNING: default length of varchar/char is 1================"<<endl;
+					cout<<"======================================================================="<<endl;
 					if (column_atts && (column_atts->datatype & 01)){
 						new_table->addAttribute(colname, data_type(t_string), 1, true, false);
 					}
@@ -1025,10 +1028,10 @@ void Query(Catalog *catalog, Node *node, ResultSet *&result_set, bool& result_fl
 	cout<<"execute "<<result_set->query_time_<<" s"<<endl;
 	result_flag=true;
 
+	delete physical_iterator_tree;
+	delete root;
 	if (local_mode){
 		result_set->print();
-		delete physical_iterator_tree;
-		delete root;
 		delete result_set;
 	}
 	return;

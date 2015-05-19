@@ -47,7 +47,7 @@ bool BlockStreamResultCollector::open(const PartitionOffset& part_off){
 
 	registered_thread_count_++;
 	if (true == g_thread_pool_used) {
-		Environment::getInstance()->getThreadPool()->add_task(worker, this);
+		Environment::getInstance()->getThreadPool()->AddTask(worker, this);
 	}
 	else {
 		pthread_t tid;

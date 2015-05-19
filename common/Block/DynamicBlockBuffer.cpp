@@ -24,6 +24,7 @@ DynamicBlockBuffer::~DynamicBlockBuffer() {
 	for(unsigned i=0;i<block_list_.size();i++){
 		delete block_list_[i];
 	}
+	block_list_.clear();
 }
 
 bool DynamicBlockBuffer::appendNewBlock(BlockStreamBase* new_block){

@@ -57,7 +57,7 @@ ChunkReaderIterator* ChunkStorage::createChunkReaderIterator(bool numa){
 			if(desirable_storage_level_==MEMORY){
 				HdfsInMemoryChunk chunk_info;
 				chunk_info.length=CHUNK_SIZE;
-				if(BlockManager::getInstance()->getMemoryChunkStore()->applyChunk(chunk_id_,chunk_info.hook, numa)){
+				if(BlockManager::getInstance()->getMemoryChunkStore()->applyChunk(chunk_id_,chunk_info.hook, chunk_info.numa_index, numa)){
 					/* there is enough memory storage space, so the storage level can be shifted.*/
 					if(Config::local_disk_mode) {
 						chunk_info.length = BlockManager::getInstance()->loadFromDisk(chunk_id_, chunk_info.hook, chunk_info.length);
