@@ -81,6 +81,7 @@ void submit_command_repeated(Client& client, std::string &command,int repeated){
 		std::string message;
 		switch(client.submit(command,message,rs)){
 		case Client::result:
+//			rs.print();
 			if(i!=0)
 				total_time+=rs.query_time_;
 			break;

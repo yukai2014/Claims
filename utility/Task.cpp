@@ -21,12 +21,6 @@ void NumaSensitiveTask::Run() {
 #ifdef SPECIFY_CPU
 	int cpu_index = GetNextCPUinSocket(node_index_);
 
-//	// for debug
-//	if (9 == cpu_index) {
-//		int
-//	}
-
-
 	setCpuAffility(cpu_index);
 #else
 	struct bitmask* bm = numa_allocate_nodemask();

@@ -9,6 +9,8 @@
 #include "../../Executor/ExpanderTracker.h"
 #include "../../common/Logging.h"
 
+#define NUMA
+
 struct ExpanderContext{
 	BlockStreamExpander* pthis;
 	semaphore sem;
@@ -288,7 +290,11 @@ bool BlockStreamExpander::createNewExpandedThread(){
 	ExpanderContext para;
 	para.pthis=this;
 	ticks start=curtick();
+#ifndef NUMA
 	if(exclusive_expanding_.try_acquire()){
+#else
+		exclusive_expanding_.acquire();
+#endif
 		if (true == g_thread_pool_used){
 			Environment::getInstance()->getThreadPool()->AddTastInSocket(expanded_work, &para, GetNextSocket());
 		}
@@ -308,18 +314,22 @@ bool BlockStreamExpander::createNewExpandedThread(){
 			logging_->log("[%ld] New expanded thread [%lx] created!\n",expander_id_,tid);
 		}
 
-		lock_.acquire();
-		++all_created_thread_count_;
-		thread_count_++;
-		lock_.release();
+//		lock_.acquire();
+//		++all_created_thread_count_;
+		__sync_fetch_and_add(&all_created_thread_count_, 1);
+		__sync_fetch_and_add(&thread_count_, 1);
+//		thread_count_++;
+//		lock_.release();
 	//	in_work_expanded_thread_list_.insert(tid);
 		logging_->log("Expand time :%lf \n",getSecond(start));
 		return true;
+#ifndef NUMA
 	}
 	else{
 		printf("Fails to obtain the exclusive lock to expanding!\n");
 		return false;
 	}
+#endif
 }
 void BlockStreamExpander::terminateExpandedThread(pthread_t pid){
 //	if(ExpanderTracker::getInstance()->callbackExpandedThread(pid)){
