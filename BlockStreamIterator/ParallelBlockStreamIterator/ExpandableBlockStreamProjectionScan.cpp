@@ -1,4 +1,10 @@
 /*
+ * Copyright [2012-2015] DaSE@ECNU
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  * ExpandableBlockStreamProjectionScan.cpp
  *
  *  Created on: Nov.14, 2013
@@ -9,98 +15,115 @@
 #include <sys/mman.h>
 #include <errno.h>
 #include <limits.h>
+#include <numa.h>
 #include "../../common/rename.h"
 #include "ExpandableBlockStreamProjectionScan.h"
+
 #include "../../storage/BlockManager.h"
 #include "../../Executor/ExpanderTracker.h"
 #include "../../Config.h"
 #include "../../utility/warmup.h"
 #include "../../storage/ChunkStorage.h"
 
-//#define AVOID_CONTENTION_IN_SCAN
+// #define AVOID_CONTENTION_IN_SCAN
 
-ExpandableBlockStreamProjectionScan::ExpandableBlockStreamProjectionScan(State state)
-:state_(state), partition_reader_iterator_(0) {
-	initialize_expanded_status();
+ExpandableBlockStreamProjectionScan::ExpandableBlockStreamProjectionScan(
+        State state)
+        : state_(state),
+          partition_reader_iterator_(0) {
+    initialize_expanded_status();
 }
 
 ExpandableBlockStreamProjectionScan::ExpandableBlockStreamProjectionScan()
-:partition_reader_iterator_(0){
-	initialize_expanded_status();
+        : partition_reader_iterator_(0) {
+    initialize_expanded_status();
 }
 
 ExpandableBlockStreamProjectionScan::~ExpandableBlockStreamProjectionScan() {
-	delete state_.schema_;
+    delete state_.schema_;
 }
 
-
-ExpandableBlockStreamProjectionScan::State::State(ProjectionID projection_id,Schema* schema, unsigned block_size, float sample_rate)
-:schema_(schema), projection_id_(projection_id), block_size_(block_size), sample_rate_(sample_rate) {
+ExpandableBlockStreamProjectionScan::State::State(ProjectionID projection_id,
+                                                  Schema* schema,
+                                                  unsigned block_size,
+                                                  float sample_rate)
+        : schema_(schema),
+          projection_id_(projection_id),
+          block_size_(block_size),
+          sample_rate_(sample_rate) {
 }
 
+bool ExpandableBlockStreamProjectionScan::open(
+        const PartitionOffset& partition_offset) {
+    if (tryEntryIntoSerializedSection()) {
+        /* this is the first expanded thread*/
+        PartitionStorage* partition_handle_;
+        return_blocks_ = 0;
+        if ((partition_handle_ =
+                BlockManager::getInstance()->getPartitionHandle(
+                        PartitionID(state_.projection_id_, partition_offset)))
+                == 0) {
+            printf("The partition[%s] does not exists!\n",
+                   PartitionID(state_.projection_id_, partition_offset)
+                   .getName().c_str());
+            setReturnStatus(false);
+        } else {
+            if (partition_handle_->is_in_memory() && numa_available() >= 0)
+                partition_reader_iterator_ = partition_handle_
+                        ->createNumaSensitiveReaderIterator();
+            else
+                partition_reader_iterator_ = partition_handle_
+                        ->createAtomicReaderIterator();
 
-bool ExpandableBlockStreamProjectionScan::open(const PartitionOffset& partition_offset) {
-	if(tryEntryIntoSerializedSection()){
-		/* this is the first expanded thread*/
-		PartitionStorage* partition_handle_;
-		return_blocks_=0;
-		if((partition_handle_=BlockManager::getInstance()->getPartitionHandle(PartitionID(state_.projection_id_,partition_offset)))==0){
-			printf("The partition[%s] does not exists!\n",PartitionID(state_.projection_id_,partition_offset).getName().c_str());
-			setReturnStatus(false);
-		}
-		else{
-			if (partition_handle_->is_in_memory() && numa_available() >= 0)
-				partition_reader_iterator_ = partition_handle_->createNumaSensitiveReaderIterator();
-			else
-				partition_reader_iterator_ = partition_handle_->createAtomicReaderIterator();
-
-			setReturnStatus(true);
-		}
+            setReturnStatus(true);
+        }
 
 #ifdef AVOID_CONTENTION_IN_SCAN
-		unsigned long long start=curtick();
+        unsigned long long start = curtick();
 
-		ChunkReaderIterator* chunk_reader_it;
-		ChunkReaderIterator::block_accessor* ba;
-		while(chunk_reader_it=partition_reader_iterator_->nextChunk()){
-			while(chunk_reader_it->getNextBlockAccessor(ba)){
-				ba->getBlockSize();
-				input_dataset_.input_data_blocks.push_back(ba);
-			}
-		}
-//		printf("%lf seconds for initializing!\n",getSecond(start));
+        ChunkReaderIterator* chunk_reader_it;
+        ChunkReaderIterator::block_accessor* ba;
+        while(chunk_reader_it=partition_reader_iterator_->nextChunk()) {
+            while(chunk_reader_it->getNextBlockAccessor(ba)) {
+                ba->getBlockSize();
+                input_dataset_.input_data_blocks.push_back(ba);
+            }
+        }
+//      printf("%lf seconds for initializing!\n",getSecond(start));
 #endif
-		ExpanderTracker::getInstance()->addNewStageEndpoint(pthread_self(),LocalStageEndPoint(stage_src,"Scan",0));
-		perf_info=ExpanderTracker::getInstance()->getPerformanceInfo(pthread_self());
-		perf_info->initialize();
-	}
-	barrierArrive();
-	return getReturnStatus();
+        ExpanderTracker::getInstance()->addNewStageEndpoint(
+                pthread_self(), LocalStageEndPoint(stage_src, "Scan", 0));
+        perf_info = ExpanderTracker::getInstance()->getPerformanceInfo(
+                pthread_self());
+        perf_info->initialize();
+    }
+    barrierArrive();
+    return getReturnStatus();
 }
 
 bool ExpandableBlockStreamProjectionScan::next(BlockStreamBase* block) {
-	unsigned long long total_start=curtick();
+    unsigned long long total_start = curtick();
 #ifdef AVOID_CONTENTION_IN_SCAN
-	scan_thread_context* stc=(scan_thread_context*)getContext();
-	if(stc==0){
-		stc=new scan_thread_context();
-		initContext(stc);
-	}
-	if(ExpanderTracker::getInstance()->isExpandedThreadCallBack(pthread_self())){
-		//		printf("<<<<<<<<<<<<<<<<<Scan detected call back signal!>>>>>>%lx>>>>>>>>>>>\n",pthread_self());
-		input_dataset_.atomicPut(stc->assigned_data_);
-		delete stc;
-		destorySelfContext();
-		perf_info->report_instance_performance_in_millibytes();
-		return false;
-	}
+    scan_thread_context* stc=(scan_thread_context*)getContext();
+    if(stc == 0) {
+        stc=new scan_thread_context();
+        initContext(stc);
+    }
+    if(ExpanderTracker::getInstance()->isExpandedThreadCallBack(pthread_self())) {
+        //		printf("<<<<<<<<<<<<<<<<<Scan detected call back signal!>>>>>>%lx>>>>>>>>>>>\n",pthread_self());
+        input_dataset_.atomicPut(stc->assigned_data_);
+        delete stc;
+        destorySelfContext();
+        perf_info->report_instance_performance_in_millibytes();
+        return false;
+    }
 
-	if(!stc->assigned_data_.empty()){
-		ChunkReaderIterator::block_accessor* ba=stc->assigned_data_.front();
-		stc->assigned_data_.pop_front();
+    if(!stc->assigned_data_.empty()) {
+        ChunkReaderIterator::block_accessor* ba=stc->assigned_data_.front();
+        stc->assigned_data_.pop_front();
 //		const unsigned long long int start=curtick();
 
-		ba->getBlock(block);
+        ba->getBlock(block);
 //
 //		void* start_addr=((ChunkReaderIterator::InMemeryBlockAccessor*)ba)->getTargetBlockStartAddress();
 //		memcpy(block->getBlock(),
@@ -109,43 +132,42 @@ bool ExpandableBlockStreamProjectionScan::next(BlockStreamBase* block) {
 ////		printf("tuple count=%d",tuple_count);
 //		((BlockStreamFix*)block)->free_=(char*)((BlockStreamFix*)block)->getBlock()+tuple_count*state_.schema_->getTupleMaxSize();
 
-
 //		warmup(block->getBlock(),block->getSerializedBlockSize());
 //		printf("%ld cycles\n",curtick()-start);
 
 //		printf("scan_call %ld cycles\n",curtick()-total_start);
-		perf_info->processed_one_block();
+        perf_info->processed_one_block();
 //		printf("[]");
 //		perf_info->report_instance_performance_in_millibytes();
-		return true;
-	}
-	else{
-		if(input_dataset_.atomicGet(stc->assigned_data_,Config::scan_batch)){
-			return next(block);
-		}
-		else{
-			delete stc;
-			destorySelfContext();
+        return true;
+    }
+    else {
+        if(input_dataset_.atomicGet(stc->assigned_data_,Config::scan_batch)) {
+            return next(block);
+        }
+        else {
+            delete stc;
+            destorySelfContext();
 //			printf("scan_call %ld cycles\n",curtick()-total_start);
 //			perf_info->report_instance_performance_in_millibytes();
-			return false;
-		}
-	}
+            return false;
+        }
+    }
 
 #else
 
-	if(ExpanderTracker::getInstance()->isExpandedThreadCallBack(pthread_self())){
-		//		printf("<<<<<<<<<<<<<<<<<Scan detected call back signal!>>>>>>%lx>>>>>>>>>>>\n",pthread_self());
-		return false;
-	}
+    if (ExpanderTracker::getInstance()->isExpandedThreadCallBack(
+            pthread_self())) {
+        //		printf("<<<<<<<<<<<<<<<<<Scan detected call back signal!>>>>>>%lx>>>>>>>>>>>\n",pthread_self());
+        return false;
+    }
 //	perf_info->processed_one_block();
-	ExpanderTracker::getInstance()->getPerformanceInfo(pthread_self())->processed_one_block();
-	usleep(1);
-	return partition_reader_iterator_->nextBlock(block);
+    ExpanderTracker::getInstance()->getPerformanceInfo(pthread_self())
+            ->processed_one_block();
+    usleep(1);
+    return partition_reader_iterator_->nextBlock(block);
 
 #endif
-
-
 
 //	//	return false;
 //	allocated_block allo_block_temp;
@@ -192,27 +214,25 @@ bool ExpandableBlockStreamProjectionScan::next(BlockStreamBase* block) {
 }
 
 bool ExpandableBlockStreamProjectionScan::close() {
-	delete partition_reader_iterator_;
-	partition_reader_iterator_ = NULL;
+    delete partition_reader_iterator_;
+    partition_reader_iterator_ = NULL;
 //	printf("in close(): %lx partition_reader_iterator is deleted ", partition_reader_iterator_);
 
-	destoryAllContext();
+    destoryAllContext();
 
-	/* reset the expanded status in that open and next will be re-invoked.*/
-	initialize_expanded_status();
+    /* reset the expanded status in that open and next will be re-invoked.*/
+    initialize_expanded_status();
 
-	return true;
+    return true;
 }
 
-
-
 void ExpandableBlockStreamProjectionScan::print() {
-	printf("Scan (ID=%d)\n",state_.projection_id_.table_id);
+    printf("Scan (ID=%d)\n", state_.projection_id_.table_id);
 }
 
 bool ExpandableBlockStreamProjectionScan::passSample() const {
-	//	const float ram=(float)rand()/(float)RAND_MAX;
-	if((rand()/(float)RAND_MAX)<state_.sample_rate_)
-		return true;
-	return false;
+    //	const float ram=(float)rand()/(float)RAND_MAX;
+    if ((rand() / (float) RAND_MAX) < state_.sample_rate_)
+        return true;
+    return false;
 }
