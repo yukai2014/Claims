@@ -50,214 +50,214 @@ const int SMALLINT_LENGTH = 4;
 timeval start_time;	//2014-5-4---add---by Yu
 void ExecuteLogicalQueryPlan(const string &sql,ResultSet *&result_set,bool &result_flag,string &error_msg, string &info, int fd = 0)
 {
-	Environment::getInstance(true);
-	ResourceManagerMaster *rmms=Environment::getInstance()->getResourceManagerMaster();
-	Catalog* catalog=Environment::getInstance()->getCatalog();
-	string tablename;
+  Environment::getInstance(true);
+  ResourceManagerMaster *rmms=Environment::getInstance()->getResourceManagerMaster();
+  Catalog* catalog=Environment::getInstance()->getCatalog();
+  string tablename;
 
-/****************************************************************************************
- * added by scdong for experiment
- ****************************************************************************************/
-	static ifstream inFile("/home/imdb/mount/dsc/Claims/exp_con", ios::in);
-	TableID table_name = 0;
-	unsigned index_offset = 0;
-	unsigned long lower = 0;
-	unsigned long higher = 0;
-	int com_low = 0;
-	int com_high = 0;
-	vector<IndexScanIterator::query_range> q_range;
-	IndexScanIterator::query_range q1;
-	TableDescriptor* table;// = Environment::getInstance()->getCatalog()->getTable(table_name);
-
-
-    if (strcmp(sql.c_str(), "1 CSBPLUS;") == 0)
-    {
-		//CSB+ Tree Index Building!
-		inFile >> table_name;
-		cout << "build csb+ index~~~ Table: " << table_name << endl;
-		table = Environment::getInstance()->getCatalog()->getTable(table_name);
-    	assert(table != NULL);
-		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1");
-		LogicalOperator* root = new LogicalQueryPlanRoot(0,index_build,LogicalQueryPlanRoot::RESULTCOLLECTOR);
-		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-		physical_iterator_tree->open();
-		while(physical_iterator_tree->next(0));
-		physical_iterator_tree->close();
-		result_set = physical_iterator_tree->getResultSet();
-		return;
-    }
-    else if (strcmp(sql.c_str(), "1 CSB;") == 0)
-    {
-		//CSB Tree Index Building!
-    	inFile >> table_name;
-		cout << "build csb index~~~ Table: " << table_name << endl;
-		table = Environment::getInstance()->getCatalog()->getTable(table_name);
-    	assert(table != NULL);
-		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 1);
-		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
-		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-		physical_iterator_tree->open();
-		while (physical_iterator_tree->next(0));
-		physical_iterator_tree->close();
-		result_set = physical_iterator_tree->getResultSet();
-		return;
-    }
-    else if (strcmp(sql.c_str(), "1 ECSB;") == 0)
-    {
-		//Enhanced CSB Tree Index Building!
-    	inFile >> table_name;
-		cout << "build e-csb index~~~ Table: " << table_name << endl;
-		table = Environment::getInstance()->getCatalog()->getTable(table_name);
-    	assert(table != NULL);
-		LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 2);
-		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
-		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-		physical_iterator_tree->open();
-		while (physical_iterator_tree->next(0));
-		physical_iterator_tree->close();
-		result_set = physical_iterator_tree->getResultSet();
-		return;
-    }
-    else if (strcmp(sql.c_str(), "2 CSBPLUS;") == 0)
-    {
-		//CSB+ Tree Based Searching
-    	inFile >> table_name >> lower >> higher >> com_low >> com_high;
-    	cout << "csb plus based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
-		table = Environment::getInstance()->getCatalog()->getTable(table_name);
-    	assert(table != NULL);
-    	q1.comp_low = com_low;
-    	q1.value_low = malloc(sizeof(unsigned long));
-    	q1.value_low = (void*)(&lower);
-    	q1.comp_high = com_high;
-    	q1.value_high = malloc(sizeof(unsigned long));
-    	q1.value_high = (void*)(&higher);
-    	q1.c_type = t_u_long;
-    	q_range.push_back(q1);
-    	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range);
-		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
-		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-		physical_iterator_tree->open();
-		while (physical_iterator_tree->next(0));
-		physical_iterator_tree->close();
-		result_set = physical_iterator_tree->getResultSet();
-		return;
-    }
-    else if (strcmp(sql.c_str(), "2 CSB;") == 0)
-    {
-		//CSB Tree Based Searching
-    	inFile >> table_name >> lower >> higher >> com_low >> com_high;
-    	cout << "csb based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
-		table = Environment::getInstance()->getCatalog()->getTable(table_name);
-    	assert(table != NULL);
-    	q1.comp_low = com_low;
-    	q1.value_low = malloc(sizeof(unsigned long));
-    	q1.value_low = (void*)(&lower);
-    	q1.comp_high = com_high;
-    	q1.value_high = malloc(sizeof(unsigned long));
-    	q1.value_high = (void*)(&higher);
-    	q1.c_type = t_u_long;
-    	q_range.push_back(q1);
-    	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range, 1);
-		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
-		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-		physical_iterator_tree->open();
-		while (physical_iterator_tree->next(0));
-		physical_iterator_tree->close();
-		result_set = physical_iterator_tree->getResultSet();
-		return;
-    }
-    else if (strcmp(sql.c_str(), "2 ECSB;") == 0)
-    {
-		//Enhanced CSB+ Tree Based Searching
-    	inFile >> table_name >> lower >> higher >> com_low >> com_high;
-    	cout << "enhanced csb based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
-		table = Environment::getInstance()->getCatalog()->getTable(table_name);
-    	assert(table != NULL);
-    	q1.comp_low = com_low;
-    	q1.value_low = malloc(sizeof(unsigned long));
-    	q1.value_low = (void*)(&lower);
-    	q1.comp_high = com_high;
-    	q1.value_high = malloc(sizeof(unsigned long));
-    	q1.value_high = (void*)(&higher);
-    	q1.c_type = t_u_long;
-    	q_range.push_back(q1);
-    	LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range, 2);
-		LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
-		BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
-		physical_iterator_tree->open();
-		while (physical_iterator_tree->next(0));
-		physical_iterator_tree->close();
-		result_set = physical_iterator_tree->getResultSet();
-		return;
-    }
-
-/**************************** experiment ends ************************/
+  /****************************************************************************************
+   * added by scdong for experiment
+   ****************************************************************************************/
+  static ifstream inFile("/home/imdb/mount/dsc/Claims/exp_con", ios::in);
+  TableID table_name = 0;
+  unsigned index_offset = 0;
+  unsigned long lower = 0;
+  unsigned long higher = 0;
+  int com_low = 0;
+  int com_high = 0;
+  vector<IndexScanIterator::query_range> q_range;
+  IndexScanIterator::query_range q1;
+  TableDescriptor* table = NULL;// = Environment::getInstance()->getCatalog()->getTable(table_name);
 
 
-	Node* oldnode=getparsetreeroot(sql.c_str());
-	if(oldnode == NULL)
-	{
-		FreeAllNode();
-		error_msg="There are some errors during parsing time";
-		result_flag=false;
-		result_set = NULL;
-		return;
-	}
-	Stmt *stmtList = (Stmt *)oldnode;
-	while (stmtList != NULL)
-	{
-		Node *node = (Node *)stmtList->data;
-		switch(node->type)
-		{
-		case t_create_table_stmt:
-		{
-			CreateTable(catalog, node, result_set, result_flag, error_msg, info);
-			break;
-		}
-		case t_create_projection_stmt:
-		{
-			CreateProjection(catalog, node, result_set, result_flag, error_msg, info);
-			break;
-		}
-		case t_query_stmt:
-		{
-			Query(catalog, node, result_set, result_flag, error_msg, info, false);
-			break;
-		}
-		case t_load_table_stmt:
-		{
-			LoadData(catalog, node, result_set, result_flag, error_msg, info);
-			break;
-		}
-		case t_insert_stmt:	// 2014-4-19---add---by Yu	// 2014-5-1---modify---by Yu
-		{
-			InsertData(catalog, node, result_set, result_flag, error_msg, info);
-			break;
-		}
-		case t_show_stmt:
-		{
-			ShowTable(catalog, node, result_set, result_flag, error_msg, info);
-			break;
-		}
-		case t_drop_stmt:
-		{
-			DropTable(catalog, node, result_set, result_flag, error_msg, info);
-			break;
-		}
-		default:
-		{
-			cout<<node->type<<endl;
-			puts("nothing matched!\n");
-			error_msg = "no sentence matched";
-			result_flag = false;
-			result_set = NULL;
-		}
-		}
-		if(result_flag==false){
-			FreeAllNode();	// -Yu 2015-3-2
-		}
-		stmtList = (Stmt *)stmtList->next;
-	}
+  if (strcmp(sql.c_str(), "1 CSBPLUS;") == 0)
+  {
+    //CSB+ Tree Index Building!
+    inFile >> table_name;
+    cout << "build csb+ index~~~ Table: " << table_name << endl;
+    table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    assert(table != NULL);
+    LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1");
+    LogicalOperator* root = new LogicalQueryPlanRoot(0,index_build,LogicalQueryPlanRoot::RESULTCOLLECTOR);
+    BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+    physical_iterator_tree->open();
+    while(physical_iterator_tree->next(0));
+    physical_iterator_tree->close();
+    result_set = physical_iterator_tree->getResultSet();
+    return;
+  }
+  else if (strcmp(sql.c_str(), "1 CSB;") == 0)
+  {
+    //CSB Tree Index Building!
+    inFile >> table_name;
+    cout << "build csb index~~~ Table: " << table_name << endl;
+    table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    assert(table != NULL);
+    LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 1);
+    LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+    BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+    physical_iterator_tree->open();
+    while (physical_iterator_tree->next(0));
+    physical_iterator_tree->close();
+    result_set = physical_iterator_tree->getResultSet();
+    return;
+  }
+  else if (strcmp(sql.c_str(), "1 ECSB;") == 0)
+  {
+    //Enhanced CSB Tree Index Building!
+    inFile >> table_name;
+    cout << "build e-csb index~~~ Table: " << table_name << endl;
+    table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    assert(table != NULL);
+    LogicalOperator* index_build = new LogicalCSBIndexBuilding(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), "index1", 2);
+    LogicalOperator* root = new LogicalQueryPlanRoot(0, index_build, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+    BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+    physical_iterator_tree->open();
+    while (physical_iterator_tree->next(0));
+    physical_iterator_tree->close();
+    result_set = physical_iterator_tree->getResultSet();
+    return;
+  }
+  else if (strcmp(sql.c_str(), "2 CSBPLUS;") == 0)
+  {
+    //CSB+ Tree Based Searching
+    inFile >> table_name >> lower >> higher >> com_low >> com_high;
+    cout << "csb plus based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+    table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    assert(table != NULL);
+    q1.comp_low = com_low;
+    q1.value_low = malloc(sizeof(unsigned long));
+    q1.value_low = (void*)(&lower);
+    q1.comp_high = com_high;
+    q1.value_high = malloc(sizeof(unsigned long));
+    q1.value_high = (void*)(&higher);
+    q1.c_type = t_u_long;
+    q_range.push_back(q1);
+    LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range);
+    LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+    BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+    physical_iterator_tree->open();
+    while (physical_iterator_tree->next(0));
+    physical_iterator_tree->close();
+    result_set = physical_iterator_tree->getResultSet();
+    return;
+  }
+  else if (strcmp(sql.c_str(), "2 CSB;") == 0)
+  {
+    //CSB Tree Based Searching
+    inFile >> table_name >> lower >> higher >> com_low >> com_high;
+    cout << "csb based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+    table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    assert(table != NULL);
+    q1.comp_low = com_low;
+    q1.value_low = malloc(sizeof(unsigned long));
+    q1.value_low = (void*)(&lower);
+    q1.comp_high = com_high;
+    q1.value_high = malloc(sizeof(unsigned long));
+    q1.value_high = (void*)(&higher);
+    q1.c_type = t_u_long;
+    q_range.push_back(q1);
+    LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range, 1);
+    LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+    BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+    physical_iterator_tree->open();
+    while (physical_iterator_tree->next(0));
+    physical_iterator_tree->close();
+    result_set = physical_iterator_tree->getResultSet();
+    return;
+  }
+  else if (strcmp(sql.c_str(), "2 ECSB;") == 0)
+  {
+    //Enhanced CSB+ Tree Based Searching
+    inFile >> table_name >> lower >> higher >> com_low >> com_high;
+    cout << "enhanced csb based searching~~~ Table: " << table_name << "\t" << lower << "\t" << higher << "\t" << q1.comp_low << "\t" << q1.comp_high << endl;
+    table = Environment::getInstance()->getCatalog()->getTable(table_name);
+    assert(table != NULL);
+    q1.comp_low = com_low;
+    q1.value_low = malloc(sizeof(unsigned long));
+    q1.value_low = (void*)(&lower);
+    q1.comp_high = com_high;
+    q1.value_high = malloc(sizeof(unsigned long));
+    q1.value_high = (void*)(&higher);
+    q1.c_type = t_u_long;
+    q_range.push_back(q1);
+    LogicalOperator* index_scan = new LogicalIndexScan(table->getProjectoin(0)->getProjectionID(), table->getAttribute(index_offset), q_range, 2);
+    LogicalOperator* root = new LogicalQueryPlanRoot(0, index_scan, LogicalQueryPlanRoot::RESULTCOLLECTOR);
+    BlockStreamIteratorBase* physical_iterator_tree = root->getIteratorTree(64*1024);
+    physical_iterator_tree->open();
+    while (physical_iterator_tree->next(0));
+    physical_iterator_tree->close();
+    result_set = physical_iterator_tree->getResultSet();
+    return;
+  }
+
+  /**************************** experiment ends ************************/
+
+
+  Node* oldnode=getparsetreeroot(sql.c_str());
+  if(oldnode == NULL)
+  {
+    FreeAllNode();
+    error_msg="There are some errors during parsing time";
+    result_flag=false;
+    result_set = NULL;
+    return;
+  }
+  Stmt *stmtList = (Stmt *)oldnode;
+  while (stmtList != NULL)
+  {
+    Node *node = (Node *)stmtList->data;
+    switch(node->type)
+    {
+      case t_create_table_stmt:
+      {
+        CreateTable(catalog, node, result_set, result_flag, error_msg, info);
+        break;
+      }
+      case t_create_projection_stmt:
+      {
+        CreateProjection(catalog, node, result_set, result_flag, error_msg, info);
+        break;
+      }
+      case t_query_stmt:
+      {
+        Query(catalog, node, result_set, result_flag, error_msg, info, false);
+        break;
+      }
+      case t_load_table_stmt:
+      {
+        LoadData(catalog, node, result_set, result_flag, error_msg, info);
+        break;
+      }
+      case t_insert_stmt:	// 2014-4-19---add---by Yu	// 2014-5-1---modify---by Yu
+      {
+        InsertData(catalog, node, result_set, result_flag, error_msg, info);
+        break;
+      }
+      case t_show_stmt:
+      {
+        ShowTable(catalog, node, result_set, result_flag, error_msg, info);
+        break;
+      }
+      case t_drop_stmt:
+      {
+        DropTable(catalog, node, result_set, result_flag, error_msg, info);
+        break;
+      }
+      default:
+      {
+        cout<<node->type<<endl;
+        puts("nothing matched!\n");
+        error_msg = "no sentence matched";
+        result_flag = false;
+        result_set = NULL;
+      }
+    }
+    if(result_flag==false){
+      FreeAllNode();	// -Yu 2015-3-2
+    }
+    stmtList = (Stmt *)stmtList->next;
+  }
 }
 
 
