@@ -189,6 +189,7 @@ public:
 				return false;
 			it++;
 		}
+		return true;
 	}
 	void unbind_all_blocks(){
 		boost::unordered_map<BlockID,NodeID>::iterator it=block_to_node.begin();

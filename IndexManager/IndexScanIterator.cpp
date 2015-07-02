@@ -53,9 +53,9 @@ bool IndexScanIterator::open(const PartitionOffset& partition_off)
 		}
 		else{
 			partition_reader_iterator_=partition_handle_->createAtomicReaderIterator();
-//			chunk_reader_iterator_ = partition_reader_iterator_->nextChunk();
+			//			chunk_reader_iterator_ = partition_reader_iterator_->nextChunk();
+			setReturnStatus(true);
 		}
-		setReturnStatus(true);
 	}
 	barrierArrive();
 	return getReturnStatus();

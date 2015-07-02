@@ -1426,8 +1426,7 @@ map<index_offset, vector<index_offset>*>* CSBPlusTree<T>::rangeQuery(
 template<typename T>
 map<index_offset, vector<index_offset>*>* CSBPlusTree<T>::rangeQuery(
     T lower_key, comparison comp_lower, T upper_key, comparison comp_upper) {
-  map<index_offset, vector<index_offset>*>* ret = new map<index_offset,
-      vector<index_offset>*>;
+  map<index_offset, vector<index_offset>*>* ret = new map<index_offset, vector<index_offset>*>;
   ret->clear();
   // For point query
   if (comp_lower == EQ) {
@@ -1464,15 +1463,9 @@ map<index_offset, vector<index_offset>*>* CSBPlusTree<T>::rangeQuery(
   for (unsigned depth = 1; depth < this->csb_depth; depth++) {
     // find the first search_node.key > lower_key for GEQ and search_node.key >= lower_key for G
     if (comp_lower == GEQ)
-      for (i = 0;
-          (lower_key > search_node->getElement(i)._key)
-              && (i < search_node->used_keys); i++)
-        ;
+      for (i = 0; (lower_key > search_node->getElement(i)._key) && (i < search_node->used_keys); i++);
     else if (comp_lower == G)
-      for (i = 0;
-        (lower_key >= search_node->getElement(i)._key)
-            && (i < search_node->used_keys); i++)
-      ;
+      for (i = 0; (lower_key >= search_node->getElement(i)._key) && (i < search_node->used_keys); i++);
 
     p_search_node = search_node;
     search_node = (search_node->getPointer())->getNode(i);
