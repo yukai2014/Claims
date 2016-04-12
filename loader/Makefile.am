@@ -5,9 +5,11 @@ AM_CPPFLAGS= -fPIC -fpermissive \
 -I${HADOOP_HOME}/include\
 -I${JAVA_HOME}/include\
 -I${JAVA_HOME}/include/linux \
--I${THERON_HOME}/Include
+-I${THERON_HOME}/Include \
+-I${CAF_HOME}/libcaf_io	\
+-I${CAF_HOME}/libcaf_core
 
-AM_LDFLAGS=-lc -lm -lrt  -lxs -lboost_serialization
+AM_LDFLAGS=-lc -lm -lrt -lcaf_core -lcaf_io -lxs -lboost_serialization
 
 if OPT_TCMALLOC
 AM_CPPFLAGS+=-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
@@ -27,12 +29,14 @@ LDADD = 	../catalog/libcatalog.a \
 
 noinst_LIBRARIES=libloader.a
 libloader_a_SOURCES = \
-	data_injector.cpp 				data_injector.h \
-	single_file_connector.h 		single_file_connector.cpp \
-	single_thread_single_file_connector.h single_thread_single_file_connector.cpp \
-	table_file_connector.cpp 		table_file_connector.h  \
-	validity.h 						validity.cpp
-	
+	data_injector.cpp 		data_injector.h \
+	file_connector.h 		loader_message.h \
+	master_loader.cpp 		master_loader.h \
+	single_file_connector.cpp 		single_file_connector.h \
+	single_thread_single_file_connector.cpp 		single_thread_single_file_connector.h \
+	slave_loader.cpp 		slave_loader.h \
+	table_file_connector.cpp 		table_file_connector.h \
+	validity.cpp 		validity.h
 
 SUBDIRS = test
 DIST_SUBDIRS = test

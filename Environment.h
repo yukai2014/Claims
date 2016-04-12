@@ -24,8 +24,15 @@
 #include "Executor/expander_tracker.h"
 #include "Resource/BufferManager.h"
 
+namespace claims {
+namespace loader {
+class SlaveLoader;
+class MasterLoader;
+}
+}
 using claims::catalog::Catalog;
-// class Catalog;
+using claims::loader::SlaveLoader;
+using claims::loader::MasterLoader;
 
 class Environment {
  public:
@@ -43,6 +50,9 @@ class Environment {
   IteratorExecutorSlave* getIteratorExecutorSlave() const;
   explicit Environment(bool ismaster = false);
 
+  MasterLoader* get_master_loader() const { return master_loader_; }
+  SlaveLoader* get_slave_loader() const { return slave_loader_; }
+
  private:
   void readConfigFile();
   void initializeEndPoint();
@@ -55,6 +65,8 @@ class Environment {
   void initializeExpressionSystem();
   void destoryClientListener();
   bool initializeThreadPool();
+
+  bool InitLoader();
 
  private:
   static Environment* _instance;
@@ -81,6 +93,8 @@ class Environment {
   ClientListener* listener_;
 
   ThreadPool* thread_pool_;
+  MasterLoader* master_loader_;
+  SlaveLoader* slave_loader_;
 
   /**
    * TODO: the master and slave pair, such as ResouceManagerMaster and

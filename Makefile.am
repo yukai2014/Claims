@@ -5,11 +5,13 @@ AM_CPPFLAGS=-fPIC  -DTHERON_XS\
 -I${THERON_HOME}/Include \
 -I${BOOST_HOME} \
 -I${BOOST_HOME}/boost/serialization \
--I${GTEST_HOME}/include
+-I${GTEST_HOME}/include \
+-I${CAF_HOME}/libcaf_io	\
+-I${CAF_HOME}/libcaf_core
 
 #-L/usr/local/lib \
 #-I/usr/local/include
-AM_LDFLAGS=  -lc -lm -lrt -lpthread -lboost_serialization -lboost_date_time -lboost_system \
+AM_LDFLAGS=  -lc -lm -lrt -lpthread \
 	-lconfig++ -lxs -lnuma -lreadline -lhistory -lz -ltinfo -Wl,--no-as-needed -ldl -rdynamic -lglog
 
 if OPT_TCMALLOC
@@ -55,9 +57,12 @@ LDADD =  \
 	common/types/Test/libtest.a \
 	common/types/ttmath/libttmath.a \
 	utility/libutility.a \
+	${CAF_HOME}/build/lib/libcaf_core.so \
+	${CAF_HOME}/build/lib/libcaf_io.so \
 	${THERON_HOME}/Lib/libtherond.a \
 	${BOOST_HOME}/stage/lib/libboost_serialization.so \
 	${BOOST_HOME}/stage/lib/libboost_system.so \
+	${BOOST_HOME}/stage/lib/libboost_date_time.so \
 	${HADOOP_HOME}/lib/native/libhdfs.so\
 	${JAVA_HOME}/jre/lib/amd64/server/libjvm.so\
 	${GTEST_HOME}/libgtest.a \

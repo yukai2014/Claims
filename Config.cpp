@@ -90,6 +90,10 @@ int Config::thread_pool_init_thread_num;
 
 int Config::load_thread_num;
 
+bool Config::is_master_loader;
+std::string Config::master_loader_ip;
+int Config::master_loader_port;
+
 Config *Config::getInstance() {
   if (instance_ == 0) {
     instance_ = new Config();
@@ -150,6 +154,12 @@ void Config::initialize() {
   thread_pool_init_thread_num = getInt("thread_pool_init_thread_num", 100);
 
   load_thread_num = getInt("load_thread_num", sysconf(_SC_NPROCESSORS_CONF));
+
+  is_master_loader = getBoolean("is_master_loader", true);
+
+  master_loader_ip = getString("master_loader_ip", "10.11.1.193");
+
+  master_loader_port = getInt("master_loader_port", 9001);
 
 #ifdef DEBUG_Config
   print_configure();

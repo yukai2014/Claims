@@ -6,6 +6,8 @@
  */
 
 #include "Environment.h"
+
+#include "caf/all.hpp"
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #undef GLOG_NO_ABBREVIATED_SEVERITIES
@@ -13,6 +15,9 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>  // NOLINT
+#include "loader/master_loader.h"
+#include "loader/slave_loader.h"
 #include "./Debug.h"
 #include "./Config.h"
 #include "common/Logging.h"
@@ -23,14 +28,16 @@
 #include "common/expression/data_type_oper.h"
 #include "common/expression/expr_type_cast.h"
 #include "common/expression/type_conversion_matrix.h"
+// #define DEBUG_MODE
+#include "catalog/catalog.h"
 
 using claims::common::InitAggAvgDivide;
 using claims::common::InitOperatorFunc;
 using claims::common::InitTypeCastFunc;
 using claims::common::InitTypeConversionMatrix;
-//#define DEBUG_MODE
-#include "catalog/catalog.h"
 using claims::common::rSuccess;
+using claims::loader::MasterLoader;
+using claims::loader::SlaveLoader;
 
 Environment* Environment::_instance = 0;
 
@@ -47,12 +54,12 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
     logging_->log("Initializing the Coordinator...");
     initializeCoordinator();
     logging_->log("Initializing the catalog ...");
-    catalog_ = claims::catalog::Catalog::getInstance();
-    logging_->log("restore the catalog ...");
-    if (rSuccess != catalog_->restoreCatalog()) {
-      LOG(ERROR) << "failed to restore catalog" << std::endl;
-      cerr << "ERROR: restore catalog failed" << endl;
-    }
+  }
+  catalog_ = claims::catalog::Catalog::getInstance();
+  logging_->log("restore the catalog ...");
+  if (rSuccess != catalog_->restoreCatalog()) {
+    LOG(ERROR) << "failed to restore catalog" << std::endl;
+    cerr << "ERROR: restore catalog failed" << endl;
   }
 
   if (true == g_thread_pool_used) {
@@ -76,11 +83,19 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
   /*Before initializing Resource Manager, the instance ip and port should be
    * decided.*/
 
+  logging_->log("Initializing the ResourceManager...");
   initializeResourceManager();
 
+  logging_->log("Initializing the Storage...");
   initializeStorage();
 
+  logging_->log("Initializing the BufferManager...");
   initializeBufferManager();
+
+  logging_->log("Initializing the loader...");
+  if (!InitLoader()) {
+    LOG(ERROR) << "failed to initialize loader";
+  }
 
   logging_->log("Initializing the ExecutorMaster...");
   iteratorExecutorMaster = new IteratorExecutorMaster();
@@ -136,10 +151,10 @@ void Environment::readConfigFile() {
   ip = (const char*)cfg.lookup("ip");
 }
 void Environment::initializeEndPoint() {
-  //	libconfig::Config cfg;
-  //	cfg.readFile("/home/claims/config/wangli/config");
-  //	std::string endpoint_ip=(const char*)cfg.lookup("ip");
-  //	std::string endpoint_port=(const char*)cfg.lookup("port");
+  //  libconfig::Config cfg;
+  //  cfg.readFile("/home/claims/config/wangli/config");
+  //  std::string endpoint_ip=(const char*)cfg.lookup("ip");
+  //  std::string endpoint_port=(const char*)cfg.lookup("port");
   std::string endpoint_ip = ip;
   int endpoint_port;
   if ((endpoint_port = portManager->applyPort()) == -1) {
@@ -162,11 +177,11 @@ void Environment::initializeStorage() {
     blockManagerMaster_->initialize();
   }
   /*both master and slave node run the BlockManager.*/
-  //		BlockManagerId *bmid=new BlockManagerId();
-  //		string
+  //    BlockManagerId *bmid=new BlockManagerId();
+  //    string
   // actorname="blockManagerWorkerActor_"+bmid->blockManagerId;
-  //		cout<<actorname.c_str()<<endl;
-  //		BlockManager::BlockManagerWorkerActor
+  //    cout<<actorname.c_str()<<endl;
+  //    BlockManager::BlockManagerWorkerActor
   //*blockManagerWorkerActor=new
   // BlockManager::BlockManagerWorkerActor(endpoint,framework_storage,actorname.c_str());
 
@@ -181,6 +196,26 @@ void Environment::initializeResourceManager() {
   resourceManagerSlave_ = new InstanceResourceManager();
   nodeid = resourceManagerSlave_->Register();
 }
+
+bool Environment::InitLoader() {
+  if (Config::is_master_loader) {
+    LOG(INFO) << "I'm master loader. Oyeah";
+    master_loader_ = new MasterLoader();
+    std::thread master_thread(&MasterLoader::StartMasterLoader, nullptr);
+    master_thread.detach();
+    DLOG(INFO) << "started thread as master loader";
+  }
+
+  usleep(10000);
+  DLOG(INFO) << "starting create thread as slave loader";
+  slave_loader_ = new SlaveLoader();
+  std::thread slave_thread(&SlaveLoader::StartSlaveLoader, nullptr);
+  slave_thread.detach();
+
+  //  caf::await_all_actors_done();
+  return true;
+}
+
 void Environment::initializeBufferManager() {
   bufferManager_ = BufferManager::getInstance();
 }

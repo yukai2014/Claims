@@ -79,6 +79,9 @@ class Config {
   static int thread_pool_init_thread_num;
 
   static int load_thread_num;
+  static bool is_master_loader;
+  static std::string master_loader_ip;
+  static int master_loader_port;
 
  private:
   static Config* instance_;
