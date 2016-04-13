@@ -15,10 +15,10 @@
 #include <algorithm>
 #include <vector>
 
-#include "../../loader/data_injector.h"
+#include "../../loader/data_ingestion.h"
 #include "../../utility/Timer.h"
 #include "../common/error_define.h"
-using claims::loader::DataInjector;
+using claims::loader::DataIngestion;
 using claims::common::rTooFewColumn;
 using claims::common::rSuccess;
 using claims::common::rIncorrectData;
@@ -180,11 +180,11 @@ RetCode SchemaFix::CheckAndToValue(std::string text_tuple, void* binary_tuple,
           columns[i].operate->SetDefault(text_column);
           ret = rSuccess;
         }
-        //        ATOMIC_ADD_SF(DataInjector::total_check_string_time_,
+        //        ATOMIC_ADD_SF(DataIngestion::total_check_string_time_,
         //                      GetElapsedTimeInUs(check_string_time));
       }
     }
-    //    ATOMIC_ADD_SF(DataInjector::total_get_substr_time_,
+    //    ATOMIC_ADD_SF(DataIngestion::total_get_substr_time_,
     //                  GetElapsedTimeInUs(get_substr_time));
     //    PLOG_SF("get_substr time:" << GetElapsedTimeInUs(get_substr_time));
 
@@ -198,7 +198,7 @@ RetCode SchemaFix::CheckAndToValue(std::string text_tuple, void* binary_tuple,
                          << "\t Transfer: "
                          << columns[i].operate->toString(binary_tuple +
                                                          accum_offsets[i]));
-    //    ATOMIC_ADD_SF(DataInjector::total_to_value_time_,
+    //    ATOMIC_ADD_SF(DataIngestion::total_to_value_time_,
     //                  GetElapsedTimeInUs(to_value_time));
     //    PLOG_SF("just to_value time:" << GetElapsedTimeInUs(to_value_time));
     //    PLOG_SF("inner loop time:" << GetElapsedTimeInUs(get_substr_time));
@@ -206,7 +206,7 @@ RetCode SchemaFix::CheckAndToValue(std::string text_tuple, void* binary_tuple,
 
   //  PLOG_SF("while loop time:" << GetElapsedTimeInUs(to_value_func_time));
 
-  ATOMIC_ADD_SF(DataInjector::total_check_and_to_value_func_time_,
+  ATOMIC_ADD_SF(DataIngestion::total_check_and_to_value_func_time_,
                 GetElapsedTimeInUs(to_value_func_time));
   DLOG_SF("after all tovalue, prev_pos :"
           << (prev_pos == string::npos) << "prev_pos+1 :"

@@ -51,7 +51,7 @@ using claims::utility::LockGuard;
 
 namespace claims {
 namespace loader {
-class DataInjector;
+class DataIngestion;
 class TableFileConnector;
 };
 
@@ -59,7 +59,7 @@ namespace catalog {
 using claims::loader::TableFileConnector;
 class TableDescriptor {
  public:
-  friend class claims::loader::DataInjector;
+  friend class claims::loader::DataIngestion;
   friend class claims::loader::TableFileConnector;
 
  public:

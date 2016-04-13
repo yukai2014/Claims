@@ -70,7 +70,6 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
       [=](IpPortAtom, std::string ip, int port) {  // NOLINT
         LOG(INFO) << "receive slave network address(" << ip << ":" << port
                   << ")" << endl;
-        //      slave_addrs_.push_back(NetAddr(ip, port));
         int new_slave_fd = -1;
         if (rSuccess !=
             mloader->GetSocketFdConnectedWithSlave(ip, port, &new_slave_fd)) {
@@ -79,7 +78,9 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           LOG(INFO) << "succeed to get connected fd with slave";
         }
         assert(new_slave_fd > 3);
+        mloader->slave_addrs_.push_back(NetAddr(ip, port));
         mloader->slave_sockets_.push_back(new_slave_fd);
+        assert(mloader->slave_sockets_.size() == mloader->slave_addrs_.size());
         DLOG(INFO) << "start to send test message to slave";
 
         // test whether socket works well
@@ -116,14 +117,6 @@ RetCode MasterLoader::ConnectWithSlaves() {
             true);
     DLOG(INFO) << "published in " << master_loader_ip << ":"
                << master_loader_port;
-
-    //    auto test_actor = remote_actor(master_loader_ip, master_loader_port);
-    //    caf::scoped_actor test1;
-    //    test1->sync_send(test_actor, IpPortAtom::value, "123.123.13.123",
-    //    123);
-
-    //    while (int temp = getchar() != 'm') {
-    //    }
   } catch (exception& e) {
     LOG(ERROR) << e.what();
     return rFailure;
@@ -131,13 +124,24 @@ RetCode MasterLoader::ConnectWithSlaves() {
   return ret;
 }
 
-RetCode MasterLoader::Inject() {}
+RetCode MasterLoader::Ingest() {
+  RetCode ret = rSuccess;
+  string message = GetMessage();
+
+  IngestionRequest req;
+  EXEC_AND_LOG(ret, GetRequestFromMessage(message, &req), "got request!",
+               "failed to get request");
+
+  //  CheckAndToValue();
+
+  return ret;
+}
 
 string MasterLoader::GetMessage() {}
 
 bool MasterLoader::CheckValidity() {}
 
-void MasterLoader::DistributeSubInjection() {}
+void MasterLoader::DistributeSubIngestion() {}
 
 RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
                                                     int* connected_fd) {
@@ -158,12 +162,12 @@ RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
   return rSuccess;
 }
 
+RetCode MasterLoader::GetRequestFromMessage(const string& message,
+                                            IngestionRequest* req) {
+}
+
 void* MasterLoader::StartMasterLoader(void* arg) {
   Config::getInstance();
-  //  if (rSuccess != Catalog::getInstance()->restoreCatalog()) {
-  //    LOG(ERROR) << "failed to restore catalog" << std::endl;
-  //    cerr << "ERROR: restore catalog failed" << endl;
-  //  }
   LOG(INFO) << "start master loader...";
 
   int ret = rSuccess;
@@ -171,8 +175,8 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->ConnectWithSlaves(),
                           "failed to connect all slaves");
 
-  EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Inject(),
-                          "failed to inject data");
+  EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
+                          "failed to ingest data");
 
   return NULL;
 }

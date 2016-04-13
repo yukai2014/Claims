@@ -50,22 +50,31 @@ class MasterLoader {
     int port_;
   };
 
+  struct IngestionRequest {
+    string table_name_;
+    string col_sep_;
+    string row_sep_;
+    string tuples_;
+  };
+
  public:
   MasterLoader();
   ~MasterLoader();
 
   RetCode ConnectWithSlaves();
 
-  RetCode Inject();
+  RetCode Ingest();
 
  private:
   string GetMessage();
+
+  RetCode GetRequestFromMessage(const string& message, IngestionRequest* req);
 
   RetCode GetSlaveNetAddr();
   RetCode SetSocketWithSlaves();
   RetCode GetSocketFdConnectedWithSlave(string ip, int port, int* connected_fd);
   bool CheckValidity();
-  void DistributeSubInjection();
+  void DistributeSubIngestion();
 
   static behavior ReceiveSlaveReg(event_based_actor* self,
                                   MasterLoader* mloader);

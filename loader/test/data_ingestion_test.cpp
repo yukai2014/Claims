@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * /Claims/loader/test/data_injector_test.cpp
+ * /Claims/loader/test/data_injestion_test.cpp
  *
  *  Created on: Oct 30, 2015
  *      Author: yukai
@@ -26,14 +26,13 @@
  *
  */
 
-#include "./data_injector_test.h"
-
 #include <vector>
 #include <string>
 
 #include "../../catalog/table.h"
 #include "../../catalog/attribute.h"
 #include "../../common/Block/ResultSet.h"
+#include "data_ingestion_test.h"
 using claims::catalog::TableDescriptor;
 using claims::catalog::Attribute;
 using std::string;
@@ -42,16 +41,16 @@ using std::vector;
 namespace claims {
 namespace loader {
 
-TEST_F(DataInjectorTest, Load) {
+TEST_F(DataIngestionTest, Load) {
   //  EXPECT_TRUE(client_.connected());
   ResultSet rs;
   string command = "";
   std::cout << "it is load" << std::endl;
 }
 
-TEST_F(DataInjectorTest, Append) {}
+TEST_F(DataIngestionTest, Append) {}
 
-TEST_F(DataInjectorTest, Insert) {}
+TEST_F(DataIngestionTest, Insert) {}
 
 } /* namespace loader */
 } /* namespace claims */

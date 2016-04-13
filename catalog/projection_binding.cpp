@@ -124,7 +124,7 @@ bool ProjectionBinding::BindingEntireProjection(
       //
       //      BlockManagerMaster::getInstance()->SendBindingMessage(partition_id,number_of_chunks,MEMORY,target);
     }
-    /* conduct the binding according to the bingding information list*/
+    /* conduct the binding according to the binding information list*/
     for (unsigned i = 0; i < partition_id_to_nodeid_list.size(); i++) {
       const unsigned partition_off = partition_id_to_nodeid_list[i].first;
       const NodeID node_id = partition_id_to_nodeid_list[i].second;

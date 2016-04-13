@@ -29,7 +29,7 @@ LDADD = 	../catalog/libcatalog.a \
 
 noinst_LIBRARIES=libloader.a
 libloader_a_SOURCES = \
-	data_injector.cpp 		data_injector.h \
+	data_ingestion.cpp 		data_ingestion.h \
 	file_connector.h 		loader_message.h \
 	master_loader.cpp 		master_loader.h \
 	single_file_connector.cpp 		single_file_connector.h \
