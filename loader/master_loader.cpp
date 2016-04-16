@@ -29,16 +29,21 @@
 #include "./master_loader.h"
 #include <iostream>
 #include <string>
-
-#include "caf/all.hpp"
-#include "caf/io/all.hpp"
 #include <functional>
 #include <vector>
 
+#include "caf/all.hpp"
+#include "caf/io/all.hpp"
+#include "./loader_message.h"
+#include "./validity.h"
 #include "../catalog/catalog.h"
+#include "../catalog/table.h"
+#include "../common/data_type.h"
+#include "../common/memory_handle.h"
+#include "../common/Schema/TupleConvertor.h"
 #include "../Config.h"
 #include "../Environment.h"
-#include "./loader_message.h"
+#include "../utility/stl_guard.h"
 using caf::aout;
 using caf::behavior;
 using caf::event_based_actor;
@@ -48,6 +53,8 @@ using caf::mixin::sync_sender_impl;
 using caf::spawn;
 using std::endl;
 using claims::catalog::Catalog;
+using claims::catalog::TableDescriptor;
+using claims::common::Malloc;
 using claims::common::rSuccess;
 using claims::common::rFailure;
 
@@ -128,16 +135,61 @@ RetCode MasterLoader::Ingest() {
   RetCode ret = rSuccess;
   string message = GetMessage();
 
+  // get message from MQ
   IngestionRequest req;
   EXEC_AND_LOG(ret, GetRequestFromMessage(message, &req), "got request!",
                "failed to get request");
 
-  //  CheckAndToValue();
+  // parse message and get all tuples of all partitions, then
+  // check the validity of all tuple in message
+  TableDescriptor* table =
+      Environment::getInstance()->getCatalog()->getTable(req.table_name_);
+  assert(table != NULL && "table is not exist!");
+  vector<vector<vector<void*>>> tuple_buffers_per_part(
+      table->getNumberOfProjection());
+  for (auto proj : (*(table->GetProjectionList()))) {
+    tuple_buffers_per_part.push_back(vector<vector<void*>>(
+        proj->getPartitioner()->getNumberOfPartitions(), vector<void*>()));
+  }
+  vector<Validity> columns_validities;
+  EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
+                                       columns_validities),
+               "got all tuples of every partition",
+               "failed to get all tuples of every partition");
+  if (ret != rSuccess && ret != claims::common::rNoMemory) {
+    // TODO(YUKAI): error handle, like sending error message to client
+    LOG(ERROR) << "the tuple is not valid";
+    return rFailure;
+  }
+
+  // merge all tuple buffers of partition into one partition buffer
+  vector<vector<PartitionBuffer>> partition_buffers(
+      table->getNumberOfProjection());
+  EXEC_AND_LOG(ret, MergePartitionTupleIntoOneBuffer(
+                        table, tuple_buffers_per_part, partition_buffers),
+               "merged all tuple of same partition into one buffer",
+               "failed to merge tuples buffers into one buffer");
+
+  // start transaction from here
+  ApplyTransaction(req, table, partition_buffers);
+
+  // write data log
+  EXEC_AND_LOG(ret, WriteLog(req, table, partition_buffers), "written log ",
+               "failed to write log");
+
+  EXEC_AND_LOG(ret, ReplyToMQ(req), "replied to MQ", "failed to reply to MQ");
+
+  EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers),
+               "sent every partition data to its slave",
+               "failed to send every partition data to its slave");
 
   return ret;
 }
 
-string MasterLoader::GetMessage() {}
+string MasterLoader::GetMessage() {
+  string ret;
+  return ret;
+}
 
 bool MasterLoader::CheckValidity() {}
 
@@ -162,8 +214,141 @@ RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
   return rSuccess;
 }
 
+// get every tuples and add row id for it
 RetCode MasterLoader::GetRequestFromMessage(const string& message,
                                             IngestionRequest* req) {
+  //  AddRowIdColumn()
+  RetCode ret = rSuccess;
+  return ret;
+}
+
+RetCode MasterLoader::CheckAndToValue(const IngestionRequest& req,
+                                      void* tuple_buffer,
+                                      vector<Validity>& column_validities) {}
+
+// map every tuple into associate part
+RetCode MasterLoader::GetPartitionTuples(
+    const IngestionRequest& req, const TableDescriptor* table,
+    vector<vector<vector<void*>>>& tuple_buffer_per_part,
+    vector<Validity>& columns_validities) {
+  RetCode ret = rSuccess;
+  vector<void*> correct_tuple_buffer;
+  STLGuardWithRetCode<vector<void*>> guard(correct_tuple_buffer,
+                                           ret);  // attention!
+  // must set RetCode 'ret' before returning error code!!!!
+  ThreeLayerSTLGuardWithRetCode<vector<vector<vector<void*>>>>
+      return_tuple_buffer_guard(tuple_buffer_per_part, ret);  // attention!
+
+  // check all tuples to be inserted
+  int line = 0;
+  for (auto tuple_string : req.tuples_) {
+    void* tuple_buffer = Malloc(table->getSchema()->getTupleMaxSize());
+    if (tuple_buffer == NULL) return claims::common::rNoMemory;
+    if (rSuccess != (ret = table->getSchema()->CheckAndToValue(
+                         tuple_string, tuple_buffer, req.col_sep_,
+                         RawDataSource::kSQL, columns_validities))) {
+      // handle error which stored in the end
+      Validity err = columns_validities.back();
+      columns_validities.pop_back();
+      string validity_info =
+          Validity::GenerateDataValidityInfo(err, table, line, "");
+      LOG(ERROR) << validity_info;
+    }
+    // handle all warnings
+    for (auto it : columns_validities) {
+      string validity_info =
+          Validity::GenerateDataValidityInfo(it, table, line, "");
+      LOG(WARNING) << "append warning info:" << validity_info;
+    }
+    if (rSuccess != ret) {
+      // clean work is done by guard
+      return ret;
+    }
+    ++line;
+    correct_tuple_buffer.push_back(tuple_buffer);
+  }
+
+  // map every tuple in different partition
+  for (int i = 0; i < table->getNumberOfProjection(); i++) {
+    ProjectionDescriptor* prj = table->getProjectoin(i);
+    Schema* prj_schema = prj->getSchema();
+    vector<Attribute> prj_attrs = prj->getAttributeList();
+    vector<unsigned> prj_index;
+    for (int j = 0; j < prj_attrs.size(); j++) {
+      prj_index.push_back(prj_attrs[j].index);
+    }
+    SubTuple sub_tuple(table->getSchema(), prj_schema, prj_index);
+
+    const int partition_key_local_index =
+        prj->getAttributeIndex(prj->getPartitioner()->getPartitionKey());
+    unsigned tuple_max_length = prj_schema->getTupleMaxSize();
+
+    for (auto tuple_buffer : correct_tuple_buffer) {
+      // extract the sub tuple according to the projection schema
+      void* target = Malloc(prj_schema->getTupleMaxSize());  // newmalloc
+      if (target == NULL) {
+        return (ret = claims::common::rNoMemory);
+      }
+      sub_tuple.getSubTuple(tuple_buffer, target);
+
+      // determine the partition to write the tuple "target"
+      void* partition_key_addr =
+          prj_schema->getColumnAddess(partition_key_local_index, target);
+      int part = prj_schema->getcolumn(partition_key_local_index)
+                     .operate->getPartitionValue(
+                         partition_key_addr,
+                         prj->getPartitioner()->getPartitionFunction());
+
+      tuple_buffer_per_part[i][part].push_back(target);
+    }
+  }
+  return ret;
+}
+
+RetCode MasterLoader::ApplyTransaction(
+    const IngestionRequest& req, const TableDescriptor* table,
+    const vector<vector<PartitionBuffer>>& partition_buffers) {
+  RetCode ret = rSuccess;
+
+  return ret;
+}
+
+RetCode MasterLoader::WriteLog(
+    const IngestionRequest& req, const TableDescriptor* table,
+    const vector<vector<PartitionBuffer>>& partition_buffers) {}
+
+RetCode MasterLoader::ReplyToMQ(const IngestionRequest& req) {}
+
+RetCode MasterLoader::SendPartitionTupleToSlave(
+    const TableDescriptor* table,
+    const vector<vector<PartitionBuffer>>& partition_buffers) {}
+
+RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
+    const TableDescriptor* table,
+    vector<vector<vector<void*>>>& tuple_buffer_per_part,
+    vector<vector<PartitionBuffer>>& partition_buffers) {
+  RetCode ret = rSuccess;
+  for (int i = 0; i < tuple_buffer_per_part.size(); ++i) {
+    for (int j = 0; j < tuple_buffer_per_part[i].size(); ++j) {
+      int tuple_count = tuple_buffer_per_part[i][j].size();
+      int tuple_len = table->getProjectoin(i)->getSchema()->getTupleMaxSize();
+      int buffer_len = tuple_count * tuple_len;
+
+      void* new_buffer = Malloc(buffer_len);
+      for (int k = 0; k < tuple_count; ++k) {
+        memcpy(new_buffer + k * tuple_len, tuple_buffer_per_part[i][j][k],
+               tuple_len);
+        // release old memory stored tuple buffer
+        DELETE_PTR(tuple_buffer_per_part[i][j][k]);
+      }
+      // push new partition buffer
+      partition_buffers[i].push_back(PartitionBuffer(new_buffer, buffer_len));
+      tuple_buffer_per_part[i][j].clear();
+    }
+    tuple_buffer_per_part[i].clear();
+  }
+  tuple_buffer_per_part.clear();
+  return ret;
 }
 
 void* MasterLoader::StartMasterLoader(void* arg) {
@@ -175,8 +360,9 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->ConnectWithSlaves(),
                           "failed to connect all slaves");
 
-  EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
-                          "failed to ingest data");
+  while (true)
+    EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
+                            "failed to ingest data");
 
   return NULL;
 }

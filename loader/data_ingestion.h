@@ -73,7 +73,7 @@ class DataIngestion {
    * @param row_separator: row separator
    */
   DataIngestion(TableDescriptor* table, const string col_separator = "|",
-                const string row_separator = "\n");
+                const string& row_separator = "\n");
 
   virtual ~DataIngestion();
 
@@ -157,8 +157,9 @@ class DataIngestion {
                            string data_source, uint64_t row_id_in_raw_data,
                            ExecutedResult* result);
 
-  string GenerateDataValidityInfo(const Validity& vali, TableDescriptor* table,
-                                  int line, const string& file);
+  //  string GenerateDataValidityInfo(const Validity& vali, TableDescriptor*
+  //  table,
+  //                                  int line, const string& file);
   void AnnounceIAmLoading();
 
   static void* HandleTuple(void* ptr);

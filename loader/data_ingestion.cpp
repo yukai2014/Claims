@@ -148,7 +148,7 @@ uint64_t DataIngestion::total_unread_sem_fail_count_ = 0;
 uint64_t DataIngestion::total_append_warning_time_ = 0;
 
 DataIngestion::DataIngestion(TableDescriptor* table, const string col_separator,
-                           const string row_separator)
+                             const string& row_separator)
     : table_(table),
       col_separator_(col_separator),
       row_separator_(row_separator),
@@ -250,9 +250,9 @@ RetCode DataIngestion::PrepareInitInfo(FileOpenFlag open_flag) {
 }
 
 RetCode DataIngestion::LoadFromFileSingleThread(vector<string> input_file_names,
-                                               FileOpenFlag open_flag,
-                                               ExecutedResult* result,
-                                               double sample_rate) {
+                                                FileOpenFlag open_flag,
+                                                ExecutedResult* result,
+                                                double sample_rate) {
   int ret = rSuccess;
   int file_count = 0;
   uint64_t row_id_in_file = 0;
@@ -317,8 +317,8 @@ RetCode DataIngestion::LoadFromFileSingleThread(vector<string> input_file_names,
       }
       // only handle data warnings, because of no data error
       for (auto it : columns_validities) {
-        string validity_info =
-            GenerateDataValidityInfo(it, table_, row_id_in_file, file_name);
+        string validity_info = Validity::GenerateDataValidityInfo(
+            it, table_, row_id_in_file, file_name);
         DLOG_DI("append warning info:" << validity_info);
         result->AppendWarning(validity_info);
       }
@@ -364,7 +364,7 @@ RetCode DataIngestion::LoadFromFileSingleThread(vector<string> input_file_names,
 }
 
 RetCode DataIngestion::SetTableState(FileOpenFlag open_flag,
-                                    ExecutedResult* result) {
+                                     ExecutedResult* result) {
   int ret = rSuccess;
   if (FileOpenFlag::kCreateFile == open_flag) {
     /*
@@ -397,7 +397,7 @@ RetCode DataIngestion::SetTableState(FileOpenFlag open_flag,
 }
 
 RetCode DataIngestion::CheckFiles(vector<string> input_file_names,
-                                 ExecutedResult* result) {
+                                  ExecutedResult* result) {
   int ret = rSuccess;
   for (auto file_name : input_file_names) {
     ifstream input_file(file_name.c_str());
@@ -468,9 +468,9 @@ RetCode DataIngestion::FinishJobAfterLoading(FileOpenFlag open_flag) {
 }
 
 RetCode DataIngestion::LoadFromFileMultiThread(vector<string> input_file_names,
-                                              FileOpenFlag open_flag,
-                                              ExecutedResult* result,
-                                              double sample_rate) {
+                                               FileOpenFlag open_flag,
+                                               ExecutedResult* result,
+                                               double sample_rate) {
   int ret = rSuccess;
   int file_count = 0;
   uint64_t row_id_in_file = 0;
@@ -595,8 +595,9 @@ RetCode DataIngestion::LoadFromFileMultiThread(vector<string> input_file_names,
  * into HDFS/disk
  */
 RetCode DataIngestion::LoadFromFile(vector<string> input_file_names,
-                                   FileOpenFlag open_flag,
-                                   ExecutedResult* result, double sample_rate) {
+                                    FileOpenFlag open_flag,
+                                    ExecutedResult* result,
+                                    double sample_rate) {
   total_get_substr_time_ = 0;
   total_check_string_time_ = 0;
   total_to_value_time_ = 0;
@@ -736,7 +737,7 @@ void* DataIngestion::HandleTuple(void* ptr) {
       LockGuard<SpineLock> guard(
           injestion->task_list_access_lock_[self_thread_index]);  ///// lock/sem
       ATOMIC_ADD(
-          injestion->total_lock_tuple_buffer_time_,            ///// lock/sem
+          injestion->total_lock_tuple_buffer_time_,           ///// lock/sem
           GetElapsedTimeInUs(start_tuple_buffer_lock_time));  ///// lock/sem
       task = std::move(
           injestion->task_lists_[self_thread_index].front());  ///// lock/sem
@@ -781,7 +782,7 @@ void* DataIngestion::HandleTuple(void* ptr) {
     // only handle data warnings, because of no data error
     if (!injestion->result_->HasEnoughWarning()) {
       for (auto it : columns_validities) {
-        string validity_info = injestion->GenerateDataValidityInfo(
+        string validity_info = Validity::GenerateDataValidityInfo(
             it, injestion->table_, row_id_in_file, file_name);
         DLOG_DI("append warning info:" << validity_info);
         GET_TIME_DI(start_append_warning_time);
@@ -796,7 +797,7 @@ void* DataIngestion::HandleTuple(void* ptr) {
     GET_TIME_DI(start_insert_time);
     EXEC_AND_ONLY_LOG_ERROR(
         ret, injestion->InsertSingleTuple(tuple_buffer, block_to_write,
-                                         local_pj_buffer),  ///// lock/sem
+                                          local_pj_buffer),  ///// lock/sem
         "failed to insert tuple in " << file_name << " at line "
                                      << row_id_in_file << ".");
     if (ret != rSuccess) {  // it is not need to use lock
@@ -819,7 +820,7 @@ void* DataIngestion::HandleTuple(void* ptr) {
  * else return error to client without inserting any data
  */
 RetCode DataIngestion::InsertFromString(const string tuples,
-                                       ExecutedResult* result) {
+                                        ExecutedResult* result) {
   int ret = rSuccess;
   LOG(INFO) << "tuples is: " << tuples << endl;
 
@@ -853,33 +854,40 @@ RetCode DataIngestion::InsertFromString(const string tuples,
 
     vector<Validity> columns_validities;
     void* tuple_buffer = Malloc(table_schema_->getTupleMaxSize());
-    if (tuple_buffer == NULL) return rNoMemory;
+    if (tuple_buffer == NULL) {
+      for (auto it : correct_tuple_buffer) DELETE_PTR(it);
+      correct_tuple_buffer.clear();
+      return rNoMemory;
+    }
     ostringstream oss;
 
     if (rSuccess !=
         (ret = CheckAndToValue(tuple_record, tuple_buffer, RawDataSource::kSQL,
                                columns_validities))) {
       // contain data error, which is stored in the end of columns_validities
-      for (auto it : correct_tuple_buffer) DELETE_PTR(it);
-      correct_tuple_buffer.clear();
-
       // handle error which stored in the end
       Validity err = columns_validities.back();
       columns_validities.pop_back();
-      string validity_info = GenerateDataValidityInfo(err, table_, line, "");
+      string validity_info =
+          Validity::GenerateDataValidityInfo(err, table_, line, "");
       LOG(ERROR) << validity_info;
       result->SetError(validity_info);
     }
 
     // handle all warnings
     for (auto it : columns_validities) {
-      string validity_info = GenerateDataValidityInfo(it, table_, line, "");
+      string validity_info =
+          Validity::GenerateDataValidityInfo(it, table_, line, "");
       DLOG_DI("append warning info:" << validity_info);
       result->AppendWarning(validity_info);
     }
 
     // if check failed, return ret
-    if (rSuccess != ret) return ret;
+    if (rSuccess != ret) {
+      for (auto it : correct_tuple_buffer) DELETE_PTR(it);
+      correct_tuple_buffer.clear();
+      return ret;
+    }
 
     correct_tuple_buffer.push_back(tuple_buffer);
     ++line;
@@ -1059,7 +1067,7 @@ inline RetCode DataIngestion::CheckAndToValue(
 }
 
 istream& DataIngestion::GetTupleTerminatedBy(ifstream& ifs, string& res,
-                                            const string& terminator) {
+                                             const string& terminator) {
   res.clear();
   if (1 == terminator.length()) {
     return getline(ifs, res, static_cast<char>(terminator[0]));
@@ -1107,15 +1115,17 @@ const char* validity_info[9][2] = {
     {},
     {}};
 */
+
+/*
 string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
-                                              TableDescriptor* table, int line,
-                                              const string& file) {
+                                               TableDescriptor* table, int line,
+                                               const string& file) {
   ostringstream oss;
   oss.clear();
   switch (vali.check_res_) {
     case rTooLargeData: {
       oss << "Data larger than range value for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1123,7 +1133,7 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
     }
     case rTooSmallData: {
       oss << "Data smaller than range value for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1131,7 +1141,7 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
     }
     case rInterruptedData: {
       oss << "Data truncated from non-digit for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1139,7 +1149,7 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
     }
     case rTooLongData: {
       oss << "Data truncated for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1147,7 +1157,7 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
     }
     case rIncorrectData: {
       oss << "Incorrect format value for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1155,7 +1165,7 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
     }
     case rInvalidNullData: {
       oss << "Null Data value is invalid for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1176,7 +1186,7 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
     }
     case rInvalidInsertData: {
       oss << "Data value is invalid for column '"
-          << table_->getAttribute(vali.column_index_).attrName
+          << table->getAttribute(vali.column_index_).attrName
           << "' at line: " << line;
       if ("" != file) oss << " in file: " << file;
       oss << "\n";
@@ -1189,6 +1199,6 @@ string DataIngestion::GenerateDataValidityInfo(const Validity& vali,
   }
   return oss.str();
 }
-
+*/
 } /* namespace loader */
 } /* namespace claims */
