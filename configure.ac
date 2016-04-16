@@ -46,6 +46,7 @@ AC_CONFIG_FILES([
   Test/Makefile
   Test/common/Makefile
   Test/utility/Makefile
+  txn_manager/Makefile
   utility/Makefile
   codegen/Makefile 
   stmt_handler/Makefile
