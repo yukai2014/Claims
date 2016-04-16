@@ -57,6 +57,7 @@ LDADD =  \
 	common/types/Test/libtest.a \
 	common/types/ttmath/libttmath.a \
 	utility/libutility.a \
+	txn_manager/libtxnmanager.a \
 	${CAF_HOME}/build/lib/libcaf_core.so \
 	${CAF_HOME}/build/lib/libcaf_io.so \
 	${THERON_HOME}/Lib/libtherond.a \
@@ -77,11 +78,16 @@ include_HEADERS = Config.h \
 				Debug.h \
 				Environment.h \
 				IDsGenerator.h \
-				configure.h
+				configure.h  \
+				txn_manager/txn.hpp \
+				txn_manager/txn_server.hpp \
+				txn_manager/txn_client.hpp
 				
 bin_PROGRAMS =  claimsserver \
 				client \
-				test	
+				test	\
+				txnclient \
+				txnserver
 				
 client_SOURCES = Client.cpp \
 					Environment.cpp \
@@ -98,13 +104,15 @@ test_SOURCES = Test/gtest_main.cpp\
 				IDsGenerator.cpp \
 				Config.cpp
 				
+txnclient_SOURCES = txn_client_test.cpp 
 
+txnserver_SOURCES = txn_server_test.cpp 
 
 SUBDIRS=  catalog Client common Daemon Executor IndexManager\
 loader physical_operator logical_operator  Resource \
-storage Test utility codegen sql_parser stmt_handler
+storage Test utility codegen sql_parser stmt_handler txn_manager
 
 DIST_SUBDIRS =  catalog Client common Daemon Executor IndexManager\
 loader physical_operator logical_operator  Resource \
-storage Test utility codegen sql_parser stmt_handler
+storage Test utility codegen sql_parser stmt_handler txn_manager
 
