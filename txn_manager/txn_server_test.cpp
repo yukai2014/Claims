@@ -154,6 +154,10 @@ class B:public caf::event_based_actor {
     };
   }
 };
+using claims::txn::TxnServer;
+using claims::txn::FixTupleIngestReq;
+using claims::txn::Ingest;
+char v[1024+10];
 
 
 
@@ -166,23 +170,24 @@ void task(int time){
                                    {1, {35, 20}},
                                    {2,{15,100}}};
       TxnClient::BeginIngest(request1, ingest);
+      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+      LogClient::PushToDisk();
       TxnClient::CommitIngest(ingest);
 //    }
   }
 }
 
-using claims::txn::TxnServer;
-using claims::txn::FixTupleIngestReq;
-using claims::txn::Ingest;
-char v[1024+10];
 
 void task2(int time) {
   for (auto i = 0; i< time; i++) {
-    //LogClient::Data(1, 1, 1111,(void*)v, 1024);
+
     LogClient::Begin(i);
     LogClient::Write(i, 1, 0, 100 );
     LogClient::Write(i, 2, 0, 100 );
     LogClient::Write(i, 3, 0, 100 );
+
     //LogClient::PushToDisk() ;
   }
 
