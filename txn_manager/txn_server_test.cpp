@@ -173,7 +173,7 @@ void task(int time){
       LogClient::Data(1, 1, 1111,(void*)v, 1024);
       LogClient::Data(1, 1, 1111,(void*)v, 1024);
       LogClient::Data(1, 1, 1111,(void*)v, 1024);
-      LogClient::PushToDisk();
+
       TxnClient::CommitIngest(ingest);
 //    }
   }
@@ -221,11 +221,15 @@ int main(){
 //   }
 //  sleep(1);
   memset(v, 1024, '*');
+  string path;
+  cout << "input path" << endl;
+  cin >> path;
   TxnServer::Init();
+  LogServer::init(path);
   struct  timeval tv1, tv2;
-
   vector<std::thread> v;
   int n = 1, time =1;
+  cout << "input #thread, #time" << endl;
   cin >> n >> time;
   gettimeofday(&tv1,NULL);
   for (auto i=0;i<n;i++)

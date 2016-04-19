@@ -224,8 +224,6 @@ RetCode TxnServer::Init(int concurrency, int port) {
   RecoveryFromCatalog();
   RecoveryFromTxnLog();
   srand((unsigned) time(NULL));
-  if (!LogServer::is_active)
-    LogServer::init("txn-log");
 
   return 0;
 }
@@ -240,7 +238,6 @@ RetCode TxnServer::BeginIngest(const FixTupleIngestReq & request, Ingest & inges
     LogClient::Begin(ingest.Id);
     for (auto & strip : ingest.StripList)
       LogClient::Write(ingest.Id, strip.first, strip.second.first, strip.second.second);
-    LogClient::PushToDisk();
   }
   return ret;
 }
@@ -252,7 +249,7 @@ RetCode TxnServer::CommitIngest(const Ingest & ingest) {
       await([&](int r) { ret = r;});
  if (ret == 0) {
    LogClient::Commit(ingest.Id);
-   LogClient::PushToDisk();
+   LogClient::Refresh();
   }
   return ret;
 }
@@ -264,7 +261,7 @@ RetCode TxnServer::AbortIngest(const Ingest & ingest) {
       await([&](int r) { ret = r;});
   if (ret == 0) {
     LogClient::Abort(ingest.Id);
-    LogClient::PushToDisk();
+    LogClient::Refresh();
   }
   return ret;
 }
@@ -307,7 +304,7 @@ RetCode TxnServer::CommitCheckpoint(const Checkpoint & cp) {
      TxnServer::PhyCPList[cp.Part] = cp.PhyCP;
   if (ret == 0) {
     LogClient::Checkpoint(cp.Part, cp.LogicCP, cp.PhyCP);
-    LogClient::PushToDisk();
+    LogClient::Refresh();
   }
   return ret;
 }
