@@ -29,6 +29,7 @@
 
 namespace claims{
 namespace txn{
+
 int TxnCore::BufferSize = kTxnBufferSize;
 
 
@@ -38,10 +39,10 @@ caf::actor TxnServer::Router;
 vector<caf::actor> TxnServer::Cores;
 bool TxnServer::Active = false;
 
-unordered_map<UInt64, atomic<UInt64>> TxnServer::PosList;
-unordered_map<UInt64, UInt64> TxnServer::LogicCPList;
-unordered_map<UInt64, UInt64> TxnServer::PhyCPList;
-unordered_map<UInt64, atomic<UInt64>> TxnServer::CountList;
+std::unordered_map<UInt64, atomic<UInt64>> TxnServer::PosList;
+std::unordered_map<UInt64, UInt64> TxnServer::LogicCPList;
+std::unordered_map<UInt64, UInt64> TxnServer::PhyCPList;
+std::unordered_map<UInt64, atomic<UInt64>> TxnServer::CountList;
 
 RetCode TxnCore::ReMalloc() {
   Size = 0;
@@ -183,9 +184,9 @@ caf::behavior TxnWorker::make_behavior( ){
 caf::behavior TxnServer::make_behavior() {
   try {
     caf::io::publish(Router, Port);
-    cout << "publish to port:"<< Port<< " success" << endl;
+    cout << "txn server bind to port:"<< Port<< " success" << endl;
   } catch (...) {
-    cout << "publish to port:"<< Port<< " fail" << endl;
+    cout << "txn server bind to port:"<< Port<< " fail" << endl;
   }
   return {
     [=](IngestAtom, const FixTupleIngestReq & request) {

@@ -83,6 +83,15 @@ class Config {
   static std::string master_loader_ip;
   static int master_loader_port;
 
+  static bool enable_txn_server;
+  static int txn_server_cores;
+  static std::string txn_server_ip;
+  static int txn_server_port;
+
+  static bool enable_txn_log;
+  static std::string txn_log_path;
+
+
  private:
   static Config* instance_;
   libconfig::Config cfg;

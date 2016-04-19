@@ -23,6 +23,10 @@
 #include "Executor/exchange_tracker.h"
 #include "Executor/expander_tracker.h"
 #include "Resource/BufferManager.h"
+#include "txn_manager/txn_server.hpp"
+#include "txn_manager/txn_client.hpp"
+#include "txn_manager/txn_log.hpp"
+
 
 namespace claims {
 namespace loader {
@@ -33,6 +37,11 @@ class MasterLoader;
 using claims::catalog::Catalog;
 using claims::loader::SlaveLoader;
 using claims::loader::MasterLoader;
+using claims::txn::TxnServer;
+using claims::txn::TxnClient;
+using claims::txn::LogServer;
+using claims::txn::LogClient;
+
 
 class Environment {
  public:
@@ -67,6 +76,10 @@ class Environment {
   bool initializeThreadPool();
 
   bool InitLoader();
+
+  bool InitTxnManager();
+
+  bool InitTxnLog();
 
  private:
   static Environment* _instance;

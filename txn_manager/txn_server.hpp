@@ -47,6 +47,9 @@
 #include "txn.hpp"
 #include "txn_log.hpp"
 #include <chrono>
+
+namespace claims{
+namespace txn{
 using std::cin;
 using std::cout;
 using std::endl;
@@ -54,16 +57,12 @@ using std::vector;
 using std::string;
 using std::map;
 using std::pair;
-using std::unordered_map;
 using std::to_string;
 using std::function;
 using std::sort;
 using std::atomic;
 using std::chrono::seconds;
 using std::chrono::milliseconds;
-namespace claims{
-namespace txn{
-
 class TxnCore: public caf::event_based_actor {
  public:
   static int BufferSize;
@@ -98,10 +97,10 @@ class TxnServer: public caf::event_based_actor{
   static int Concurrency;
   static caf::actor Router;
   static vector<caf::actor> Cores;
-  static unordered_map<UInt64, atomic<UInt64>> PosList;
-  static unordered_map<UInt64, UInt64> LogicCPList;
-  static unordered_map<UInt64, UInt64> PhyCPList;
-  static unordered_map<UInt64, atomic<UInt64>> CountList;
+  static std::unordered_map<UInt64, atomic<UInt64>> PosList;
+  static std::unordered_map<UInt64, UInt64> LogicCPList;
+  static std::unordered_map<UInt64, UInt64> PhyCPList;
+  static std::unordered_map<UInt64, atomic<UInt64>> CountList;
   /**************** User APIs ***************/
   static RetCode Init(int concurrency = kConcurrency , int port = kTxnPort);
 

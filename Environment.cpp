@@ -97,6 +97,15 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
     LOG(ERROR) << "failed to initialize loader";
   }
 
+  logging_->log("Initializing txn manager");
+  if (!InitTxnManager())
+    LOG(ERROR) << "failed to initialize txn manager";
+
+  logging_->log("Initializing txn log server");
+  if (!InitTxnLog())
+    LOG(ERROR) << "failed to initialize txn log";
+
+
   logging_->log("Initializing the ExecutorMaster...");
   iteratorExecutorMaster = new IteratorExecutorMaster();
 
@@ -213,6 +222,23 @@ bool Environment::InitLoader() {
   slave_thread.detach();
 
   //  caf::await_all_actors_done();
+  return true;
+}
+
+bool Environment::InitTxnManager() {
+  if (Config::enable_txn_server) {
+    LOG(INFO) << "I'm txn manager server" ;
+    TxnServer::Init(Config::txn_server_cores, Config::txn_server_port);
+  }
+  TxnClient::Init(Config::txn_server_ip, Config::txn_server_port);
+  return true;
+}
+
+bool Environment::InitTxnLog() {
+  if (Config::enable_txn_log) {
+    LOG(INFO) << "I'm txn log server";
+    LogServer::init(Config::txn_log_path);
+  }
   return true;
 }
 

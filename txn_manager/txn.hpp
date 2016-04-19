@@ -41,6 +41,10 @@
 #include <sys/time.h>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
+
+namespace claims {
+namespace txn{
+
 using std::cin;
 using std::cout;
 using std::endl;
@@ -52,9 +56,7 @@ using std::unordered_map;
 using std::to_string;
 using std::function;
 using std::sort;
-using std::make_pair;;
-namespace claims {
-namespace txn{
+using std::make_pair;
 using UInt64 = unsigned long long;
 using UInt32 = unsigned int;
 using UInt16 = unsigned short;

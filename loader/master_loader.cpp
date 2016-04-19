@@ -29,7 +29,7 @@
 #include "./master_loader.h"
 #include <iostream>
 #include <string>
-
+#include "unistd.h"
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 #include <functional>
@@ -175,8 +175,10 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->ConnectWithSlaves(),
                           "failed to connect all slaves");
 
-  EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
-                          "failed to ingest data");
+  while(true)
+    sleep(10);
+//  EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
+//                          "failed to ingest data");
 
   return NULL;
 }
