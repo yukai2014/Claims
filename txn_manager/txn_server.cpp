@@ -63,7 +63,7 @@ RetCode TxnCore::ReMalloc() {
 
 caf::behavior TxnCore::make_behavior() {
  ReMalloc();
- this->delayed_send(this, seconds(kGCTime + CoreId), GCAtom::value);
+ //this->delayed_send(this, seconds(kGCTime + CoreId), GCAtom::value);
   return {
     [=](IngestAtom, const FixTupleIngestReq * request, Ingest * ingest)->int {
       struct  timeval tv1;
@@ -224,25 +224,37 @@ RetCode TxnServer::Init(int concurrency, int port) {
   RecoveryFromCatalog();
   RecoveryFromTxnLog();
   srand((unsigned) time(NULL));
+  if (!LogServer::is_active)
+    LogServer::init("txn-log");
 
   return 0;
 }
 
 RetCode TxnServer::BeginIngest(const FixTupleIngestReq & request, Ingest & ingest) {
-  RetCode ret;
+  RetCode ret = 0;
   UInt64 core_id = SelectCore();
   caf::scoped_actor self;
   self->sync_send(Cores[core_id], IngestAtom::value, & request, & ingest).
       await([&](int r) {ret = r;});
-  return 0;
+  if (ret == 0) {
+    LogClient::Begin(ingest.Id);
+    for (auto & strip : ingest.StripList)
+      LogClient::Write(ingest.Id, strip.first, strip.second.first, strip.second.second);
+    LogClient::PushToDisk();
+  }
+  return ret;
 }
 RetCode TxnServer::CommitIngest(const Ingest & ingest) {
-  RetCode ret;
+  RetCode ret = 0;
   UInt64 core_id = GetCoreId(ingest.Id);
   caf::scoped_actor self;
   self->sync_send(Cores[core_id], CommitIngestAtom::value, &ingest).
       await([&](int r) { ret = r;});
-  return 0;
+ if (ret == 0) {
+   LogClient::Commit(ingest.Id);
+   LogClient::PushToDisk();
+  }
+  return ret;
 }
 RetCode TxnServer::AbortIngest(const Ingest & ingest) {
   RetCode ret;
@@ -250,7 +262,11 @@ RetCode TxnServer::AbortIngest(const Ingest & ingest) {
   caf::scoped_actor self;
   self->sync_send(Cores[core_id], AbortIngestAtom::value, &ingest).
       await([&](int r) { ret = r;});
-  return 0;
+  if (ret == 0) {
+    LogClient::Abort(ingest.Id);
+    LogClient::PushToDisk();
+  }
+  return ret;
 }
 RetCode TxnServer::BeginQuery(const QueryReq & request, Query & query) {
   RetCode ret;
@@ -267,7 +283,7 @@ RetCode TxnServer::BeginQuery(const QueryReq & request, Query & query) {
   return ret;
 }
 RetCode TxnServer::BeginCheckpoint(Checkpoint & cp) {
-  RetCode ret;
+  RetCode ret = 0;
   if (TxnServer::PosList.find(cp.Part) == TxnServer::PosList.end())
     return -1;
   cp.LogicCP = TxnServer::LogicCPList[cp.Part];
@@ -281,14 +297,19 @@ RetCode TxnServer::BeginCheckpoint(Checkpoint & cp) {
   Strip::Merge(cp.CommitStripList);
   Strip::Sort(cp.AbortStripList);
   Strip::Merge(cp.AbortStripList);
-  return 0;
+  return ret;
 }
 RetCode TxnServer::CommitCheckpoint(const Checkpoint & cp) {
+  RetCode ret = 0;
   if (TxnServer::PosList.find(cp.Part) == TxnServer::PosList.end())
        return -1;
      TxnServer::LogicCPList[cp.Part] = cp.LogicCP;
      TxnServer::PhyCPList[cp.Part] = cp.PhyCP;
-  return 0;
+  if (ret == 0) {
+    LogClient::Checkpoint(cp.Part, cp.LogicCP, cp.PhyCP);
+    LogClient::PushToDisk();
+  }
+  return ret;
 }
 
 

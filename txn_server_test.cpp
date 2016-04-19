@@ -190,7 +190,7 @@ int main(){
 //  }
 
 
-  TxnServer::Init();
+//  TxnServer::Init();
 //  for (auto j = 0;j < 100  ;j++) {
 ////        request1.Content[0] = {45, 10};
 ////        request1.Content[1] = {54, 10};
@@ -200,18 +200,23 @@ int main(){
 //    TxnServer::BeginIngest(request1, ingest);
 //    TxnServer::CommitIngest(ingest);
 //   }
+//  sleep(1);
+//  struct  timeval tv1, tv2;
+//  gettimeofday(&tv1,NULL);
+//  cout <<"a:" <<tv1.tv_sec << "." << tv1.tv_usec << endl;
+//  vector<std::thread> v;
+//  int n = 1;
+//  for (auto i=0;i<n;i++)
+//    v.push_back(std::thread(task,i+1));
+//  for (auto i=0;i<n;i++)
+//    v[i].join();
+//  gettimeofday(&tv2,NULL);
+//  cout <<"d:" <<tv2.tv_sec << "." << tv2.tv_usec << endl;
+//  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
+  cout << "ssss" << endl;
+  LogServer::init();
   sleep(1);
-  struct  timeval tv1, tv2;
-  gettimeofday(&tv1,NULL);
-  cout <<"a:" <<tv1.tv_sec << "." << tv1.tv_usec << endl;
-  vector<std::thread> v;
-  int n = 1;
-  for (auto i=0;i<n;i++)
-    v.push_back(std::thread(task,i+1));
-  for (auto i=0;i<n;i++)
-    v[i].join();
-  gettimeofday(&tv2,NULL);
-  cout <<"d:" <<tv2.tv_sec << "." << tv2.tv_usec << endl;
-  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
+  LogClient::Begin(3);
+  LogClient::PushToDisk();
   caf::await_all_actors_done();
 }

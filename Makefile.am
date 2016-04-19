@@ -83,7 +83,7 @@ include_HEADERS = Config.h \
 				txn_manager/txn_server.hpp \
 				txn_manager/txn_client.hpp
 				
-bin_PROGRAMS =  claimsserver \
+bin_PROGRAMS = claimsserver \
 				client \
 				test	\
 				txnclient \
@@ -104,9 +104,9 @@ test_SOURCES = Test/gtest_main.cpp\
 				IDsGenerator.cpp \
 				Config.cpp
 				
-txnclient_SOURCES = txn_client_test.cpp 
+txnclient_SOURCES = txn_manager/txn_client_test.cpp 
 
-txnserver_SOURCES = txn_server_test.cpp 
+txnserver_SOURCES = txn_manager/txn_server_test.cpp 
 
 SUBDIRS=  catalog Client common Daemon Executor IndexManager\
 loader physical_operator logical_operator  Resource \

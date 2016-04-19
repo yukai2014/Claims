@@ -45,6 +45,7 @@
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 #include "txn.hpp"
+#include "txn_log.hpp"
 #include <chrono>
 using std::cin;
 using std::cout;
@@ -81,7 +82,7 @@ class TxnCore: public caf::event_based_actor {
   TxnCore(int coreId):CoreId(coreId) {}
   UInt64 GetId(){
     UInt64 id = ((++LocalId) *1000) + CoreId;
-
+    return id;
   }
 };
 
