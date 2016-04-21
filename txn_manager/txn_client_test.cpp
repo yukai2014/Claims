@@ -105,7 +105,7 @@ void task(int time){
 //      LogClient::Data(1, 1, 1111,(void*)v, 1024);
 //      LogClient::Data(1, 1, 1111,(void*)v, 1024);
 
-      //TxnClient::CommitIngest(ingest);
+      TxnClient::CommitIngest(ingest);
 //    }
   }
 }
@@ -123,6 +123,5 @@ int main(){
     threads[i].join();
   gettimeofday(&tv2,NULL);
   cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
-  caf::scoped_actor self;
   caf::await_all_actors_done();
 }

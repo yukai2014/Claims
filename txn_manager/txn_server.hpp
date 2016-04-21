@@ -45,7 +45,7 @@
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 #include "txn.hpp"
-#include "txn_log.hpp"
+//#include "txn_log.hpp"
 #include <chrono>
 
 namespace claims{
@@ -85,10 +85,41 @@ class TxnCore: public caf::event_based_actor {
   }
 };
 
-class TxnWorker:public caf::event_based_actor {
+//class TxnWorker:public caf::event_based_actor {
+// public:
+//  caf::behavior make_behavior() override;
+//};
+
+class IngestWorker:public caf::event_based_actor {
  public:
   caf::behavior make_behavior() override;
 };
+
+class IngestCommitWorker:public caf::event_based_actor {
+ public:
+  caf::behavior make_behavior() override;
+};
+
+class AbortWorker:public caf::event_based_actor {
+ public:
+  caf::behavior make_behavior() override;
+};
+
+class QueryWorker:public caf::event_based_actor {
+ public:
+  caf::behavior make_behavior() override;
+};
+
+class CheckpointWorker:public caf::event_based_actor {
+ public:
+  caf::behavior make_behavior() override;
+};
+
+class CommitCPWorker:public caf::event_based_actor {
+ public:
+  caf::behavior make_behavior() override;
+};
+
 
 class TxnServer: public caf::event_based_actor{
  public:

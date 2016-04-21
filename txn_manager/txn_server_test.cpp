@@ -222,7 +222,7 @@ int main(){
 //  sleep(1);
 
   TxnServer::Init();
-  LogServer::init("txn-log");
+  //LogServer::init("txn-log");
 
 //  gettimeofday(&tv1,NULL);
 ////  for (auto i=0;i<n;i++)

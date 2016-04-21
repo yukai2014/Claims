@@ -26,7 +26,9 @@ libtxnmanager_a_SOURCES = \
 	  txn.hpp txn.cpp \
 	  txn_client.hpp txn_client.cpp \
 	  txn_server.hpp txn_server.cpp  \
-	  txn_log.hpp txn_log.cpp
+	  txn_log.hpp txn_log.cpp  \
+	  log_client.hpp log_client.cpp \
+	  log_server.hpp log_server.cpp 
 
 	
 
