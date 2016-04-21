@@ -40,7 +40,15 @@ public:
 	private:
 		Lock lock_;
 	};
-
+  class TxnPartitionReaderIterator:public PartitionReaderItetaor{
+  public:
+    TxnPartitionReaderIterator(PartitionStorage* partition_storage):PartitionReaderItetaor(partition_storage){};
+    virtual ~TxnPartitionReaderIterator();
+    ChunkReaderIterator* nextChunk();
+    virtual bool nextBlock(BlockStreamBase* &block);
+  private:
+    Lock lock_;
+  };
 	friend class PartitionReaderItetaor;
 	PartitionStorage(const PartitionID &partition_id,const unsigned &number_of_chunks,const StorageLevel&);
 	virtual ~PartitionStorage();
@@ -49,6 +57,7 @@ public:
 	void removeAllChunks(const PartitionID &partition_id);
 	PartitionReaderItetaor* createReaderIterator();
 	PartitionReaderItetaor* createAtomicReaderIterator();
+	PartitionReaderItetaor* createTxnReaderIterator();
 protected:
 	PartitionID partition_id_;
 	unsigned number_of_chunks_;

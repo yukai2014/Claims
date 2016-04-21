@@ -130,7 +130,7 @@ class InMemoryChunkReaderItetaor : public ChunkReaderIterator {
   virtual ~InMemoryChunkReaderItetaor();
   bool nextBlock(BlockStreamBase*& block);
   bool getNextBlockAccessor(block_accessor*& ba);
-
+  void * getChunk() { return start_;}
  private:
   void* start_;
 };
