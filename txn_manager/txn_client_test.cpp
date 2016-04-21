@@ -89,30 +89,40 @@ class Foo {
 inline bool operator == (const Foo & a, const Foo & b) {
   return a.request1 == b.request1 && a.request2 == b.request2;
 }
+char v[1024+10];
 
+
+void task(int time){
+  for (auto i = 0; i< time; i++) {
+
+      FixTupleIngestReq request1;
+      Ingest ingest;
+      request1.Content = {{0, {45, 10}},
+                                   {1, {35, 20}},
+                                   {2,{15,100}}};
+      TxnClient::BeginIngest(request1, ingest);
+//      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+//      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+//      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+
+      //TxnClient::CommitIngest(ingest);
+//    }
+  }
+}
 
 int main(){
   TxnClient::Init();
-  FixTupleIngestReq request1;
-  Ingest ingest;
-
   struct  timeval tv1, tv2;
   gettimeofday(&tv1,NULL);
-//  request1.Content = {{0, {45, 10}}, {1, {54, 10}}};
-//  TxnClient::BeginIngest(request1, ingest);
-  Checkpoint cp;
-  cp.Part = 0;
-  TxnClient::BeginCheckpoint(cp);
-  cout << cp.ToString() << endl;
-  cp.LogicCP = 10000;
-  cp.PhyCP = 10000;
-  TxnClient::CommitCheckpoint(cp);
-  TxnClient::BeginCheckpoint(cp);
-  cout << cp.ToString() << endl;
+  vector<std::thread> threads;
+  int n,times;
+  cin >> n >> times;
+  for (auto i=0;i<n;i++)
+    threads.push_back(std::thread(task, times));
+  for (auto i=0;i<n;i++)
+    threads[i].join();
   gettimeofday(&tv2,NULL);
   cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
-
-  //TxnClient::CommitIngest(ingest);
-  //cout << ingest.ToString() << endl;
+  caf::scoped_actor self;
   caf::await_all_actors_done();
 }

@@ -40,10 +40,10 @@ UInt64 LogServer::buffer_size  = 0;
 UInt64 LogServer::max_buffer_size = kMaxLogSize * 10;
 caf::actor LogServer::log_server;
 bool LogServer::is_active = false;
-
+caf::actor log_s;
 RetCode LogServer::init(const string path) {
   cout << "log server init" << endl;
-  log_server = caf::spawn<LogServer>();
+  log_s = caf::spawn<LogServer>();
   log_path = path;
   buffer = (char*)malloc(max_buffer_size);
   if (buffer == nullptr) return -1;
@@ -55,14 +55,20 @@ caf::behavior LogServer::make_behavior() {
 
   return {
     [=](BeginAtom, UInt64 id)->RetCode {
-        return Append(BeginLog(id));
+       // return Append(BeginLog(id));
+      cout << "begin" << endl;
+      return 0;
       },
     [=](WriteAtom,UInt64 id, UInt64 part, UInt64 pos,
         UInt64 offset)->RetCode {
-        return Append(WriteLog(id, part, pos, offset));
+       // return Append(WriteLog(id, part, pos, offset));
+        cout << "write" << endl;
+        return 0;
       },
     [=](CommitAtom, UInt64 id)->RetCode {
-        return Append(CommitLog(id));
+        //return Append(CommitLog(id));
+        cout << "commit" << endl;
+        return 0;
       },
     [=](AbortAtom, UInt64 id)->RetCode {
         return Append(AbortLog(id));
@@ -78,9 +84,11 @@ caf::behavior LogServer::make_behavior() {
         return 0;
       },
     [=](RefreshAtom)->RetCode {
-       return Refresh();
+       //return Refresh();
+        cout << "refresh" << endl;
+        return 0;
       },
-    caf::others >> [=] () { cout << "unkown log message" << endl; }
+    caf::others >> [=] () { cout << "unknown log message" << endl; }
   };
 }
 
@@ -137,8 +145,9 @@ RetCode LogServer::Refresh() {
 RetCode LogClient::Begin(UInt64 id) {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send( LogServer::log_server,BeginAtom::value, id).
-      await( [&](RetCode ret_code) { ret = ret_code;});
+  cout<<"going to send begin atom to log server :"<<LogServer::log_server.id()<<endl;
+  self->sync_send( log_s,BeginAtom::value, id).
+      await( [&](RetCode ret_code) { cout<<"log:Begin, ret"<<ret_code<<endl;ret = ret_code;});
   return ret;
 }
 RetCode LogClient::Write(UInt64 id, UInt64 part, UInt64 pos, UInt64 offset) {

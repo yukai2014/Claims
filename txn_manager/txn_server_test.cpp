@@ -220,26 +220,19 @@ int main(){
 //    TxnServer::CommitIngest(ingest);
 //   }
 //  sleep(1);
-  memset(v, 1024, '*');
-  string path;
-  cout << "input path" << endl;
-  cin >> path;
-  TxnServer::Init();
-  LogServer::init(path);
-  struct  timeval tv1, tv2;
-  vector<std::thread> v;
-  int n = 1, time =1;
-  cout << "input #thread, #time" << endl;
-  cin >> n >> time;
-  gettimeofday(&tv1,NULL);
-  for (auto i=0;i<n;i++)
-    v.push_back(std::thread(task, time));
-  for (auto i=0;i<n;i++)
-    v[i].join();
-  //cout << "count2:" << LogServer::count2 << endl;
-  gettimeofday(&tv2,NULL);
-  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
 
+  TxnServer::Init();
+  LogServer::init("txn-log");
+
+//  gettimeofday(&tv1,NULL);
+////  for (auto i=0;i<n;i++)
+////    v.push_back(std::thread(task, time));
+////  for (auto i=0;i<n;i++)
+////    v[i].join();
+//  //cout << "count2:" << LogServer::count2 << endl;
+//  gettimeofday(&tv2,NULL);
+//  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
+//
 
 
   caf::await_all_actors_done();

@@ -79,7 +79,7 @@ caf::behavior TxnCore::make_behavior() {
         auto tupleCount = item.second.second;
         auto strip = TxnServer::AtomicMalloc(part, tupleSize, tupleCount);
         StripList[Size].push_back(strip);
-        //cout << strip.ToString() << endl;
+        ///cout << strip.ToString() << endl;
         ingest->InsertStrip(strip);
       }
       Size ++;
@@ -183,7 +183,7 @@ caf::behavior TxnWorker::make_behavior( ){
 
 caf::behavior TxnServer::make_behavior() {
   try {
-    caf::io::publish(Router, Port);
+    caf::io::publish(Router, Port, nullptr, true);
     cout << "txn server bind to port:"<< Port<< " success" << endl;
   } catch (...) {
     cout << "txn server bind to port:"<< Port<< " fail" << endl;
@@ -237,8 +237,8 @@ RetCode TxnServer::BeginIngest(const FixTupleIngestReq & request, Ingest & inges
       await([&](int r) {ret = r;});
   if (ret == 0) {
     LogClient::Begin(ingest.Id);
-    for (auto & strip : ingest.StripList)
-      LogClient::Write(ingest.Id, strip.first, strip.second.first, strip.second.second);
+//    for (auto & strip : ingest.StripList)
+//      LogClient::Write(ingest.Id, strip.first, strip.second.first, strip.second.second);
   }
   return ret;
 }

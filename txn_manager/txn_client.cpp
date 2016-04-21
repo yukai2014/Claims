@@ -37,11 +37,17 @@ namespace txn{
 
 string TxnClient::Ip = kTxnIp;
 int TxnClient::Port = kTxnPort;
-
+caf::actor TxnClient::Proxy;
 RetCode TxnClient::Init(string ip, int port){
   Ip = ip;
   Port = port;
   SerializeConfig();
+  try {
+    Proxy = caf::io::remote_actor(Ip, port);
+  } catch (...) {
+    return -1;
+  }
+  return 0;
 }
 
 RetCode TxnClient::BeginIngest(const FixTupleIngestReq & request, Ingest & ingest){
@@ -50,9 +56,8 @@ RetCode TxnClient::BeginIngest(const FixTupleIngestReq & request, Ingest & inges
      return TxnServer::BeginIngest(request, ingest);
   else {
     try{
-      auto router = caf::io::remote_actor(Ip, Port);
-      caf::scoped_actor self;
-      self->sync_send(router, IngestAtom::value, request).
+      caf::scoped_actor self;;
+      self->sync_send(Proxy, IngestAtom::value, request).
           await([&](Ingest & reply, RetCode r) { ingest = reply; ret = r;},
                 caf::after(seconds(kTimeout)) >> []{ cout << "time out" << endl;});
     } catch (...){
@@ -69,9 +74,8 @@ RetCode TxnClient::CommitIngest(const Ingest & ingest) {
     return TxnServer::CommitIngest(ingest);
   else {
     try {
-      auto router = caf::io::remote_actor(Ip, Port);
       caf::scoped_actor self;
-      self->sync_send(router, CommitIngestAtom::value, ingest).
+      self->sync_send(Proxy, CommitIngestAtom::value, ingest).
           await([&](RetCode r) { ret = r;},
                 caf::after(seconds(kTimeout)) >> []{ cout << "time out" << endl;});
     } catch (...) {
@@ -88,9 +92,8 @@ RetCode TxnClient::AbortIngest(const Ingest & ingest) {
     return TxnServer::AbortIngest(ingest);
   else {
     try {
-      auto router = caf::io::remote_actor(Ip, Port);
       caf::scoped_actor self;
-      self->sync_send(router, AbortIngestAtom::value, ingest).
+      self->sync_send(Proxy, AbortIngestAtom::value, ingest).
           await([&](RetCode r) { ret = r;},
                 caf::after(seconds(kTimeout)) >> []{ cout << "time out" << endl;});
     } catch (...) {
@@ -107,9 +110,8 @@ RetCode TxnClient::BeginQuery(const QueryReq & request, Query & query) {
     return TxnServer::BeginQuery(request, query);
   else {
     try {
-      auto router = caf::io::remote_actor(Ip, Port);
       caf::scoped_actor self;
-      self->sync_send(router, QueryAtom::value, request).
+      self->sync_send(Proxy, QueryAtom::value, request).
           await([&](const QueryReq & request, RetCode r) { ret = r;},
                 caf::after(seconds(kTimeout)) >> []{ cout << "time out" << endl;});
     } catch (...) {
@@ -126,9 +128,8 @@ RetCode TxnClient::BeginCheckpoint(Checkpoint & cp) {
     return TxnServer::BeginCheckpoint(cp);
   else {
     try {
-      auto router = caf::io::remote_actor(Ip, Port);
       caf::scoped_actor self;
-      self->sync_send(router, CheckpointAtom::value, cp.Part).
+      self->sync_send(Proxy, CheckpointAtom::value, cp.Part).
           await([&](const Checkpoint & checkpoint, RetCode r) {cp = checkpoint; ret = r;},
                 caf::after(seconds(kTimeout)) >> []{ cout << "time out" << endl;});
     } catch (...) {
@@ -145,9 +146,8 @@ RetCode TxnClient::CommitCheckpoint(const Checkpoint & cp) {
     return TxnServer::CommitCheckpoint(cp);
   else {
     try {
-      auto router = caf::io::remote_actor(Ip, Port);
       caf::scoped_actor self;
-      self->sync_send(router, CommitCPAtom::value, cp).
+      self->sync_send(Proxy, CommitCPAtom::value, cp).
           await([&](RetCode r) { ret = r;},
                 caf::after(seconds(kTimeout)) >> []{ cout << "time out" << endl;});
     } catch (...) {

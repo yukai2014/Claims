@@ -70,6 +70,7 @@ class TxnClient{
  public:
   static string Ip;
   static int Port;
+  static caf::actor Proxy;
   static RetCode Init(string ip = kTxnIp, int port = kTxnPort);
   static RetCode BeginIngest(const FixTupleIngestReq & request, Ingest & ingest);
   static RetCode CommitIngest(const Ingest & ingest);
