@@ -26,6 +26,7 @@
  *
  */
 
+#include "./data_ingestion.h"
 #include <glog/logging.h>
 #include <libio.h>
 #include <stddef.h>
@@ -65,7 +66,6 @@
 #include "../utility/thread_pool.h"
 #include "../utility/Timer.h"
 #include "./table_file_connector.h"
-#include "data_ingestion.h"
 
 using claims::common::FileOpenFlag;
 using claims::common::FilePlatform;

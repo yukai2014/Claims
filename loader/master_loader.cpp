@@ -31,19 +31,27 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <map>
+#include <utility>
 
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
+
+#include "./load_packet.h"
 #include "./loader_message.h"
 #include "./validity.h"
 #include "../catalog/catalog.h"
+#include "../catalog/partitioner.h"
 #include "../catalog/table.h"
 #include "../common/data_type.h"
+#include "../common/ids.h"
 #include "../common/memory_handle.h"
 #include "../common/Schema/TupleConvertor.h"
 #include "../Config.h"
 #include "../Environment.h"
-#include "../utility/stl_guard.h"
+#include "../txn_manager/txn.hpp"
+#include "../txn_manager/txn_client.hpp"
+#include "../utility/resource_guard.h"
 using caf::aout;
 using caf::behavior;
 using caf::event_based_actor;
@@ -53,23 +61,21 @@ using caf::mixin::sync_sender_impl;
 using caf::spawn;
 using std::endl;
 using claims::catalog::Catalog;
+using claims::catalog::Partitioner;
 using claims::catalog::TableDescriptor;
 using claims::common::Malloc;
 using claims::common::rSuccess;
 using claims::common::rFailure;
+using namespace claims::txn;  // NOLINT
 
 namespace claims {
 namespace loader {
 
 MasterLoader::MasterLoader()
     : master_loader_ip(Config::master_loader_ip),
-      master_loader_port(Config::master_loader_port) {
-  // TODO Auto-generated constructor stub
-}
+      master_loader_port(Config::master_loader_port) {}
 
-MasterLoader::~MasterLoader() {
-  // TODO Auto-generated destructor stub
-}
+MasterLoader::~MasterLoader() {}
 
 static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
                                               MasterLoader* mloader) {
@@ -85,9 +91,13 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           LOG(INFO) << "succeed to get connected fd with slave";
         }
         assert(new_slave_fd > 3);
-        mloader->slave_addrs_.push_back(NetAddr(ip, port));
-        mloader->slave_sockets_.push_back(new_slave_fd);
-        assert(mloader->slave_sockets_.size() == mloader->slave_addrs_.size());
+        //        mloader->slave_addrs_.push_back(NetAddr(ip, port));
+        //        mloader->slave_sockets_.push_back(new_slave_fd);
+        //        assert(mloader->slave_sockets_.size() ==
+        //        mloader->slave_addrs_.size());
+
+        mloader->slave_addr_to_socket.insert(
+            pair<NodeAddress, int>(NodeAddress(ip, port), new_slave_fd));
         DLOG(INFO) << "start to send test message to slave";
 
         // test whether socket works well
@@ -171,15 +181,19 @@ RetCode MasterLoader::Ingest() {
                "failed to merge tuples buffers into one buffer");
 
   // start transaction from here
-  ApplyTransaction(req, table, partition_buffers);
+  claims::txn::Ingest ingest;
+  EXEC_AND_LOG(ret, ApplyTransaction(table, partition_buffers, ingest),
+               "applied transaction", "failed to apply transaction");
 
   // write data log
   EXEC_AND_LOG(ret, WriteLog(req, table, partition_buffers), "written log ",
                "failed to write log");
 
+  // reply ACK to MQ
   EXEC_AND_LOG(ret, ReplyToMQ(req), "replied to MQ", "failed to reply to MQ");
 
-  EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers),
+  // distribute partition load task
+  EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
                "sent every partition data to its slave",
                "failed to send every partition data to its slave");
 
@@ -244,6 +258,7 @@ RetCode MasterLoader::GetPartitionTuples(
   for (auto tuple_string : req.tuples_) {
     void* tuple_buffer = Malloc(table->getSchema()->getTupleMaxSize());
     if (tuple_buffer == NULL) return claims::common::rNoMemory;
+    MemoryGuardWithRetCode<void> guard(tuple_buffer, ret);
     if (rSuccess != (ret = table->getSchema()->CheckAndToValue(
                          tuple_string, tuple_buffer, req.col_sep_,
                          RawDataSource::kSQL, columns_validities))) {
@@ -306,9 +321,22 @@ RetCode MasterLoader::GetPartitionTuples(
 }
 
 RetCode MasterLoader::ApplyTransaction(
-    const IngestionRequest& req, const TableDescriptor* table,
-    const vector<vector<PartitionBuffer>>& partition_buffers) {
+    const TableDescriptor* table,
+    const vector<vector<PartitionBuffer>>& partition_buffers,
+    claims::txn::Ingest& ingest) {
   RetCode ret = rSuccess;
+  uint64_t table_id = table->get_table_id();
+
+  FixTupleIngestReq req;
+  for (int i = 0; i < table->getNumberOfProjection(); ++i) {
+    ProjectionDescriptor* prj = table->getProjectoin(i);
+    uint64_t tuple_length = prj->getSchema()->getTupleMaxSize();
+    for (int j = 0; j < prj->getPartitioner()->getNumberOfPartitions(); ++j) {
+      req.Insert(GetGlobalPartId(table_id, i, j), tuple_length,
+                 partition_buffers[i][j].length_ / tuple_length);
+    }
+  }
+  TxnClient::BeginIngest(req, ingest);
 
   return ret;
 }
@@ -321,7 +349,39 @@ RetCode MasterLoader::ReplyToMQ(const IngestionRequest& req) {}
 
 RetCode MasterLoader::SendPartitionTupleToSlave(
     const TableDescriptor* table,
-    const vector<vector<PartitionBuffer>>& partition_buffers) {}
+    const vector<vector<PartitionBuffer>>& partition_buffers,
+    claims::txn::Ingest& ingest) {
+  RetCode ret = rSuccess;
+  uint64_t table_id = table->get_table_id();
+
+  for (int prj_id = 0; prj_id < partition_buffers.size(); ++prj_id) {
+    for (int part_id = 0; part_id < partition_buffers[prj_id].size();
+         ++part_id) {
+      uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
+      LoadPacket packet(global_part_id, ingest.StripList[global_part_id].first,
+                        ingest.StripList[global_part_id].second,
+                        partition_buffers[prj_id][part_id].length_,
+                        partition_buffers[prj_id][part_id].buffer_);
+      void* packet_buffer;
+      MemoryGuard<void> guard(packet_buffer);  // auto release by guard
+      uint64_t packet_length;
+      EXEC_AND_LOG_RETURN(ret, packet.Serialize(packet_buffer, packet_length),
+                          "serialized packet into buffer",
+                          "failed to serialize packet");
+
+      int socket_fd = -1;
+      EXEC_AND_LOG_RETURN(ret, SelectSocket(table, prj_id, part_id, socket_fd),
+                          "selected the socket", "failed to select the socket");
+      assert(socket_fd > 3);
+
+      EXEC_AND_LOG_RETURN(ret,
+                          SendPacket(socket_fd, packet_buffer, packet_length),
+                          "sent message to slave :" << socket_fd,
+                          "failed to sent message to slave :" << socket_fd);
+    }
+  }
+  return ret;
+}
 
 RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
     const TableDescriptor* table,
@@ -335,6 +395,8 @@ RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
       int buffer_len = tuple_count * tuple_len;
 
       void* new_buffer = Malloc(buffer_len);
+      if (NULL == new_buffer) return ret = claims::common::rNoMemory;
+
       for (int k = 0; k < tuple_count; ++k) {
         memcpy(new_buffer + k * tuple_len, tuple_buffer_per_part[i][j][k],
                tuple_len);
@@ -351,9 +413,43 @@ RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
   return ret;
 }
 
+RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
+                                   const uint64_t prj_id,
+                                   const uint64_t part_id, int& socket_fd) {
+  RetCode ret = rSuccess;
+  NodeID node_id_in_rmm =
+      table->getProjectoin(prj_id)->getPartitioner()->getPartitionLocation(
+          part_id);
+  NodeAddress addr;
+  EXEC_AND_LOG_RETURN(
+      ret, NodeTracker::GetInstance()->GetNodeAddr(node_id_in_rmm, addr),
+      "got node address", "failed to get node address");
+  socket_fd = slave_addr_to_socket[addr];
+  return ret;
+}
+
+RetCode MasterLoader::SendPacket(const int socket_fd,
+                                 const void* const packet_buffer,
+                                 const uint64_t packet_length) {
+  size_t total_write_num = 0;
+  while (total_write_num < packet_length) {
+    ssize_t write_num = write(
+        socket_fd, static_cast<const char*>(packet_buffer) + total_write_num,
+        packet_length - total_write_num);
+    if (-1 == write_num) {
+      PLOG(ERROR) << "failed to send buffer to slave(" << socket_fd << "): ";
+      return claims::common::rSentMessageError;
+    }
+    total_write_num += write_num;
+  }
+  return rSuccess;
+}
+
 void* MasterLoader::StartMasterLoader(void* arg) {
   Config::getInstance();
   LOG(INFO) << "start master loader...";
+
+  TxnClient::Init();
 
   int ret = rSuccess;
   MasterLoader* master_loader = Environment::getInstance()->get_master_loader();

@@ -1,0 +1,78 @@
+/*
+ * Copyright [2012-2015] DaSE@ECNU
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * /Claims/loader/load_packet.cpp
+ *
+ *  Created on: Apr 17, 2016
+ *      Author: yukai
+ *		   Email: yukai2014@gmail.com
+ *
+ * Description:
+ *
+ */
+
+#include "./load_packet.h"
+#include "../common/memory_handle.h"
+
+using namespace claims::common;  // NOLINT
+
+namespace claims {
+namespace loader {
+
+LoadPacket::~LoadPacket() {}
+
+RetCode LoadPacket::Serialize(void*& packet_buffer,
+                              uint64_t& packet_length) const {
+  packet_length = sizeof(uint64_t) * 4 + data_length_;
+  packet_buffer = Malloc(packet_length);
+  if (NULL == packet_length) {
+    ELOG(rNoMemory, "no memory for packet buffer");
+    return rNoMemory;
+  }
+
+  *reinterpret_cast<uint64_t*>(packet_buffer) = global_part_id_;
+  *reinterpret_cast<uint64_t*>(packet_buffer + sizeof(uint64_t)) = pos_;
+  *reinterpret_cast<uint64_t*>(packet_buffer + 2 * sizeof(uint64_t)) = offset_;
+  *reinterpret_cast<uint64_t*>(packet_buffer + 3 * sizeof(uint64_t)) =
+      data_length_;
+
+  memcpy(packet_buffer + 4 * sizeof(uint64_t), data_buffer_, data_length_);
+  return rSuccess;
+}
+
+RetCode LoadPacket::Deserialize(const void* const packet_buffer,
+                                const uint64_t packet_length) {
+  global_part_id_ = *reinterpret_cast<const uint64_t*>(packet_buffer);
+  pos_ = *reinterpret_cast<const uint64_t*>(packet_buffer + sizeof(uint64_t));
+  offset_ =
+      *reinterpret_cast<const uint64_t*>(packet_buffer + 2 * sizeof(uint64_t));
+  data_length_ =
+      *reinterpret_cast<const uint64_t*>(packet_buffer + 3 * sizeof(uint64_t));
+
+  data_buffer_ = Malloc(data_length_);
+  if (NULL == data_buffer_) {
+    ELOG(rNoMemory, "no memory for data buffer");
+    return rNoMemory;
+  }
+
+  memcpy(data_buffer_, packet_buffer + 4 * sizeof(uint64_t), data_length_);
+  return rSuccess;
+}
+
+} /* namespace loader */
+} /* namespace claims */

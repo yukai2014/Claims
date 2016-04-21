@@ -203,6 +203,8 @@ const int rFileInUsing = -102;
 
 const int rResourceIsLocked = -103;
 
+const int rSentMessageError = -104;
+
 // schema associated
 const int rEmptyAttributeName = -501;
 const int rEmptyTableAlias = -502;

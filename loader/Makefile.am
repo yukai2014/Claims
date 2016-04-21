@@ -36,7 +36,8 @@ libloader_a_SOURCES = \
 	single_thread_single_file_connector.cpp 		single_thread_single_file_connector.h \
 	slave_loader.cpp 		slave_loader.h \
 	table_file_connector.cpp 		table_file_connector.h \
-	validity.cpp 		validity.h
+	validity.cpp 		validity.h \
+	load_packet.h		load_packet.cpp
 
 SUBDIRS = test
 DIST_SUBDIRS = test

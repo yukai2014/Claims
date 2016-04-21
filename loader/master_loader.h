@@ -28,12 +28,16 @@
 
 #ifndef LOADER_MASTER_LOADER_H_
 #define LOADER_MASTER_LOADER_H_
+
+#include <boost/unordered/unordered_map.hpp>
 #include <string>
 #include <vector>
-#include "../common/error_define.h"
 #include "caf/all.hpp"
 
 #include "./validity.h"
+#include "../common/error_define.h"
+#include "../common/ids.h"
+#include "../txn_manager/txn.hpp"
 
 namespace claims {
 namespace catalog {
@@ -41,6 +45,7 @@ class TableDescriptor;
 }
 namespace loader {
 
+using std::map;
 using std::string;
 using std::vector;
 using caf::behavior;
@@ -49,12 +54,6 @@ using claims::catalog::TableDescriptor;
 
 class MasterLoader {
  public:
-  struct NetAddr {
-    NetAddr(string ip, int port) : ip_(ip), port_(port) {}
-    string ip_;
-    int port_;
-  };
-
   struct IngestionRequest {
     string table_name_;
     string col_sep_;
@@ -99,8 +98,9 @@ class MasterLoader {
       vector<vector<PartitionBuffer>>& partition_buffers);
 
   RetCode ApplyTransaction(
-      const IngestionRequest& req, const TableDescriptor* table,
-      const vector<vector<PartitionBuffer>>& partition_buffers);
+      const TableDescriptor* table,
+      const vector<vector<PartitionBuffer>>& partition_buffers,
+      claims::txn::Ingest& ingest);
 
   RetCode WriteLog(const IngestionRequest& req, const TableDescriptor* table,
                    const vector<vector<PartitionBuffer>>& partition_buffers);
@@ -109,7 +109,14 @@ class MasterLoader {
 
   RetCode SendPartitionTupleToSlave(
       const TableDescriptor* table,
-      const vector<vector<PartitionBuffer>>& partition_buffers);
+      const vector<vector<PartitionBuffer>>& partition_buffers,
+      claims::txn::Ingest& ingest);
+
+  RetCode SelectSocket(const TableDescriptor* table, const uint64_t prj_id,
+                       const uint64_t part_id, int& socket_fd);
+
+  RetCode SendPacket(const int socket_fd, const void* const packet_buffer,
+                     const uint64_t packet_length);
 
   RetCode GetSlaveNetAddr();
   RetCode SetSocketWithSlaves();
@@ -126,8 +133,9 @@ class MasterLoader {
  private:
   string master_loader_ip;
   int master_loader_port;
-  vector<NetAddr> slave_addrs_;
-  vector<int> slave_sockets_;
+  //  vector<NetAddr> slave_addrs_;
+  //  vector<int> slave_sockets_;
+  boost::unordered_map<NodeAddress, int> slave_addr_to_socket;
 };
 
 } /* namespace loader */

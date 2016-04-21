@@ -8,6 +8,8 @@
 #include "Environment.h"
 
 #include "caf/all.hpp"
+
+#include "txn_manager/txn_server.hpp"
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #undef GLOG_NO_ABBREVIATED_SEVERITIES
@@ -38,6 +40,7 @@ using claims::common::InitTypeConversionMatrix;
 using claims::common::rSuccess;
 using claims::loader::MasterLoader;
 using claims::loader::SlaveLoader;
+using claims::txn::TxnServer;
 
 Environment* Environment::_instance = 0;
 
@@ -204,6 +207,8 @@ bool Environment::InitLoader() {
     std::thread master_thread(&MasterLoader::StartMasterLoader, nullptr);
     master_thread.detach();
     DLOG(INFO) << "started thread as master loader";
+
+    TxnServer::Init(6);
   }
 
   usleep(10000);

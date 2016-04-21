@@ -159,6 +159,8 @@ ErrorInit::ErrorInit() {
   DefineErrorAndMessage(rFileInUsing, "Someone is still using this file");
   DefineErrorAndMessage(rResourceIsLocked, "other hold the lock of resource");
 
+  DefineErrorAndMessage(rSentMessageError, "failed to send network message");
+
   // schema assocated
   DefineErrorAndMessage(rEmptyAttributeName,
                         "the given attribute associated with empty name");
