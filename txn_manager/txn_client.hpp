@@ -28,7 +28,6 @@
 
 #ifndef TXN_CLIENT_HPP_
 #define TXN_CLIENT_HPP_
-
 #include <vector>
 #include <iostream>
 #include <functional>
@@ -47,6 +46,7 @@
 #include "txn.hpp"
 #include "txn_server.hpp"
 #include <chrono>
+
 using std::cin;
 using std::cout;
 using std::endl;
@@ -54,7 +54,6 @@ using std::vector;
 using std::string;
 using std::map;
 using std::pair;
-using std::unordered_map;
 using std::to_string;
 using std::function;
 using std::sort;
@@ -64,6 +63,8 @@ using std::chrono::milliseconds;
 
 namespace claims{
 namespace txn{
+
+
 
 class TxnClient{
  public:

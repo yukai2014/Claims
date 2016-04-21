@@ -29,6 +29,7 @@
 
 namespace claims {
 namespace txn {
+
 int TxnCore::BufferSize = kTxnBufferSize;
 
 int TxnServer::Port = kTxnPort;
@@ -37,10 +38,10 @@ caf::actor TxnServer::Router;
 vector<caf::actor> TxnServer::Cores;
 bool TxnServer::Active = false;
 
-unordered_map<UInt64, atomic<UInt64>> TxnServer::PosList;
-unordered_map<UInt64, UInt64> TxnServer::LogicCPList;
-unordered_map<UInt64, UInt64> TxnServer::PhyCPList;
-unordered_map<UInt64, atomic<UInt64>> TxnServer::CountList;
+std::unordered_map<UInt64, atomic<UInt64>> TxnServer::PosList;
+std::unordered_map<UInt64, UInt64> TxnServer::LogicCPList;
+std::unordered_map<UInt64, UInt64> TxnServer::PhyCPList;
+std::unordered_map<UInt64, atomic<UInt64>> TxnServer::CountList;
 
 RetCode TxnCore::ReMalloc() {
   Size = 0;
@@ -62,7 +63,7 @@ RetCode TxnCore::ReMalloc() {
 
 caf::behavior TxnCore::make_behavior() {
   ReMalloc();
-  this->delayed_send(this, seconds(kGCTime + CoreId), GCAtom::value);
+  // this->delayed_send(this, seconds(kGCTime + CoreId), GCAtom::value);
   return {
       [=](IngestAtom, const FixTupleIngestReq* request, Ingest* ingest) -> int {
         struct timeval tv1;
@@ -173,9 +174,9 @@ caf::behavior TxnWorker::make_behavior() {
 caf::behavior TxnServer::make_behavior() {
   try {
     caf::io::publish(Router, Port);
-    cout << "publish to port:" << Port << " success" << endl;
+    cout << "txn server bind to port:" << Port << " success" << endl;
   } catch (...) {
-    cout << "publish to port:" << Port << " fail" << endl;
+    cout << "txn server bind to port:" << Port << " fail" << endl;
   }
   return {[=](IngestAtom, const FixTupleIngestReq& request) {
             this->forward_to(caf::spawn<TxnWorker>());
@@ -214,20 +215,30 @@ RetCode TxnServer::Init(int concurrency, int port) {
 
 RetCode TxnServer::BeginIngest(const FixTupleIngestReq& request,
                                Ingest& ingest) {
-  RetCode ret;
+  RetCode ret = 0;
   UInt64 core_id = SelectCore();
   caf::scoped_actor self;
   self->sync_send(Cores[core_id], IngestAtom::value, &request, &ingest)
       .await([&](int r) { ret = r; });
-  return 0;
+  if (ret == 0) {
+    LogClient::Begin(ingest.Id);
+    for (auto& strip : ingest.StripList)
+      LogClient::Write(ingest.Id, strip.first, strip.second.first,
+                       strip.second.second);
+  }
+  return ret;
 }
 RetCode TxnServer::CommitIngest(const Ingest& ingest) {
-  RetCode ret;
+  RetCode ret = 0;
   UInt64 core_id = GetCoreId(ingest.Id);
   caf::scoped_actor self;
   self->sync_send(Cores[core_id], CommitIngestAtom::value, &ingest)
       .await([&](int r) { ret = r; });
-  return 0;
+  if (ret == 0) {
+    LogClient::Commit(ingest.Id);
+    LogClient::Refresh();
+  }
+  return ret;
 }
 RetCode TxnServer::AbortIngest(const Ingest& ingest) {
   RetCode ret;
@@ -235,7 +246,11 @@ RetCode TxnServer::AbortIngest(const Ingest& ingest) {
   caf::scoped_actor self;
   self->sync_send(Cores[core_id], AbortIngestAtom::value, &ingest)
       .await([&](int r) { ret = r; });
-  return 0;
+  if (ret == 0) {
+    LogClient::Abort(ingest.Id);
+    LogClient::Refresh();
+  }
+  return ret;
 }
 RetCode TxnServer::BeginQuery(const QueryReq& request, Query& query) {
   RetCode ret;
@@ -252,7 +267,7 @@ RetCode TxnServer::BeginQuery(const QueryReq& request, Query& query) {
   return ret;
 }
 RetCode TxnServer::BeginCheckpoint(Checkpoint& cp) {
-  RetCode ret;
+  RetCode ret = 0;
   if (TxnServer::PosList.find(cp.Part) == TxnServer::PosList.end()) return -1;
   cp.LogicCP = TxnServer::LogicCPList[cp.Part];
   cp.PhyCP = TxnServer::PhyCPList[cp.Part];
@@ -265,13 +280,18 @@ RetCode TxnServer::BeginCheckpoint(Checkpoint& cp) {
   Strip::Merge(cp.CommitStripList);
   Strip::Sort(cp.AbortStripList);
   Strip::Merge(cp.AbortStripList);
-  return 0;
+  return ret;
 }
 RetCode TxnServer::CommitCheckpoint(const Checkpoint& cp) {
+  RetCode ret = 0;
   if (TxnServer::PosList.find(cp.Part) == TxnServer::PosList.end()) return -1;
   TxnServer::LogicCPList[cp.Part] = cp.LogicCP;
   TxnServer::PhyCPList[cp.Part] = cp.PhyCP;
-  return 0;
+  if (ret == 0) {
+    LogClient::Checkpoint(cp.Part, cp.LogicCP, cp.PhyCP);
+    LogClient::Refresh();
+  }
+  return ret;
 }
 
 Strip TxnServer::AtomicMalloc(UInt64 part, UInt64 TupleSize,
@@ -300,7 +320,6 @@ Strip TxnServer::AtomicMalloc(UInt64 part, UInt64 TupleSize,
         block_pos = 0;
       }
     }
-
   } while (!PosList[part].compare_exchange_weak(strip.Pos,
                                                 strip.Pos + strip.Offset));
 

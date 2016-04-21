@@ -100,28 +100,32 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
             pair<NodeAddress, int>(NodeAddress(ip, port), new_slave_fd));
         DLOG(INFO) << "start to send test message to slave";
 
-        // test whether socket works well
-        ostringstream oss;
-        oss << "hello, i'm master, whose address is "
-            << mloader->master_loader_ip << ":"
-            << to_string(mloader->master_loader_port) << ". \0";
-
-        int message_length = oss.str().length();
-        DLOG(INFO) << "message length is " << message_length;
-
-        if (-1 ==
-            write(new_slave_fd, reinterpret_cast<char*>(&message_length), 4)) {
-          PLOG(ERROR) << "failed to send message length to slave(" << ip << ":"
-                      << port << ")";
-        } else {
-          DLOG(INFO) << "message length is sent";
-        }
-        if (-1 == write(new_slave_fd, oss.str().c_str(), message_length)) {
-          PLOG(ERROR) << "failed to send message to slave(" << ip << ":" << port
-                      << ")";
-        } else {
-          DLOG(INFO) << "message buffer is sent";
-        }
+        /// test whether socket works well
+        //        ostringstream oss;
+        //        oss << "hello, i'm master, whose address is "
+        //            << mloader->master_loader_ip << ":"
+        //            << to_string(mloader->master_loader_port) << ". \0";
+        //
+        //        int message_length = oss.str().length();
+        //        DLOG(INFO) << "message length is " << message_length;
+        //
+        //        if (-1 ==
+        //            write(new_slave_fd,
+        //            reinterpret_cast<char*>(&message_length), 4)) {
+        //          PLOG(ERROR) << "failed to send message length to slave(" <<
+        //          ip << ":"
+        //                      << port << ")";
+        //        } else {
+        //          DLOG(INFO) << "message length is sent";
+        //        }
+        //        if (-1 == write(new_slave_fd, oss.str().c_str(),
+        //        message_length)) {
+        //          PLOG(ERROR) << "failed to send message to slave(" << ip <<
+        //          ":" << port
+        //                      << ")";
+        //        } else {
+        //          DLOG(INFO) << "message buffer is sent";
+        //        }
       },
       caf::others >> [] { LOG(ERROR) << "nothing matched!!!"; }};
 }

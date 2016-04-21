@@ -94,6 +94,16 @@ bool Config::is_master_loader;
 std::string Config::master_loader_ip;
 int Config::master_loader_port;
 
+
+bool Config::enable_txn_server;
+int Config::txn_server_cores;
+std::string Config::txn_server_ip;
+int Config::txn_server_port;
+
+bool Config::enable_txn_log;
+std::string Config::txn_log_path;
+
+
 Config *Config::getInstance() {
   if (instance_ == 0) {
     instance_ = new Config();
@@ -161,6 +171,20 @@ void Config::initialize() {
 
   master_loader_port = getInt("master_loader_port", 9001);
 
+  // txn manager
+  enable_txn_server = getBoolean("txn_server", true);
+
+  txn_server_cores = getInt("txn_server_cores", 4);
+
+  txn_server_ip = getString("txn_server_ip", "127.0.0.1");
+
+  txn_server_port = getInt("txn_server_port", 9100);
+
+  // txn log
+  enable_txn_log = getBoolean("txn_log", true);
+
+  txn_log_path = getString("txn_log_path", ".");
+
 #ifdef DEBUG_Config
   print_configure();
 #endif
@@ -219,6 +243,14 @@ void Config::print_configure() const {
   std::cout << "catalog_file:" << catalog_file << std::endl;
   std::cout << "codegen:" << enable_codegen << std::endl;
   std::cout << "load_thread_num:" << load_thread_num << std::endl;
+
+  std::cout << "enable_txn_serverr:" << enable_txn_server << std::endl;
+  std::cout << "txn_server_cores:" << txn_server_cores << std::endl;
+  std::cout << "txn_server_ip:" << txn_server_ip << std::endl;
+  std::cout << "txn_server_port:" << txn_server_port << std::endl;
+
+  std::cout << "enable_txn_log:" << enable_txn_log << std::endl;
+  std::cout << "txn_log_path:" << txn_log_path << std::endl;
 }
 
 void Config::setConfigFile(std::string file_name) { config_file = file_name; }

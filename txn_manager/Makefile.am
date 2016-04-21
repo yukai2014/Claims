@@ -25,7 +25,9 @@ noinst_LIBRARIES=libtxnmanager.a
 libtxnmanager_a_SOURCES = \
 	  txn.hpp txn.cpp \
 	  txn_client.hpp txn_client.cpp \
-	  txn_server.hpp txn_server.cpp 
+	  txn_server.hpp txn_server.cpp  \
+	  txn_log.hpp txn_log.cpp
+
 	
 
 	

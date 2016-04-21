@@ -41,6 +41,10 @@
 #include <sys/time.h>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
+
+namespace claims {
+namespace txn {
+
 using std::cin;
 using std::cout;
 using std::endl;
@@ -53,17 +57,21 @@ using std::to_string;
 using std::function;
 using std::sort;
 using std::make_pair;
-;
-namespace claims {
-namespace txn {
 using UInt64 = unsigned long long;
 using UInt32 = unsigned int;
 using UInt16 = unsigned short;
 using UInt8 = char;
 using RetCode = int;
+using BeginAtom = caf::atom_constant<caf::atom("Begin")>;
+using CommitAtom = caf::atom_constant<caf::atom("Commit")>;
+using AbortAtom = caf::atom_constant<caf::atom("Abort")>;
+using DataAtom = caf::atom_constant<caf::atom("Data")>;
+
 using OkAtom = caf::atom_constant<caf::atom("Ok")>;
 using FailAtom = caf::atom_constant<caf::atom("Fail")>;
 using IngestAtom = caf::atom_constant<caf::atom("Ingest")>;
+using WriteAtom = caf::atom_constant<caf::atom("Write")>;
+
 using QueryAtom = caf::atom_constant<caf::atom("Query")>;
 using CheckpointAtom = caf::atom_constant<caf::atom("Checkpoint")>;
 using GCAtom = caf::atom_constant<caf::atom("GC")>;
@@ -71,8 +79,9 @@ using CommitIngestAtom = caf::atom_constant<caf::atom("CommitIngt")>;
 using AbortIngestAtom = caf::atom_constant<caf::atom("AbortInge")>;
 using CommitCPAtom = caf::atom_constant<caf::atom("CommitCP")>;
 using AbortCPAtom = caf::atom_constant<caf::atom("AbortCP")>;
-using QuitAtom = caf::atom_constant<caf::atom("quit")>;
-using LinkAtom = caf::atom_constant<caf::atom("link")>;
+using QuitAtom = caf::atom_constant<caf::atom("Quit")>;
+using LinkAtom = caf::atom_constant<caf::atom("Link")>;
+using RefreshAtom = caf::atom_constant<caf::atom("Refresh")>;
 
 static const int kTxnPort = 8089;
 static const string kTxnIp = "127.0.0.1";
@@ -151,21 +160,19 @@ class Ingest {
  public:
   UInt64 Id;
   map<UInt64, PStrip> StripList;
-  RetCode Ret = 0;
   void InsertStrip(UInt64 part, UInt64 pos, UInt64 offset) {
     StripList[part] = make_pair(pos, offset);
   }
   void InsertStrip(const Strip &strip) {
     StripList[strip.Part] = make_pair(strip.Pos, strip.Offset);
   }
+
   UInt64 get_Id() const { return Id; }
   map<UInt64, PStrip> get_StripList() const { return StripList; }
-  RetCode get_Ret() const {}
   void set_Id(const UInt64 &id) { Id = id; }
   void set_StripList(const map<UInt64, PStrip> &stripList) {
     StripList = stripList;
   }
-  void set_Ret(RetCode ret) { Ret = ret; }
   string ToString();
 };
 inline bool operator==(const Ingest &a, const Ingest &b) {
@@ -190,7 +197,6 @@ class Query {
  public:
   map<UInt64, vector<PStrip>> Snapshot;
   map<UInt64, UInt64> CPList;
-  RetCode Ret = 0;
   void InsertStrip(UInt64 part, UInt64 pos, UInt64 offset) {
     // if (Snapshot.find(part) == Snapshot.end())
     //   Snapshot[part] = vector<pair<UInt64, UInt64>>();
@@ -200,10 +206,8 @@ class Query {
   void InsertCP(UInt64 part, UInt64 cp) { CPList[part] = cp; }
   map<UInt64, vector<PStrip>> get_Snapshot() const { return Snapshot; }
   map<UInt64, UInt64> get_CPList() const { return CPList; }
-  RetCode get_Ret() const { return Ret; }
   void set_Snapshot(const map<UInt64, vector<PStrip>> &sp) { Snapshot = sp; }
   void set_CPList(const map<UInt64, UInt64> &cplist) { CPList = cplist; }
-  void set_Ret(RetCode ret) { Ret = ret; }
   string ToString();
 };
 inline bool operator==(const Query &a, const Query &b) {
@@ -217,7 +221,6 @@ class Checkpoint {
   UInt64 Part;
   UInt64 LogicCP;
   UInt64 PhyCP;
-  RetCode Ret = 0;
   vector<PStrip> CommitStripList;
   vector<PStrip> AbortStripList;
   Checkpoint() {}
@@ -227,13 +230,11 @@ class Checkpoint {
   UInt64 get_Part() const { return Part; }
   UInt64 get_LogicCP() const { return LogicCP; }
   UInt64 get_PhyCP() const { return PhyCP; }
-  UInt64 get_Ret() const { return Ret; }
   vector<PStrip> get_CommitStripList() const { return CommitStripList; };
   vector<PStrip> get_AbortStripList() const { return AbortStripList; };
   void set_Part(UInt64 part) { Part = part; }
   void set_LogicCP(UInt64 logicCP) { LogicCP = logicCP; }
   void set_PhyCP(UInt64 phyCP) { PhyCP = phyCP; }
-  void set_Ret(RetCode ret) { Ret = ret; }
   void set_CommitStripList(const vector<PStrip> &commitstripList) {
     CommitStripList = commitstripList;
   }
@@ -252,19 +253,16 @@ inline void SerializeConfig() {
                                              &FixTupleIngestReq::set_Content));
   caf::announce<Ingest>(
       "Ingest", make_pair(&Ingest::get_Id, &Ingest::set_Id),
-      make_pair(&Ingest::get_StripList, &Ingest::set_StripList),
-      make_pair(&Ingest::get_Ret, &Ingest::set_Ret));
+      make_pair(&Ingest::get_StripList, &Ingest::set_StripList));
   caf::announce<QueryReq>(
       "QueryReq", make_pair(&QueryReq::get_PartList, &QueryReq::set_PartList));
   caf::announce<Query>("Query",
                        make_pair(&Query::get_Snapshot, &Query::set_Snapshot),
-                       make_pair(&Query::get_CPList, &Query::set_CPList),
-                       make_pair(&Query::get_Ret, &Query::set_Ret));
+                       make_pair(&Query::get_CPList, &Query::set_CPList));
   caf::announce<Checkpoint>(
       "Checkpoint", make_pair(&Checkpoint::get_Part, &Checkpoint::set_Part),
       make_pair(&Checkpoint::get_LogicCP, &Checkpoint::set_LogicCP),
       make_pair(&Checkpoint::get_PhyCP, &Checkpoint::set_PhyCP),
-      make_pair(&Checkpoint::get_Ret, &Checkpoint::set_Ret),
       make_pair(&Checkpoint::get_CommitStripList,
                 &Checkpoint::set_CommitStripList),
       make_pair(&Checkpoint::get_AbortStripList,

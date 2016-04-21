@@ -41,9 +41,9 @@
 #include <sys/time.h>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
-#include "txn_manager/txn.hpp"
+#include "txn.hpp"
 #include "unistd.h"
-#include "txn_manager/txn_client.hpp"
+#include "txn_client.hpp"
 using std::cin;
 using std::cout;
 using std::endl;

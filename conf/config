@@ -27,7 +27,7 @@ client_listener_port = 10000
 #data="/home/imdb/data/wangli/"
 #data="/home/imdb/data/POC/sample/"
 #data="/home/minqi/git/Data/data/tpc-h/1-partition/sf-1/"
-data="/home/minqi/git/Data/data/tpc-h/18-partition/sf-1/"
+data="/home/imdb/config/tpc-h/1-partition/sf-1/"
 #data="/home/imdb/data/SF-1/"
 #data="/home/imdb/data/SF-1/"
 #data="/home/imdb/data/stock/"
@@ -63,7 +63,26 @@ scan_batch=100
 
 is_master_loader=1
 
-master_loader_ip="10.11.1.192"
+master_loader_ip="127.0.0.1"
 
-master_loader_port=9001
+master_loader_port=9002
+
+#事务服务器
+txn_server=1
+
+txn_server_cores=4
+
+txn_server_ip="127.0.0.1"
+
+txn_server_port=9100
+
+#事务日志
+txn_log=1
+
+txn_log_path="txn-log"
+
+
+
+
+
 

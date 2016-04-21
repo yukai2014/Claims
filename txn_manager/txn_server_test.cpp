@@ -43,8 +43,10 @@
 #include <sys/time.h>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
-#include "txn_manager/txn.hpp"
-#include "txn_manager/txn_server.hpp"
+#include "txn.hpp"
+#include "txn_server.hpp"
+#include "txn_client.hpp"
+#include "txn_log.cpp"
 using std::cin;
 using std::cout;
 using std::endl;
@@ -152,29 +154,45 @@ class B:public caf::event_based_actor {
     };
   }
 };
+using claims::txn::TxnServer;
+using claims::txn::FixTupleIngestReq;
+using claims::txn::Ingest;
+char v[1024+10];
 
 
 
-void task(int a){
-  for (auto i = 0; i< 10; i++) {
-//    if (i % 10 > 10) {
-//      QueryReq request2;
-//      request2.PartList = {0,1};
-//      Query query;
-//      TxnServer::BeginQuery(request2, query);
-//    } else {
+void task(int time){
+  for (auto i = 0; i< time; i++) {
+
       FixTupleIngestReq request1;
       Ingest ingest;
-      request1.Content = {{0, {45, 10}}};
-      TxnServer::BeginIngest(request1, ingest);
-      TxnServer::CommitIngest(ingest);
+      request1.Content = {{0, {45, 10}},
+                                   {1, {35, 20}},
+                                   {2,{15,100}}};
+      TxnClient::BeginIngest(request1, ingest);
+      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+      LogClient::Data(1, 1, 1111,(void*)v, 1024);
+
+      TxnClient::CommitIngest(ingest);
 //    }
   }
 }
 
-using claims::txn::TxnServer;
-using claims::txn::FixTupleIngestReq;
-using claims::txn::Ingest;
+
+void task2(int time) {
+  for (auto i = 0; i< time; i++) {
+
+    LogClient::Begin(i);
+    LogClient::Write(i, 1, 0, 100 );
+    LogClient::Write(i, 2, 0, 100 );
+    LogClient::Write(i, 3, 0, 100 );
+
+    //LogClient::PushToDisk() ;
+  }
+
+}
+
 int main(){
 //  auto server = caf::spawn<A>();
 //  SerializeConfig();
@@ -189,8 +207,9 @@ int main(){
 //     cout << "bind fail" << endl;
 //  }
 
+//
+//  TxnServer::Init();
 
-  TxnServer::Init();
 //  for (auto j = 0;j < 100  ;j++) {
 ////        request1.Content[0] = {45, 10};
 ////        request1.Content[1] = {54, 10};
@@ -200,18 +219,28 @@ int main(){
 //    TxnServer::BeginIngest(request1, ingest);
 //    TxnServer::CommitIngest(ingest);
 //   }
-  sleep(1);
+//  sleep(1);
+  memset(v, 1024, '*');
+  string path;
+  cout << "input path" << endl;
+  cin >> path;
+  TxnServer::Init();
+  LogServer::init(path);
   struct  timeval tv1, tv2;
-  gettimeofday(&tv1,NULL);
-  cout <<"a:" <<tv1.tv_sec << "." << tv1.tv_usec << endl;
   vector<std::thread> v;
-  int n = 1;
+  int n = 1, time =1;
+  cout << "input #thread, #time" << endl;
+  cin >> n >> time;
+  gettimeofday(&tv1,NULL);
   for (auto i=0;i<n;i++)
-    v.push_back(std::thread(task,i+1));
+    v.push_back(std::thread(task, time));
   for (auto i=0;i<n;i++)
     v[i].join();
+  //cout << "count2:" << LogServer::count2 << endl;
   gettimeofday(&tv2,NULL);
-  cout <<"d:" <<tv2.tv_sec << "." << tv2.tv_usec << endl;
   cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
+
+
+
   caf::await_all_actors_done();
 }
