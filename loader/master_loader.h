@@ -61,6 +61,18 @@ class MasterLoader {
     vector<string> tuples_;
   };
 
+  struct CommitInfo {
+    explicit CommitInfo(uint64_t total_part_num)
+        : total_part_num_(total_part_num),
+          commited_part_num_(0),
+          wait_period_(0) {}
+    uint64_t total_part_num_;
+    uint64_t commited_part_num_;
+    // initial value is 0, add by 1 every time check thread traverses
+    // if wait period exceeds the specified value, this transaction fails
+    uint64_t wait_period_;
+  };
+
   struct PartitionBuffer {
     PartitionBuffer(void* buf, uint64_t len) : buffer_(buf), length_(len) {}
     void* buffer_;
@@ -102,8 +114,9 @@ class MasterLoader {
       const vector<vector<PartitionBuffer>>& partition_buffers,
       claims::txn::Ingest& ingest);
 
-  RetCode WriteLog(const IngestionRequest& req, const TableDescriptor* table,
-                   const vector<vector<PartitionBuffer>>& partition_buffers);
+  RetCode WriteLog(const TableDescriptor* table,
+                   const vector<vector<PartitionBuffer>>& partition_buffers,
+                   claims::txn::Ingest& ingest);
 
   RetCode ReplyToMQ(const IngestionRequest& req);
 
@@ -131,11 +144,14 @@ class MasterLoader {
   static void* StartMasterLoader(void* arg);
 
  private:
-  string master_loader_ip;
-  int master_loader_port;
+  string master_loader_ip_;
+  int master_loader_port_;
   //  vector<NetAddr> slave_addrs_;
   //  vector<int> slave_sockets_;
-  boost::unordered_map<NodeAddress, int> slave_addr_to_socket;
+  boost::unordered_map<NodeAddress, int> slave_addr_to_socket_;
+
+  // store  id of transactions which are not finished
+  boost::unordered_map<uint64_t, CommitInfo> txn_commint_info_;
 };
 
 } /* namespace loader */

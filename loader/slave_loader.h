@@ -32,14 +32,17 @@
 #include <glog/logging.h>
 #include <iostream>
 #include <string>
-
 #include "../catalog/catalog.h"
 #include "../storage/BlockManager.h"
+#include "caf/all.hpp"
 
 namespace claims {
 namespace loader {
+
 using std::string;
 using claims::catalog::Catalog;
+
+class LoadPacket;
 
 class SlaveLoader {
  public:
@@ -47,8 +50,11 @@ class SlaveLoader {
   virtual ~SlaveLoader();
 
  public:
+  static void* StartSlaveLoader(void* arg);
+
+ public:
   RetCode ConnectWithMaster();
-  void ReceiveAndWorkLoop();
+  RetCode ReceiveAndWorkLoop();
   void Clean() {
     if (-1 != listening_fd_) FileClose(listening_fd_);
     listening_fd_ = -1;
@@ -64,15 +70,15 @@ class SlaveLoader {
 
   void OutputFdIpPort(int fd);
 
+  RetCode StoreDataInMemory(const LoadPacket& packet);
+  RetCode SendAckToMasterLoader(const uint64_t& txn_id, bool is_commited);
+
  private:
   int master_socket_fd_;
   string self_ip;
   int self_port;
+  caf::actor master_actor_;
 
- public:
-  static void* StartSlaveLoader(void* arg);
-
- private:
   int listening_fd_ = -1;
   int master_fd_ = -1;
 };

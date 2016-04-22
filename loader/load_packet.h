@@ -34,11 +34,25 @@
 namespace claims {
 namespace loader {
 
-class LoadPacket {
+using IpPortAtom = caf::atom_constant<caf::atom("ip_port")>;
+using LoadAckAtom = caf::atom_constant<caf::atom("load_ack")>;
+
+/**************  LoadPacket format  *****************/
+/** field             type          length **********/
+/****************************************************/
+/** transaction_id    uint64_t      4              **/
+/** global_part_id    uint64_t      4              **/
+/** position          uint64_t      4              **/
+/** offset            uint64_t      4              **/
+/** date_length       uint64_t      4              **/
+/** data              void*         data_length    **/
+/****************************************************/
+struct LoadPacket {
  public:
-  LoadPacket(const uint64_t g_part_id, uint64_t pos, uint64_t offset,
-             uint64_t data_length, const void* data_buffer)
-      : global_part_id_(g_part_id),
+  LoadPacket(const uint64_t txn_id, const uint64_t g_part_id, uint64_t pos,
+             uint64_t offset, uint64_t data_length, const void* data_buffer)
+      : txn_id_(txn_id),
+        global_part_id_(g_part_id),
         pos_(pos),
         offset_(offset),
         data_buffer_(data_buffer),
@@ -46,13 +60,14 @@ class LoadPacket {
   ~LoadPacket();
   RetCode Serialize(void*& packet_buffer, uint64_t& packet_length) const;
 
-  RetCode Deserialize(const void* const packet_buffer,
-                      const uint64_t packet_length);
+  RetCode Deserialize(const void* const head_buffer, void* data_buffer);
 
- private:
-  //  uint64_t packet_length_;
+ public:
+  static const int kHeadLength = 5 * 4;
+
+ public:
+  uint64_t txn_id_;
   uint64_t global_part_id_;
-  //  uint64_t txn_id_;
   uint64_t pos_;
   uint64_t offset_;
   uint64_t data_length_;

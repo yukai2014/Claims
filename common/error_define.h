@@ -204,6 +204,7 @@ const int rFileInUsing = -102;
 const int rResourceIsLocked = -103;
 
 const int rSentMessageError = -104;
+const int rReceiveMessageError = -105;
 
 // schema associated
 const int rEmptyAttributeName = -501;

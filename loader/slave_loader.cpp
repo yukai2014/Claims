@@ -38,23 +38,29 @@
 #include "../Config.h"
 #include "../Environment.h"
 #include "../common/error_define.h"
+#include "../common/memory_handle.h"
+#include "../storage/PartitionStorage.h"
+#include "../txn_manager/txn.hpp"
 using caf::event_based_actor;
 using caf::io::remote_actor;
 using caf::mixin::sync_sender_impl;
 using caf::spawn;
+using claims::common::Malloc;
 using claims::common::rSuccess;
 using claims::common::rFailure;
+using claims::txn::GetPartitionIdFromGlobalPartId;
+using claims::txn::GetProjectionIdFromGlobalPartId;
+using claims::txn::GetTableIdFromGlobalPartId;
 
 namespace claims {
 namespace loader {
 
 SlaveLoader::SlaveLoader() {
-  // TODO Auto-generated constructor stub
+  master_actor_ =
+      remote_actor(Config::master_loader_ip, Config::master_loader_port);
 }
 
-SlaveLoader::~SlaveLoader() {
-  // TODO Auto-generated destructor stub
-}
+SlaveLoader::~SlaveLoader() {}
 
 RetCode SlaveLoader::ConnectWithMaster() {
   int ret = rSuccess;
@@ -144,10 +150,8 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
              << "to (" << Config::master_loader_ip << ":"
              << Config::master_loader_port << ")";
   try {
-    auto master_actor =
-        remote_actor(Config::master_loader_ip, Config::master_loader_port);
     caf::scoped_actor self;
-    self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port);
+    self->sync_send(master_actor_, IpPortAtom::value, self_ip, self_port);
   } catch (exception& e) {
     LOG(ERROR) << e.what();
     return rFailure;
@@ -180,30 +184,52 @@ void SlaveLoader::OutputFdIpPort(int fd) {
              << ntohs(temp_addr.sin_port) << ")";
 }
 
-void SlaveLoader::ReceiveAndWorkLoop() {
+RetCode SlaveLoader::ReceiveAndWorkLoop() {
   assert(master_fd_ > 3);
-  const int length = 1000;
-  char* buffer = new char[length];
-  DLOG(INFO) << "slave is recving ...";
+  char head_buffer[LoadPacket::kHeadLength];
+  DLOG(INFO) << "slave is receiving ...";
   while (1) {
-    if (-1 == recv(master_fd_, buffer, 4, MSG_WAITALL)) {
+    RetCode ret = rSuccess;
+
+    // get load packet
+    if (-1 ==
+        recv(master_fd_, head_buffer, LoadPacket::kHeadLength, MSG_WAITALL)) {
       PLOG(ERROR) << "failed to receive message length from master";
     }
-    LOG(INFO) << "length is " << *reinterpret_cast<int*>(buffer);
-    if (-1 == recv(master_fd_, buffer, *reinterpret_cast<int*>(buffer),
-                   MSG_WAITALL)) {
-      PLOG(ERROR) << "failed to receive message from master";
+    uint64_t data_length = *reinterpret_cast<uint64_t*>(head_buffer + 3 * 4);
+    uint64_t real_packet_length = data_length + LoadPacket::kHeadLength;
+    assert(data_length >= 4);
+    LOG(INFO) << "real packet length is :" << real_packet_length
+              << ". date length is " << data_length;
+
+    char* data_buffer = Malloc(data_length);
+    MemoryGuard<char> guard(data_buffer);  // auto-release
+    if (NULL == data_buffer) {
+      ELOG((ret = claims::common::rNoMemory),
+           "no memory to hold data of message from master");
+      return ret;
     }
-    LOG(INFO) << "receive message from master:" << buffer << endl;
+
+    if (-1 == recv(master_fd_, data_buffer, data_length, MSG_WAITALL)) {
+      PLOG(ERROR) << "failed to receive message from master";
+      return claims::common::rReceiveMessageError;
+    }
+    //    LOG(INFO) << "data of message from master is:" << buffer;
+
+    // deserialization of packet
+    LoadPacket packet;
+    packet.Deserialize(head_buffer, data_buffer);
+
+    EXEC_AND_LOG(ret, StoreDataInMemory(packet), "stored data",
+                 "failed to store");
+
+    // return result to master loader
+    SendAckToMasterLoader(packet.txn_id_, rSuccess == ret);
   }
 }
 
 void* SlaveLoader::StartSlaveLoader(void* arg) {
   Config::getInstance();
-  //  if (rSuccess != Catalog::getInstance()->restoreCatalog()) {
-  //    LOG(ERROR) << "failed to restore catalog" << std::endl;
-  //    cerr << "ERROR: restore catalog failed" << endl;
-  //  }
   LOG(INFO) << "start slave loader...";
 
   SlaveLoader* slave_loader = Environment::getInstance()->get_slave_loader();
@@ -217,7 +243,43 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
   cout << "connected with master loader" << endl;
   // TODO(YK): error handle
   slave_loader->ReceiveAndWorkLoop();
+  assert(false);
   return NULL;
+}
+
+RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
+  RetCode ret = rSuccess;
+  uint64_t table_id = GetTableIdFromGlobalPartId(packet.global_part_id_);
+  uint64_t prj_id = GetProjectionIdFromGlobalPartId(packet.global_part_id_);
+  uint64_t part_id = GetPartitionIdFromGlobalPartId(packet.global_part_id_);
+
+  uint64_t chunk_id = packet.pos_ / CHUNK_SIZE;
+  PartitionStorage* part_storage =
+      BlockManager::getInstance()->getPartitionHandle(
+          PartitionID(ProjectionID(table_id, prj_id), part_id));
+
+  // set HDFS because the memory is not applied actually
+  // it will be set to MEMORY in function
+  EXEC_AND_LOG_RETURN(ret,
+                      part_storage->AddChunkWithMemoryToNum(chunk_id, HDFS),
+                      "added chunk to " << chunk_id, "failed to add chunk");
+
+  uint64_t pos_in_chunk = packet.pos_ % CHUNK_SIZE;
+  // TODO(YUKAI): copy the value to chunk
+
+  return ret;
+}
+
+RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
+                                           bool is_commited) {
+  try {
+    caf::scoped_actor self;
+    self->sync_send(master_actor_, LoadAckAtom::value, txn_id, is_commited);
+  } catch (exception& e) {
+    LOG(ERROR) << e.what();
+    return rFailure;
+  }
+  return rSuccess;
 }
 
 } /* namespace loader */

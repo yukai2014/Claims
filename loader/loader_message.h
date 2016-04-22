@@ -32,6 +32,4 @@
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 
-using IpPortAtom = caf::atom_constant<caf::atom("ip_port")>;
-
 #endif  // LOADER_LOADER_MESSAGE_H_

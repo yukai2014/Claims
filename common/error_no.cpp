@@ -160,6 +160,8 @@ ErrorInit::ErrorInit() {
   DefineErrorAndMessage(rResourceIsLocked, "other hold the lock of resource");
 
   DefineErrorAndMessage(rSentMessageError, "failed to send network message");
+  DefineErrorAndMessage(rReceiveMessageError,
+                        "failed to receive network message");
 
   // schema assocated
   DefineErrorAndMessage(rEmptyAttributeName,

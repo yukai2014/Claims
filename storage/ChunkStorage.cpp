@@ -41,6 +41,33 @@ ChunkStorage::~ChunkStorage() {
   // TODO Auto-generated destructor stub
 }
 
+// apply memory for chunk size for writing later by slave loader
+RetCode ChunkStorage::ApplyMemory() {
+  RetCode ret = claims::common::rSuccess;
+  HdfsInMemoryChunk chunk_info;
+  chunk_info.length = CHUNK_SIZE;
+  if (BlockManager::getInstance()->getMemoryChunkStore()->applyChunk(
+          chunk_id_, chunk_info.hook)) {
+    /* there is enough memory storage space, so the storage level can be
+     * shifted.*/
+    current_storage_level_ = MEMORY;
+
+    /* update the chunk info in the Chunk store in case that the
+     * chunk_info is updated.*/
+    BlockManager::getInstance()->getMemoryChunkStore()->updateChunkInfo(
+        chunk_id_, chunk_info);
+  } else {
+    /*
+     * The storage memory is full, some swap algorithm is needed here.
+     * TODO: swap algorithm.
+     */
+    printf("Failed to get memory chunk budget!\n");
+    ret = claims::common::rNoMemory;
+    assert(false);
+  }
+  return ret;
+}
+
 ChunkReaderIterator* ChunkStorage::createChunkReaderIterator() {
   //	printf("level value:%d\n",current_storage_level_);
   ChunkReaderIterator* ret;
@@ -98,8 +125,7 @@ ChunkReaderIterator* ChunkStorage::createChunkReaderIterator() {
            * chunk_info is updated.*/
           BlockManager::getInstance()->getMemoryChunkStore()->updateChunkInfo(
               chunk_id_, chunk_info);
-          //					printf("%lx current is set to
-          // memory!\n");
+          //  printf("%lx current is set to memory!\n");
           ret = new InMemoryChunkReaderItetaor(
               chunk_info.hook, chunk_info.length,
               chunk_info.length / block_size_, block_size_, chunk_id_);

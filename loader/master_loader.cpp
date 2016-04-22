@@ -72,8 +72,8 @@ namespace claims {
 namespace loader {
 
 MasterLoader::MasterLoader()
-    : master_loader_ip(Config::master_loader_ip),
-      master_loader_port(Config::master_loader_port) {}
+    : master_loader_ip_(Config::master_loader_ip),
+      master_loader_port_(Config::master_loader_port) {}
 
 MasterLoader::~MasterLoader() {}
 
@@ -91,12 +91,8 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           LOG(INFO) << "succeed to get connected fd with slave";
         }
         assert(new_slave_fd > 3);
-        //        mloader->slave_addrs_.push_back(NetAddr(ip, port));
-        //        mloader->slave_sockets_.push_back(new_slave_fd);
-        //        assert(mloader->slave_sockets_.size() ==
-        //        mloader->slave_addrs_.size());
 
-        mloader->slave_addr_to_socket.insert(
+        mloader->slave_addr_to_socket_.insert(
             pair<NodeAddress, int>(NodeAddress(ip, port), new_slave_fd));
         DLOG(INFO) << "start to send test message to slave";
 
@@ -127,6 +123,27 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         //          DLOG(INFO) << "message buffer is sent";
         //        }
       },
+      [=](LoadAckAtom, int txn_id, bool is_commited) {  // NOLINT
+        // TODO(ANYONE): there should be a thread checking whether transaction
+        // overtime periodically and abort these transaction and delete from
+        // map.
+        // Consider that: if this function access the item in map just deleted
+        // by above thread, unexpected thing happens.
+        claims::txn::Ingest ingest;
+        ingest.Id = txn_id;
+        if (is_commited) {
+          if (++(mloader->txn_commint_info_[txn_id].commited_part_num_) >=
+              mloader->txn_commint_info_[txn_id].total_part_num_) {
+            // TODO(lizhifang): optimize the interface of TxnClient
+            TxnClient::CommitIngest(ingest);
+            mloader->txn_commint_info_.erase(txn_id);
+          }
+        } else {
+          // TODO(lizhifang): optimize the interface of TxnClient
+          TxnClient::AbortIngest(ingest);
+          mloader->txn_commint_info_.erase(txn_id);
+        }
+      },
       caf::others >> [] { LOG(ERROR) << "nothing matched!!!"; }};
 }
 
@@ -134,10 +151,10 @@ RetCode MasterLoader::ConnectWithSlaves() {
   int ret = rSuccess;
   try {
     auto listening_actor = spawn(&MasterLoader::ReceiveSlaveReg, this);
-    publish(listening_actor, master_loader_port, master_loader_ip.c_str(),
+    publish(listening_actor, master_loader_port_, master_loader_ip_.c_str(),
             true);
-    DLOG(INFO) << "published in " << master_loader_ip << ":"
-               << master_loader_port;
+    DLOG(INFO) << "published in " << master_loader_ip_ << ":"
+               << master_loader_port_;
   } catch (exception& e) {
     LOG(ERROR) << e.what();
     return rFailure;
@@ -189,8 +206,11 @@ RetCode MasterLoader::Ingest() {
   EXEC_AND_LOG(ret, ApplyTransaction(table, partition_buffers, ingest),
                "applied transaction", "failed to apply transaction");
 
+  txn_commint_info_.insert(pair<uint64_t, CommitInfo>(
+      ingest.Id, CommitInfo(ingest.StripList.size())));
+
   // write data log
-  EXEC_AND_LOG(ret, WriteLog(req, table, partition_buffers), "written log ",
+  EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log ",
                "failed to write log");
 
   // reply ACK to MQ
@@ -209,9 +229,9 @@ string MasterLoader::GetMessage() {
   return ret;
 }
 
-bool MasterLoader::CheckValidity() {}
-
-void MasterLoader::DistributeSubIngestion() {}
+// bool MasterLoader::CheckValidity() {}
+//
+// void MasterLoader::DistributeSubIngestion() {}
 
 RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
                                                     int* connected_fd) {
@@ -240,9 +260,9 @@ RetCode MasterLoader::GetRequestFromMessage(const string& message,
   return ret;
 }
 
-RetCode MasterLoader::CheckAndToValue(const IngestionRequest& req,
-                                      void* tuple_buffer,
-                                      vector<Validity>& column_validities) {}
+// RetCode MasterLoader::CheckAndToValue(const IngestionRequest& req,
+//                                      void* tuple_buffer,
+//                                      vector<Validity>& column_validities) {}
 
 // map every tuple into associate part
 RetCode MasterLoader::GetPartitionTuples(
@@ -346,10 +366,36 @@ RetCode MasterLoader::ApplyTransaction(
 }
 
 RetCode MasterLoader::WriteLog(
-    const IngestionRequest& req, const TableDescriptor* table,
-    const vector<vector<PartitionBuffer>>& partition_buffers) {}
+    const TableDescriptor* table,
+    const vector<vector<PartitionBuffer>>& partition_buffers,
+    claims::txn::Ingest& ingest) {
+  RetCode ret = rSuccess;
+  uint64_t table_id = table->get_table_id();
 
-RetCode MasterLoader::ReplyToMQ(const IngestionRequest& req) {}
+  for (int prj_id = 0; prj_id < partition_buffers.size(); ++prj_id) {
+    for (int part_id = 0; part_id < partition_buffers[prj_id].size();
+         ++part_id) {
+      uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
+
+      EXEC_AND_LOG(ret,
+                   LogClient::Data(global_part_id,
+                                   ingest.StripList[global_part_id].first,
+                                   ingest.StripList[global_part_id].second,
+                                   partition_buffers[prj_id][part_id].buffer_,
+                                   partition_buffers[prj_id][part_id].length_),
+                   "written data log for partition:" << global_part_id,
+                   "failed to write data log for partition:" << global_part_id);
+    }
+  }
+
+  EXEC_AND_LOG(ret, LogClient::Refresh(), "flushed data log into disk",
+               "failed to flush data log");
+  return ret;
+}
+
+RetCode MasterLoader::ReplyToMQ(const IngestionRequest& req) {
+  // TODO(YUKAI)
+}
 
 RetCode MasterLoader::SendPartitionTupleToSlave(
     const TableDescriptor* table,
@@ -362,7 +408,8 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
     for (int part_id = 0; part_id < partition_buffers[prj_id].size();
          ++part_id) {
       uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
-      LoadPacket packet(global_part_id, ingest.StripList[global_part_id].first,
+      LoadPacket packet(ingest.Id, global_part_id,
+                        ingest.StripList[global_part_id].first,
                         ingest.StripList[global_part_id].second,
                         partition_buffers[prj_id][part_id].length_,
                         partition_buffers[prj_id][part_id].buffer_);
@@ -428,7 +475,7 @@ RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
   EXEC_AND_LOG_RETURN(
       ret, NodeTracker::GetInstance()->GetNodeAddr(node_id_in_rmm, addr),
       "got node address", "failed to get node address");
-  socket_fd = slave_addr_to_socket[addr];
+  socket_fd = slave_addr_to_socket_[addr];
   return ret;
 }
 

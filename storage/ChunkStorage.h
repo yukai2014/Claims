@@ -9,6 +9,8 @@
 #define CHUNKSTORAGE_H_
 #include <string>
 #include <hdfs.h>
+
+#include "../common/error_define.h"
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
@@ -192,6 +194,8 @@ class ChunkStorage {
   void setCurrentStorageLevel(const StorageLevel& current_level) {
     current_storage_level_ = current_level;
   }
+
+  RetCode ApplyMemory();
 
  private:
   unsigned block_size_;
