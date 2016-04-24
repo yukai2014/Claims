@@ -39,6 +39,8 @@
 #include "../Environment.h"
 #include "../common/error_define.h"
 #include "../common/memory_handle.h"
+#include "../storage/ChunkStorage.h"
+#include "../storage/MemoryStore.h"
 #include "../storage/PartitionStorage.h"
 #include "../txn_manager/txn.hpp"
 using caf::event_based_actor;
@@ -249,9 +251,11 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
 
 RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   RetCode ret = rSuccess;
-  uint64_t table_id = GetTableIdFromGlobalPartId(packet.global_part_id_);
-  uint64_t prj_id = GetProjectionIdFromGlobalPartId(packet.global_part_id_);
-  uint64_t part_id = GetPartitionIdFromGlobalPartId(packet.global_part_id_);
+  const uint64_t table_id = GetTableIdFromGlobalPartId(packet.global_part_id_);
+  const uint64_t prj_id =
+      GetProjectionIdFromGlobalPartId(packet.global_part_id_);
+  const uint64_t part_id =
+      GetPartitionIdFromGlobalPartId(packet.global_part_id_);
 
   uint64_t chunk_id = packet.pos_ / CHUNK_SIZE;
   PartitionStorage* part_storage =
@@ -264,9 +268,48 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
                       part_storage->AddChunkWithMemoryToNum(chunk_id, HDFS),
                       "added chunk to " << chunk_id, "failed to add chunk");
 
-  uint64_t pos_in_chunk = packet.pos_ % CHUNK_SIZE;
-  // TODO(YUKAI): copy the value to chunk
+  // copy data into applied memory
+  const uint64_t tuple_size = Catalog::getInstance()
+                                  ->getTable(table_id)
+                                  ->getProjectoin(prj_id)
+                                  ->getSchema()
+                                  ->getTupleMaxSize();
+  const uint64_t offset = packet.offset_;
+  uint64_t cur_chunk_id = packet.pos_ / CHUNK_SIZE;
+  uint64_t cur_block_id = (packet.pos_ % CHUNK_SIZE) / BLOCK_SIZE;
+  uint64_t pos_in_block = packet.pos_ % BLOCK_SIZE;
+  uint64_t total_written_length = 0;
+  HdfsInMemoryChunk chunk_info;
+  while (total_written_length < offset) {
+    // get start position of current chunk
+    if (BlockManager::getInstance()->getMemoryChunkStore()->getChunk(
+            ChunkID(part_id, cur_chunk_id), chunk_info)) {
+      InMemoryChunkWriterIterator writer(chunk_info.hook, CHUNK_SIZE,
+                                         cur_block_id, BLOCK_SIZE, pos_in_block,
+                                         tuple_size);
+      do {  // write to every block
+        uint64_t written_length =
+            writer.Write(packet.data_buffer_ + total_written_length,
+                         offset - total_written_length);
+        total_written_length += written_length;
+        if (total_written_length == offset) {
+          // all tuple is written into memory
+          return rSuccess;
+        } else if (total_written_length > offset) {
+          assert(false);
+        }
+      } while (writer.NextBlock());
 
+      ++cur_chunk_id;  // get next chunk to write
+      assert(cur_chunk_id < part_storage->chunk_list_.size());
+      cur_block_id = 0;  // the block id of next chunk is 0
+      pos_in_block = 0;
+
+    } else {
+      cout << "chunk id is " << cur_chunk_id << endl;
+      assert(false && "no chunk with this chunk id");
+    }
+  }
   return ret;
 }
 

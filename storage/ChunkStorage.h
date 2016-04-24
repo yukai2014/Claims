@@ -7,8 +7,8 @@
 
 #ifndef CHUNKSTORAGE_H_
 #define CHUNKSTORAGE_H_
-#include <string>
 #include <hdfs.h>
+#include <string>
 
 #include "../common/error_define.h"
 #ifdef DMALLOC
@@ -33,11 +33,7 @@ class ChunkReaderIterator {
     virtual void getBlock(BlockStreamBase*& block) const { assert(false); }
     unsigned getBlockSize() const { return block_size; }
 
-    void setBlockSize(unsigned blockSize) {
-      block_size = blockSize;
-    }
-
-    ;
+    void setBlockSize(unsigned blockSize) { block_size = blockSize; }
 
    protected:
     unsigned block_size;
@@ -109,7 +105,7 @@ class ChunkReaderIterator {
         number_of_blocks_(number_of_blocks),
         cur_block_(0),
         block_size_(block_size),
-        chunk_size_(chunk_size){};
+        chunk_size_(chunk_size) {}
   virtual bool nextBlock(BlockStreamBase*& block) = 0;
   virtual bool getNextBlockAccessor(block_accessor*& ba) = 0;
   bool nextBlock();
@@ -146,8 +142,8 @@ class DiskChunkReaderIteraror : public ChunkReaderIterator {
   bool getNextBlockAccessor(block_accessor*& ba);
 
  private:
-  //	unsigned number_of_blocks_;
-  //	unsigned cur_block_;
+  //  unsigned number_of_blocks_;
+  //  unsigned cur_block_;
   /*the iterator creates a buffer and allocates its memory such that the query
    * processing
    * can just use the Block without the concern the memory allocation and
@@ -166,8 +162,8 @@ class HDFSChunkReaderIterator : public ChunkReaderIterator {
   bool getNextBlockAccessor(block_accessor*& ba);
 
  private:
-  //	unsigned number_of_blocks_;
-  //	unsigned cur_block_;
+  //  unsigned number_of_blocks_;
+  //  unsigned cur_block_;
   /*the iterator creates a buffer and allocates its memory such that the query
    * processing
    * can just use the Block without the concern the memory allocation and
@@ -178,6 +174,35 @@ class HDFSChunkReaderIterator : public ChunkReaderIterator {
   hdfsFile hdfs_fd_;
 };
 
+class InMemoryChunkWriterIterator {
+ public:
+  InMemoryChunkWriterIterator(void* chunk_offset, uint64_t chunk_size,
+                              uint64_t block_id, uint64_t block_size,
+                              uint64_t pos_in_block, uint64_t tuple_size)
+      : chunk_offset_(chunk_offset),
+        chunk_size_(chunk_size),
+        block_id_(block_id),
+        block_size_(block_size),
+        pos_in_block_(pos_in_block),
+        tuple_size_(tuple_size) {}
+
+ public:
+  uint64_t Write(const void* const buffer_to_write, uint64_t length_to_write);
+
+  bool NextBlock() {
+    if (++block_id_ > (chunk_size_ / block_size_ - 1)) return false;
+    pos_in_block_ = 0;
+    return true;
+  }
+
+ private:
+  void* chunk_offset_;
+  uint64_t chunk_size_;
+  uint64_t block_id_;
+  uint64_t block_size_;
+  uint64_t pos_in_block_;
+  uint64_t tuple_size_;
+};
 class ChunkStorage {
  public:
   /* considering that how block size effects the performance is to be tested,

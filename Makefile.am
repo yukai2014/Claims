@@ -40,7 +40,6 @@ LDADD =  \
 	storage/libstorage.a \
 	Resource/libresouce.a \
 	catalog/libcatalog.a \
-	catalog/stat/libstat.a \
 	loader/libloader.a \
 	loader/test/libtest.a \
     codegen/libcodegen.a\
@@ -72,6 +71,8 @@ LDADD =  \
 	-lLLVMMCParser -lLLVMCodeGen -lLLVMScalarOpts -lLLVMInstCombine -lLLVMTransformUtils -lLLVMipa -lLLVMAnalysis \
 	-lLLVMX86Desc -lLLVMX86Info -lLLVMX86AsmPrinter -lLLVMX86Utils -lLLVMMCJIT -lLLVMTarget -lLLVMRuntimeDyld \
 	-lLLVMExecutionEngine -lLLVMMC -lLLVMObject -lLLVMBitReader -lLLVMCore -lLLVMSupport -lLLVMMCParser 
+
+#LDADD += catalog/stat/libstat.a 
 
  
 include_HEADERS = Config.h \

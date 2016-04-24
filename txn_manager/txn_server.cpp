@@ -303,6 +303,7 @@ Strip TxnServer::AtomicMalloc(UInt64 part, UInt64 TupleSize,
     strip.Pos = PosList[part].load();
     strip.Offset = 0;
     UInt64 block_pos = strip.Pos % kBlockSize;
+    // TODO(lizhifang): use int64_t instead of uint64_t
     UInt64 remain_count = TupleCount;
     int count = 0;
     while (remain_count > 0) {

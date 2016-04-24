@@ -410,3 +410,26 @@ void ChunkReaderIterator::InHDFSBlockAccessor::getBlock(
   printf("InHDFSBlockAccessor::getBlock() is not implemented!\n");
   assert(false);
 }
+
+uint64_t InMemoryChunkWriterIterator::Write(const void* const buffer_to_write,
+                                            uint64_t length_to_write) {
+  void* block_offset = chunk_offset_ + block_id_ * block_size_;
+  unsigned* tuple_count_in_block = reinterpret_cast<unsigned*>(
+      block_offset + block_size_ - sizeof(unsigned));
+
+  // there are space to store data
+  int can_store_tuple_count =
+      (block_size_ - sizeof(unsigned)) / tuple_size_ - *tuple_count_in_block;
+  if (can_store_tuple_count > 0) {
+    int actual_written_tuple_count =
+        length_to_write / tuple_size_ > can_store_tuple_count
+            ? can_store_tuple_count
+            : length_to_write / tuple_size_;
+    memcpy(block_offset + *tuple_count_in_block * block_size_, buffer_to_write,
+           actual_written_tuple_count * tuple_size_);
+
+    __sync_add_and_fetch(tuple_count_in_block, actual_written_tuple_count);
+    return actual_written_tuple_count;
+  }
+  return 0;
+}

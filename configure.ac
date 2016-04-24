@@ -13,8 +13,6 @@ AC_CONFIG_FILES([
   catalog/Test/Makefile
   catalog/stat/Makefile 
   Client/Makefile 
-  Client/Test/Makefile 
-  Client/json/Makefile
   common/Makefile 
   common/Block/Makefile 
   common/Expression/Makefile 
