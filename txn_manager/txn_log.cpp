@@ -77,15 +77,15 @@ caf::behavior LogServer::make_behavior() {
         return Append(CheckpointLog(part, logic_cp, phy_cp));
       },
     [=](DataAtom,UInt64 part, UInt64 pos, UInt64 offset,
-        void * buffer, UInt64 size)->RetCode {
+        void * buffer, UInt64 size)->caf::message {
         Append(DataLogPrefix(part, pos, offset, size));
         Append(buffer, size);
-        return 0;
+        return caf::make_message(0);
       },
-    [=](RefreshAtom)->RetCode {
-       return Refresh();
-       // cout << "refresh" << endl;
-        return 0;
+    [=](RefreshAtom)->caf::message {
+
+        Refresh();
+        return caf::make_message(0);
       },
     caf::others >> [=] () { cout << "unknown log message" << endl; }
   };
@@ -115,12 +115,17 @@ RetCode LogServer::Append(void * data, UInt64 size){
 }
 
 RetCode LogServer::Refresh() {
+ // cout << "refresh" << endl;
   if (file_handler_ == nullptr) {
      struct timeval ts;
      gettimeofday (&ts, NULL);
      string file = file_path_ + "/" + kTxnLogFileName + to_string(ts.tv_sec);
+     //cout << file << endl;
      file_handler_ = fopen (file.c_str(),"a");
-     if (file_handler_ == nullptr) return -1;
+     if (file_handler_ == nullptr){
+       //cout <<"open file fail"<<endl;
+       return -1;
+     }
   }
 
   if (buffer_size_ == 0)

@@ -141,33 +141,48 @@ using claims::txn::TxnServer;
 using claims::txn::TxnClient;
 using claims::txn::LogServer;
 using claims::txn::LogClient;
-void task2(int times){
-for (auto i=0; i<times; i++) {
-    FixTupleIngestReq req;
-    Ingest ingest;
-    req.InsertStrip(0, 50, 10);
-    req.InsertStrip(1, 10 , 10);
-    TxnClient::BeginIngest(req, ingest);
-    //cout << ingest.ToString() << endl;
-    TxnClient::CommitIngest(ingest.id_);
-    LogClient::Refresh();
-  }
+char buffer[20*1024+10];
+void task2(int id, int times){
+  std::default_random_engine e;
+  std::uniform_int_distribution<int> rand_tuple_size(50, 150);
+  std::uniform_int_distribution<int> rand_tuple_count(10, 100);
+  std::uniform_int_distribution<int> rand_part_count(1, 10);
+  for (auto i=0; i<times; i++) {
+      FixTupleIngestReq req;
+      Ingest ingest;
+      auto part_count = rand_part_count(e);
+      auto tuple_size = rand_tuple_size(e);
+      auto tuple_count = rand_tuple_size(e);
+      for (auto i = 0; i < part_count; i++)
+        req.InsertStrip(i, part_count, tuple_count/part_count>0 ?tuple_count/part_count :1);
+      TxnClient::BeginIngest(req, ingest);
+      for (auto & strip : ingest.strip_list_)
+        LogClient::Data(strip.first,strip.second.first,strip.second.second,
+                        buffer, tuple_size*tuple_count);
+      TxnClient::CommitIngest(ingest.id_);
+      LogClient::Refresh();
+    }
 
 }
 int main(int argc, const char **argv){
   int n = stoi(string(argv[1]));
   int times = stoi(string(argv[2]));
-  TxnClient::Init();
-  LogServer::Init("txn-data");
+  string ip = string(argv[3]);
+  int port = stoi(string(argv[4]));
+  TxnClient::Init(ip, port);
+  LogServer::Init("data-log");
   struct  timeval tv1, tv2;
   vector<std::thread> threads;
   for (auto i=0;i<n;i++)
-    threads.push_back(std::thread(task2, times));
+    threads.push_back(std::thread(task2, i, times));
   gettimeofday(&tv1,NULL);
   for (auto i=0;i<n;i++)
     threads[i].join();
   gettimeofday(&tv2,NULL);
-  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
+  UInt64 time_u = (tv2.tv_sec - tv1.tv_sec)*1000000 + (tv2.tv_usec - tv1.tv_usec);
+  cout << "Time:" << time_u / 1000000 << "." << time_u / 1000 << "s" << endl;
+  cout << "Delay:" << (time_u / times)/1000.0 << "ms" << endl;
+  cout << "TPS:" << (n * times * 1000000.0) / time_u << endl;;
   caf::await_all_actors_done();
   caf::shutdown();
 }

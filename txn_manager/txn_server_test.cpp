@@ -204,23 +204,26 @@ for (auto i=0; i<times; i++) {
 }
 
 int main(int argc,char *argv[]){
-  memset(buffer,3*1024,'*');
-  TxnServer::Init();
-  TxnClient::Init();
+  int con = stoi(string(argv[1]));
+  int port = stoi(string(argv[2]));
+
+  //memset(buffer,3*1024,'*');
+  TxnServer::Init(con, port);
+  //TxnClient::Init();
   LogServer::Init("txn-log");
-  struct  timeval tv1, tv2;
-  vector<std::thread> threads;
-  int n,times;
-  cin >> n >> times;
-  for (auto i=0;i<n;i++)
-    threads.push_back(std::thread(task2, times));
-  gettimeofday(&tv1,NULL);
-  for (auto i=0;i<n;i++)
-    threads.push_back(std::thread(task2, times));
-  for (auto i=0;i<n;i++)
-    threads[i].join();
-  gettimeofday(&tv2,NULL);
-  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
+//  struct  timeval tv1, tv2;
+//  vector<std::thread> threads;
+//  int n,times;
+//  cin >> n >> times;
+//  for (auto i=0;i<n;i++)
+//    threads.push_back(std::thread(task2, times));
+//  gettimeofday(&tv1,NULL);
+//  for (auto i=0;i<n;i++)
+//    threads.push_back(std::thread(task2, times));
+//  for (auto i=0;i<n;i++)
+//    threads[i].join();
+//  gettimeofday(&tv2,NULL);
+//  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
   caf::await_all_actors_done();
   caf::shutdown();
 }
