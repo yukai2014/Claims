@@ -82,6 +82,8 @@ using AbortCPAtom = caf::atom_constant<caf::atom("AbortCP")>;
 using QuitAtom = caf::atom_constant<caf::atom("Quit")>;
 using LinkAtom = caf::atom_constant<caf::atom("Link")>;
 using RefreshAtom = caf::atom_constant<caf::atom("Refresh")>;
+using MergeAtom = caf::atom_constant<caf::atom("merge")>;
+
 
 static const int kTxnPort = 8089;
 static const string kTxnIp = "127.0.0.1";
@@ -90,7 +92,7 @@ static const int kTxnBufferSize = 1024 * 10000;
 static const int kTxnLowLen = 10;
 static const int kTxnHighLen = 54;
 static const int kGCTime = 5;
-static const int kTimeout = 1;
+static const int kTimeout = 3;
 static const int kBlockSize = 64 * 1024;
 static const int kTailSize = sizeof(unsigned);
 
@@ -98,18 +100,18 @@ static const int kTailSize = sizeof(unsigned);
 using PStrip = pair<UInt64, UInt64>;
 class Strip{
  public:
-  UInt64 Part;
-  UInt64 Pos;
-  UInt64 Offset;
+  UInt64 part_;
+  UInt64 pos_;
+  UInt64 offset_;
   Strip() {}
   Strip(UInt64 pId, UInt64 pos, UInt32 offset):
-    Part(pId), Pos(pos), Offset(offset) {}
-  UInt64 get_Part() const { return Part;}
-  UInt64 get_Pos() const { return Pos;}
-  UInt64 get_Offset() const { return Offset;}
-  void set_Part(UInt64 part) { Part = part;}
-  void set_Pos(UInt64 pos) { Pos = pos;}
-  void set_Offset(UInt64 offset) { Offset = offset;}
+    part_(pId), pos_(pos), offset_(offset) {}
+  UInt64 get_part() const { return part_;}
+  UInt64 get_pos() const { return pos_;}
+  UInt64 get_offset() const { return offset_;}
+  void set_part(UInt64 part) { part_ = part;}
+  void set_pos(UInt64 pos) { pos_ = pos;}
+  void set_offset(UInt64 offset) { offset_ = offset;}
   string ToString();
   static void Map(vector<Strip> & input, map<UInt64,vector<Strip>> & output);
   static void Sort(vector<Strip> & input);
@@ -119,7 +121,7 @@ class Strip{
   static void Filter(vector<Strip> & input, function<bool(const Strip &)> predicate);
 };
 inline bool operator ==  (const Strip & a, const Strip & b) {
-  return a.Part == b.Part && a.Pos == b.Pos && a.Offset == b.Offset;
+  return a.part_ == b.part_ && a.pos_ == b.pos_ && a.offset_ == b.offset_;
 }
 
 
@@ -128,148 +130,142 @@ inline bool operator ==  (const Strip & a, const Strip & b) {
 class FixTupleIngestReq{
  public:
   /*fix tuple part -> <tuple_size, tuple_count> */
-  map<UInt64, PStrip> Content;
-  void Insert(UInt64 part, UInt64 tuple_size, UInt64 tuple_count) {
-    Content[part] = make_pair(tuple_size, tuple_count);
+  map<UInt64, PStrip> content_;
+  void InsertStrip(UInt64 part, UInt64 tuple_size, UInt64 tuple_count) {
+    content_[part] = make_pair(tuple_size, tuple_count);
   }
-  map<UInt64, PStrip> get_Content() const{
-    return Content;
+  map<UInt64, PStrip> get_content() const{
+    return content_;
   }
-  void set_Content(const map<UInt64, PStrip> & content) {
-    Content = content;
+  void set_content(const map<UInt64, PStrip> & content) {
+    content_ = content;
   }
   string ToString ();
 };
 inline bool operator == (const FixTupleIngestReq & a, const FixTupleIngestReq & b) {
-  return a.Content == b.Content;
+  return a.content_ == b.content_;
 }
 
 
 /****************Ingest***************/
 class Ingest {
  public:
-  UInt64 Id;
-  map<UInt64, PStrip> StripList;
+  UInt64 id_;
+  map<UInt64, PStrip> strip_list_;
   void InsertStrip (UInt64 part, UInt64 pos, UInt64 offset) {
-    StripList[part] = make_pair(pos, offset);
+    strip_list_[part] = make_pair(pos, offset);
   }
   void InsertStrip (const Strip & strip) {
-    StripList[strip.Part] = make_pair(strip.Pos, strip.Offset);
+    strip_list_[strip.part_] = make_pair(strip.pos_, strip.offset_);
   }
-  UInt64 get_Id() const { return Id;}
-  map<UInt64, PStrip> get_StripList() const { return StripList;}
-  void set_Id(const UInt64 & id){ Id = id;}
-  void set_StripList(const map<UInt64, PStrip> & stripList) {
-    StripList = stripList;
+  UInt64 get_id() const { return id_;}
+  map<UInt64, PStrip> get_strip_list() const { return strip_list_;}
+  void set_id(const UInt64 & id){ id_ = id;}
+  void set_strip_list(const map<UInt64, PStrip> & stripList) {
+    strip_list_ = stripList;
   }
   string ToString();
 };
 inline bool operator == (const Ingest & a, const Ingest & b) {
-  return a.Id == b.Id;
+  return a.id_ == b.id_;
 }
 
 /************QueryReq************/
 class QueryReq{
  public:
-  vector<UInt64> PartList;
-  void InsertPart(UInt64 part) { PartList.push_back(part);}
-  vector<UInt64> get_PartList() const { return PartList;}
-  void set_PartList(const vector<UInt64> & partList) { PartList = partList;}
+  vector<UInt64> part_list_;
+  void InsertPart(UInt64 part) { part_list_.push_back(part);}
+  vector<UInt64> get_part_list() const { return part_list_;}
+  void set_part_list(const vector<UInt64> & partList) { part_list_ = partList;}
   string ToString();
 };
 inline bool operator == (const QueryReq & a, const QueryReq & b) {
-  return a.PartList == b.PartList;
+  return a.part_list_ == b.part_list_;
 }
 
 /***********Snapshot***********/
 class Query{
  public:
-   map<UInt64, vector<PStrip>> Snapshot;
-   map<UInt64, UInt64> CPList;
+   map<UInt64, vector<PStrip>> snapshot_;
+   map<UInt64, UInt64> cp_list_;
    void InsertStrip (UInt64 part, UInt64 pos, UInt64 offset){
     // if (Snapshot.find(part) == Snapshot.end())
     //   Snapshot[part] = vector<pair<UInt64, UInt64>>();
     // else
-       Snapshot[part].push_back(make_pair(pos, offset));
+       snapshot_[part].push_back(make_pair(pos, offset));
    }
    void InsertCP(UInt64 part, UInt64 cp) {
-     CPList[part] = cp;
+     cp_list_[part] = cp;
    }
-   map<UInt64, vector<PStrip>> get_Snapshot() const {
-     return Snapshot;
+   map<UInt64, vector<PStrip>> get_snapshot() const {
+     return snapshot_;
    }
-   map<UInt64, UInt64> get_CPList() const { return CPList;}
-   void set_Snapshot(const map<UInt64, vector<PStrip>> & sp){
-     Snapshot = sp;
+   map<UInt64, UInt64> get_cp_list() const { return cp_list_;}
+   void set_snapshot(const map<UInt64, vector<PStrip>> & sp){
+     snapshot_ = sp;
    }
-   void set_CPList(const map<UInt64, UInt64> & cplist) {
-     CPList = cplist;
+   void set_cp_list(const map<UInt64, UInt64> & cplist) {
+     cp_list_ = cplist;
    }
    string ToString();
 };
 inline bool operator == (const Query & a, const Query & b) {
-  return a.Snapshot == b.Snapshot;
+  return a.snapshot_ == b.snapshot_;
 }
 
 /*********Checkpoint***********/
 class Checkpoint{
  public:
-  UInt64 Id;
-  UInt64 Part;
-  UInt64 LogicCP;
-  UInt64 PhyCP;
-  vector<PStrip> CommitStripList;
-  vector<PStrip> AbortStripList;
+  UInt64 id_;
+  UInt64 part_;
+  UInt64 logic_cp_;
+  UInt64 phy_cp_;
+  vector<PStrip> commit_strip_list_;
+  vector<PStrip> abort_strip_list_;
   Checkpoint() {}
   Checkpoint(UInt64 part, UInt64 newLogicCP, UInt64 oldPhyCP):
-    Part(part), LogicCP(newLogicCP),PhyCP(oldPhyCP) {}
-  UInt64 get_Id() const { return Id;}
-  UInt64 get_Part() const { return Part;}
-  UInt64 get_LogicCP() const { return LogicCP;}
-  UInt64 get_PhyCP() const { return PhyCP;}
-  vector<PStrip> get_CommitStripList() const { return CommitStripList;};
-  vector<PStrip> get_AbortStripList() const { return AbortStripList;};
-  void set_Part(UInt64  part) { Part = part;}
-  void set_LogicCP(UInt64 logicCP) { LogicCP = logicCP;}
-  void set_PhyCP(UInt64 phyCP) { PhyCP = phyCP;}
-  void set_CommitStripList(const vector<PStrip> & commitstripList) {
-    CommitStripList = commitstripList;
+    part_(part), logic_cp_(newLogicCP),phy_cp_(oldPhyCP) {}
+  UInt64 get_id() const { return id_;}
+  UInt64 get_part() const { return part_;}
+  UInt64 get_logic_cp() const { return logic_cp_;}
+  UInt64 get_phy_cp() const { return phy_cp_;}
+  vector<PStrip> get_commit_strip_list() const { return commit_strip_list_;};
+  vector<PStrip> get_abort_strip_list() const { return abort_strip_list_;};
+  void set_part(UInt64  part) { part_ = part;}
+  void set_Logic_cp(UInt64 logicCP) { logic_cp_ = logicCP;}
+  void set_Phy_cp(UInt64 phyCP) { phy_cp_ = phyCP;}
+  void set_commit_strip_list(const vector<PStrip> & commitstripList) {
+    commit_strip_list_ = commitstripList;
   }
-  void set_AbortStripList(const vector<PStrip> & abortstripList) {
-    AbortStripList = abortstripList;
+  void set_abort_strip_list(const vector<PStrip> & abortstripList) {
+    abort_strip_list_ = abortstripList;
   }
   string ToString();
 };
 inline bool operator == (const Checkpoint & a, const Checkpoint & b) {
-  return a.Id == b.Id;
+  return a.id_ == b.id_;
 }
 
-inline void SerializeConfig() {
+inline void SerConfig() {
   caf::announce<FixTupleIngestReq>("FixTupleIngestReq",
-    make_pair(&FixTupleIngestReq::get_Content, &FixTupleIngestReq::set_Content));
+    make_pair(&FixTupleIngestReq::get_content, &FixTupleIngestReq::set_content));
   caf::announce<Ingest>("Ingest",
-                        make_pair(&Ingest::get_Id,&Ingest::set_Id),
-                        make_pair(&Ingest::get_StripList,&Ingest::set_StripList));
+                        make_pair(&Ingest::get_id,&Ingest::set_id),
+                        make_pair(&Ingest::get_strip_list,&Ingest::set_strip_list));
   caf::announce<QueryReq>("QueryReq",
-                        make_pair(&QueryReq::get_PartList, &QueryReq::set_PartList));
+                        make_pair(&QueryReq::get_part_list, &QueryReq::set_part_list));
   caf::announce<Query>("Query",
-                          make_pair(&Query::get_Snapshot,&Query::set_Snapshot),
-                          make_pair(&Query::get_CPList, &Query::set_CPList));
+                          make_pair(&Query::get_snapshot,&Query::set_snapshot),
+                          make_pair(&Query::get_cp_list, &Query::set_cp_list));
   caf::announce<Checkpoint>("Checkpoint",
-                            make_pair(&Checkpoint::get_Part, &Checkpoint::set_Part),
-                            make_pair(&Checkpoint::get_LogicCP, &Checkpoint::set_LogicCP),
-                            make_pair(&Checkpoint::get_PhyCP, &Checkpoint::set_PhyCP),
-                            make_pair(&Checkpoint::get_CommitStripList,
-                                      &Checkpoint::set_CommitStripList),
-                            make_pair(&Checkpoint::get_AbortStripList,
-                                      &Checkpoint::set_AbortStripList));
+                            make_pair(&Checkpoint::get_part, &Checkpoint::set_part),
+                            make_pair(&Checkpoint::get_logic_cp, &Checkpoint::set_Logic_cp),
+                            make_pair(&Checkpoint::get_phy_cp, &Checkpoint::set_Phy_cp),
+                            make_pair(&Checkpoint::get_commit_strip_list,
+                                      &Checkpoint::set_commit_strip_list),
+                            make_pair(&Checkpoint::get_abort_strip_list,
+                                      &Checkpoint::set_abort_strip_list));
 }
-
-
-
-
-
-
 
 
 

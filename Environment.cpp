@@ -237,7 +237,7 @@ bool Environment::InitTxnManager() {
 bool Environment::InitTxnLog() {
   if (Config::enable_txn_log) {
     LOG(INFO) << "I'm txn log server";
-    LogServer::init(Config::txn_log_path);
+    LogServer::Init(Config::txn_log_path);
   }
   return true;
 }

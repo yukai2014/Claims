@@ -45,6 +45,7 @@
 #include "caf/io/all.hpp"
 #include "txn.hpp"
 #include "txn_server.hpp"
+
 #include <chrono>
 
 using std::cin;
@@ -68,16 +69,16 @@ namespace txn{
 
 class TxnClient{
  public:
-  static string Ip;
-  static int Port;
-  static caf::actor Proxy;
+  static string ip_;
+  static int port_;
+  static caf::actor proxy_;
   static RetCode Init(string ip = kTxnIp, int port = kTxnPort);
   static RetCode BeginIngest(const FixTupleIngestReq & request, Ingest & ingest);
-  static RetCode CommitIngest(const Ingest & ingest);
-  static RetCode AbortIngest(const Ingest & ingest);
+  static RetCode CommitIngest(const UInt64 id);
+  static RetCode AbortIngest(const UInt64 id);
   static RetCode BeginQuery(const QueryReq & request, Query & query);
   static RetCode BeginCheckpoint(Checkpoint & cp);
-  static RetCode CommitCheckpoint(const Checkpoint & cp);
+  static RetCode CommitCheckpoint(const UInt64 logic_cp, const UInt64 phy_cp);
 };
 
 }

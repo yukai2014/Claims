@@ -34,7 +34,7 @@
 #include "caf/io/all.hpp"
 #include <functional>
 #include <vector>
-
+#include "../common/error_define.h"
 #include "../catalog/catalog.h"
 #include "../Config.h"
 #include "../Environment.h"

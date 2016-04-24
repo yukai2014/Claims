@@ -26,7 +26,6 @@
  *
  */
 
-
 #include <vector>
 #include <iostream>
 #include <functional>
@@ -44,6 +43,7 @@
 #include "txn.hpp"
 #include "unistd.h"
 #include "txn_client.hpp"
+#include "txn_log.hpp"
 using std::cin;
 using std::cout;
 using std::endl;
@@ -59,16 +59,17 @@ using std::tuple;
 using std::make_tuple;
 using std::make_pair;
 using std::get;
+using std::string;
 using UInt64 = unsigned long long;
 using UInt32 = unsigned int;
 using UInt16 = unsigned short;
 using UInt8 = char;
 using RetCode = int;
 using OkAtom = caf::atom_constant<caf::atom("ok")>;
+using IngestAtom = caf::atom_constant<caf::atom("ingest")>;
+using QueryAtom = caf::atom_constant<caf::atom("query")>;
 using FailAtom = caf::atom_constant<caf::atom("fail")>;
-
-
-using namespace claims::txn;
+using QuitAtom = caf::atom_constant<caf::atom("quit")>;
 
 class Foo {
  public:
@@ -91,37 +92,82 @@ inline bool operator == (const Foo & a, const Foo & b) {
 }
 char v[1024+10];
 
-
-void task(int time){
-  for (auto i = 0; i< time; i++) {
-
-      FixTupleIngestReq request1;
-      Ingest ingest;
-      request1.Content = {{0, {45, 10}},
-                                   {1, {35, 20}},
-                                   {2,{15,100}}};
-      TxnClient::BeginIngest(request1, ingest);
-//      LogClient::Data(1, 1, 1111,(void*)v, 1024);
-//      LogClient::Data(1, 1, 1111,(void*)v, 1024);
-//      LogClient::Data(1, 1, 1111,(void*)v, 1024);
-
-      TxnClient::CommitIngest(ingest);
-//    }
-  }
+caf::actor proxy;
+class A{
+ public:
+  vector<int> list_ ;
+  int c = 0;
+  void set_list_(const vector<int> list) { list_ = list;}
+  vector<int> get_list_() const { return list_;}
+};
+inline bool operator == (const A & a1, const A & a2) {
+  return a1.list_ == a2.list_;
 }
 
-int main(){
+void ConfigA(){
+  caf::announce<A>("A", make_pair(&A::get_list_, &A::set_list_));
+}
+void task(int index){
+for (auto i=0;i<index;i++) {
+    caf::scoped_actor self;
+    self->sync_send(proxy, IngestAtom::value, i).await(
+        [=](int ret) { /*cout <<"receive:" << ret << endl;*/},
+        caf::after(std::chrono::seconds(2)) >> [] {
+            cout << "ingest time out" << endl;
+         }
+     );
+//    self->sync_send(proxy, QueryAtom::value).await(
+//        [=](int t) {
+//          cout << t<< endl;
+//          },
+//        [=](A a) {
+//              cout << "success" << endl;
+//              for (auto &it : a.list_){
+//                cout << it << endl;
+//              }
+//          },
+//        caf::after(std::chrono::seconds(2)) >> [] {
+//            cout << "query time out" << endl;
+//         }
+//    );
+}
+}
+
+using claims::txn::FixTupleIngestReq;
+using claims::txn::Ingest;
+using claims::txn::QueryReq;
+using claims::txn::Query;
+using claims::txn::TxnServer;
+using claims::txn::TxnClient;
+using claims::txn::LogServer;
+using claims::txn::LogClient;
+void task2(int times){
+for (auto i=0; i<times; i++) {
+    FixTupleIngestReq req;
+    Ingest ingest;
+    req.InsertStrip(0, 50, 10);
+    req.InsertStrip(1, 10 , 10);
+    TxnClient::BeginIngest(req, ingest);
+    //cout << ingest.ToString() << endl;
+    TxnClient::CommitIngest(ingest.id_);
+    LogClient::Refresh();
+  }
+
+}
+int main(int argc, const char **argv){
+  int n = stoi(string(argv[1]));
+  int times = stoi(string(argv[2]));
   TxnClient::Init();
+  LogServer::Init("txn-data");
   struct  timeval tv1, tv2;
-  gettimeofday(&tv1,NULL);
   vector<std::thread> threads;
-  int n,times;
-  cin >> n >> times;
   for (auto i=0;i<n;i++)
-    threads.push_back(std::thread(task, times));
+    threads.push_back(std::thread(task2, times));
+  gettimeofday(&tv1,NULL);
   for (auto i=0;i<n;i++)
     threads[i].join();
   gettimeofday(&tv2,NULL);
   cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
   caf::await_all_actors_done();
+  caf::shutdown();
 }
