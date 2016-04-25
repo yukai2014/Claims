@@ -34,15 +34,17 @@
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 
-#include "./loader_message.h"
+#include "./load_packet.h"
 #include "../Config.h"
 #include "../Environment.h"
 #include "../common/error_define.h"
+#include "../common/ids.h"
 #include "../common/memory_handle.h"
 #include "../storage/ChunkStorage.h"
 #include "../storage/MemoryStore.h"
 #include "../storage/PartitionStorage.h"
 #include "../txn_manager/txn.hpp"
+#include "../utility/resource_guard.h"
 using caf::event_based_actor;
 using caf::io::remote_actor;
 using caf::mixin::sync_sender_impl;
@@ -283,7 +285,9 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   while (total_written_length < offset) {
     // get start position of current chunk
     if (BlockManager::getInstance()->getMemoryChunkStore()->getChunk(
-            ChunkID(part_id, cur_chunk_id), chunk_info)) {
+            ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
+                    cur_chunk_id),
+            chunk_info)) {
       InMemoryChunkWriterIterator writer(chunk_info.hook, CHUNK_SIZE,
                                          cur_block_id, BLOCK_SIZE, pos_in_block,
                                          tuple_size);
@@ -301,7 +305,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
       } while (writer.NextBlock());
 
       ++cur_chunk_id;  // get next chunk to write
-      assert(cur_chunk_id < part_storage->chunk_list_.size());
+      assert(cur_chunk_id < part_storage->GetChunkNum());
       cur_block_id = 0;  // the block id of next chunk is 0
       pos_in_block = 0;
 

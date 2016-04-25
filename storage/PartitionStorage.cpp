@@ -65,11 +65,11 @@ RetCode PartitionStorage::AddChunkWithMemoryToNum(
   for (unsigned i = number_of_chunks_; i < number_of_chunks; i++) {
     ChunkStorage* chunk =
         new ChunkStorage(ChunkID(partition_id_, i), BLOCK_SIZE, storage_level);
-    EXEC_AND_LOG(
-        ret, chunk->ApplyMemory(),
-        "applied memory for chunk(" << partition_id_ << "," << i << ")",
-        "failed to apply memory for chunk(" << partition_id_ << "," << i
-                                            << ")");
+    EXEC_AND_LOG(ret, chunk->ApplyMemory(), "applied memory for chunk("
+                                                << partition_id_.getName()
+                                                << "," << i << ")",
+                 "failed to apply memory for chunk(" << partition_id_.getName()
+                                                     << "," << i << ")");
     chunk_list_.push_back(chunk);
   }
   number_of_chunks_ = number_of_chunks;

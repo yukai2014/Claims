@@ -49,6 +49,7 @@ using LoadAckAtom = caf::atom_constant<caf::atom("load_ack")>;
 /****************************************************/
 struct LoadPacket {
  public:
+  LoadPacket() {}
   LoadPacket(const uint64_t txn_id, const uint64_t g_part_id, uint64_t pos,
              uint64_t offset, uint64_t data_length, const void* data_buffer)
       : txn_id_(txn_id),

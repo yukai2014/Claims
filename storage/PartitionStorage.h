@@ -60,6 +60,7 @@ class PartitionStorage {
   void removeAllChunks(const PartitionID& partition_id);
   PartitionReaderItetaor* createReaderIterator();
   PartitionReaderItetaor* createAtomicReaderIterator();
+  const int GetChunkNum() const { return chunk_list_.size(); }
 
  protected:
   PartitionID partition_id_;

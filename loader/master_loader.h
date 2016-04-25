@@ -30,6 +30,7 @@
 #define LOADER_MASTER_LOADER_H_
 
 #include <boost/unordered/unordered_map.hpp>
+#include <glog/logging.h>
 #include <string>
 #include <vector>
 #include "caf/all.hpp"
@@ -59,6 +60,12 @@ class MasterLoader {
     string col_sep_;
     string row_sep_;
     vector<string> tuples_;
+    void Show() {
+      LOG(INFO) << "table name:" << table_name_
+                << ", column separator:" << col_sep_
+                << ", row separator:" << row_sep_
+                << ", tuples size is:" << tuples_.size();
+    }
   };
 
   struct CommitInfo {

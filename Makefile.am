@@ -72,7 +72,7 @@ LDADD =  \
 	-lLLVMX86Desc -lLLVMX86Info -lLLVMX86AsmPrinter -lLLVMX86Utils -lLLVMMCJIT -lLLVMTarget -lLLVMRuntimeDyld \
 	-lLLVMExecutionEngine -lLLVMMC -lLLVMObject -lLLVMBitReader -lLLVMCore -lLLVMSupport -lLLVMMCParser 
 
-#LDADD += catalog/stat/libstat.a 
+LDADD += catalog/stat/libstat.a 
 
  
 include_HEADERS = Config.h \

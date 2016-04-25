@@ -1066,7 +1066,7 @@ inline RetCode DataIngestion::CheckAndToValue(
                                         columns_validities);
 }
 
-istream& DataIngestion::GetTupleTerminatedBy(ifstream& ifs, string& res,
+istream& DataIngestion::GetTupleTerminatedBy(istream& ifs, string& res,
                                              const string& terminator) {
   res.clear();
   if (1 == terminator.length()) {

@@ -176,7 +176,7 @@ class DataIngestion {
   RetCode DestroyLocalPJBuffer(vector<vector<BlockStreamBase*>>& pj_buffer);
 
  public:
-  static istream& GetTupleTerminatedBy(ifstream& ifs, string& res,
+  static istream& GetTupleTerminatedBy(istream& ifs, string& res,
                                        const string& terminator);
 
  private:
