@@ -142,6 +142,7 @@ using claims::txn::TxnClient;
 using claims::txn::LogServer;
 using claims::txn::LogClient;
 char buffer[20*1024+10];
+int is_log = 0;
 void task2(int id, int times){
   std::default_random_engine e;
   std::uniform_int_distribution<int> rand_tuple_size(50, 150);
@@ -156,11 +157,13 @@ void task2(int id, int times){
       for (auto i = 0; i < part_count; i++)
         req.InsertStrip(i, part_count, tuple_count/part_count>0 ?tuple_count/part_count :1);
       TxnClient::BeginIngest(req, ingest);
+      if (is_log == 1)
       for (auto & strip : ingest.strip_list_)
         LogClient::Data(strip.first,strip.second.first,strip.second.second,
-                        buffer, tuple_size*tuple_count);
+                        buffer, tuple_size*tuple_count/part_count);
       TxnClient::CommitIngest(ingest.id_);
-      LogClient::Refresh();
+      if (is_log == 1)
+        LogClient::Refresh();
     }
 
 }
@@ -169,6 +172,7 @@ int main(int argc, const char **argv){
   int times = stoi(string(argv[2]));
   string ip = string(argv[3]);
   int port = stoi(string(argv[4]));
+  is_log = stoi(string(argv[5]));
   TxnClient::Init(ip, port);
   LogServer::Init("data-log");
   struct  timeval tv1, tv2;

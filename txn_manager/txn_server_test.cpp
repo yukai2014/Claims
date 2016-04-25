@@ -203,14 +203,16 @@ for (auto i=0; i<times; i++) {
   }
 }
 
+int is_log = 0;
 int main(int argc,char *argv[]){
   int con = stoi(string(argv[1]));
   int port = stoi(string(argv[2]));
-
+  is_log = stoi(string(argv[3]));
   //memset(buffer,3*1024,'*');
   TxnServer::Init(con, port);
   //TxnClient::Init();
-  LogServer::Init("txn-log");
+  if (is_log == 1)
+    LogServer::Init("txn-log");
 //  struct  timeval tv1, tv2;
 //  vector<std::thread> threads;
 //  int n,times;
