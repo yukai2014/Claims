@@ -67,6 +67,7 @@ using claims::catalog::TableDescriptor;
 using claims::common::Malloc;
 using claims::common::rSuccess;
 using claims::common::rFailure;
+
 using namespace claims::txn;  // NOLINT
 
 namespace claims {
@@ -432,7 +433,7 @@ RetCode MasterLoader::ApplyTransaction(
 RetCode MasterLoader::WriteLog(
     const TableDescriptor* table,
     const vector<vector<PartitionBuffer>>& partition_buffers,
-    claims::txn::Ingest& ingest) {
+    const claims::txn::Ingest& ingest) {
   RetCode ret = rSuccess;
   uint64_t table_id = table->get_table_id();
 
@@ -443,8 +444,8 @@ RetCode MasterLoader::WriteLog(
 
       EXEC_AND_LOG(ret,
                    LogClient::Data(global_part_id,
-                                   ingest.StripList[global_part_id].first,
-                                   ingest.StripList[global_part_id].second,
+                                   ingest.StripList.at(global_part_id).first,
+                                   ingest.StripList.at(global_part_id).second,
                                    partition_buffers[prj_id][part_id].buffer_,
                                    partition_buffers[prj_id][part_id].length_),
                    "written data log for partition:" << global_part_id,
@@ -464,7 +465,7 @@ RetCode MasterLoader::ReplyToMQ(const IngestionRequest& req) {
 RetCode MasterLoader::SendPartitionTupleToSlave(
     const TableDescriptor* table,
     const vector<vector<PartitionBuffer>>& partition_buffers,
-    claims::txn::Ingest& ingest) {
+    const claims::txn::Ingest& ingest) {
   RetCode ret = rSuccess;
   uint64_t table_id = table->get_table_id();
 
@@ -473,8 +474,8 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
          ++part_id) {
       uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
       LoadPacket packet(ingest.Id, global_part_id,
-                        ingest.StripList[global_part_id].first,
-                        ingest.StripList[global_part_id].second,
+                        ingest.StripList.at(global_part_id).first,
+                        ingest.StripList.at(global_part_id).second,
                         partition_buffers[prj_id][part_id].length_,
                         partition_buffers[prj_id][part_id].buffer_);
       void* packet_buffer;

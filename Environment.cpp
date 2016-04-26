@@ -7,6 +7,7 @@
 
 #include "Environment.h"
 
+#include <assert.h>
 #include "caf/all.hpp"
 
 #include "txn_manager/txn_server.hpp"
@@ -69,6 +70,7 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
     logging_->log("Initializing the ThreadPool...");
     if (false == initializeThreadPool()) {
       logging_->elog("initialize ThreadPool failed");
+      assert(false && "can't initialize thread pool");
     }
   }
   logging_->log("Initializing the AdaptiveEndPoint...");
@@ -101,13 +103,10 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
   }
 
   logging_->log("Initializing txn manager");
-  if (!InitTxnManager())
-    LOG(ERROR) << "failed to initialize txn manager";
+  if (!InitTxnManager()) LOG(ERROR) << "failed to initialize txn manager";
 
   logging_->log("Initializing txn log server");
-  if (!InitTxnLog())
-    LOG(ERROR) << "failed to initialize txn log";
-
+  if (!InitTxnLog()) LOG(ERROR) << "failed to initialize txn log";
 
   logging_->log("Initializing the ExecutorMaster...");
   iteratorExecutorMaster = new IteratorExecutorMaster();
@@ -204,8 +203,11 @@ void Environment::initializeStorage() {
 void Environment::initializeResourceManager() {
   if (ismaster_) {
     resourceManagerMaster_ = new ResourceManagerMaster();
+    DLOG(INFO) << "ResourceManagerMaster instanced ";
   }
   resourceManagerSlave_ = new InstanceResourceManager();
+  DLOG(INFO) << "resourceManagerSlave instanced ";
+
   nodeid = resourceManagerSlave_->Register();
 }
 
@@ -232,7 +234,7 @@ bool Environment::InitLoader() {
 
 bool Environment::InitTxnManager() {
   if (Config::enable_txn_server) {
-    LOG(INFO) << "I'm txn manager server" ;
+    LOG(INFO) << "I'm txn manager server";
     TxnServer::Init(Config::txn_server_cores, Config::txn_server_port);
   }
   TxnClient::Init(Config::txn_server_ip, Config::txn_server_port);

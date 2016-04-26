@@ -47,9 +47,9 @@ RetCode TxnCore::ReMalloc() {
   Size = 0;
   TxnIndex.clear();
   try {
-    delete[] Commit;
-    delete[] Abort;
-    delete[] StripList;
+    //    delete[] Commit;
+    //    delete[] Abort;
+    //    delete[] StripList;
     Commit = new bool[BufferSize];
     Abort = new bool[BufferSize];
     StripList = new vector<Strip>[BufferSize];

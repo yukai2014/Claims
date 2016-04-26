@@ -123,14 +123,14 @@ class MasterLoader {
 
   RetCode WriteLog(const TableDescriptor* table,
                    const vector<vector<PartitionBuffer>>& partition_buffers,
-                   claims::txn::Ingest& ingest);
+                   const claims::txn::Ingest& ingest);
 
   RetCode ReplyToMQ(const IngestionRequest& req);
 
   RetCode SendPartitionTupleToSlave(
       const TableDescriptor* table,
       const vector<vector<PartitionBuffer>>& partition_buffers,
-      claims::txn::Ingest& ingest);
+      const claims::txn::Ingest& ingest);
 
   RetCode SelectSocket(const TableDescriptor* table, const uint64_t prj_id,
                        const uint64_t part_id, int& socket_fd);
