@@ -31,6 +31,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <exception>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 
@@ -60,10 +61,13 @@ namespace claims {
 namespace loader {
 
 SlaveLoader::SlaveLoader() {
-  master_actor_ =
-      remote_actor(Config::master_loader_ip, Config::master_loader_port);
+  //  try {
+  //    master_actor_ =
+  //        remote_actor(Config::master_loader_ip, Config::master_loader_port);
+  //  } catch (const exception& e) {
+  //    cout << "master loader actor failed." << e.what() << endl;
+  //  }
 }
-
 SlaveLoader::~SlaveLoader() {}
 
 RetCode SlaveLoader::ConnectWithMaster() {
@@ -80,7 +84,7 @@ RetCode SlaveLoader::ConnectWithMaster() {
     return ret;
   }
 
-  for (int i = 0; i < retry_time; ++i) {
+  for (int i = 1; i <= retry_time; ++i) {
     EXEC_AND_LOG(ret, SendSelfAddrToMaster(), "sent self ip/port to master",
                  "failed to send self ip/port to master in " << i << " times");
     if (rSuccess == ret) break;
@@ -154,10 +158,12 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
              << "to (" << Config::master_loader_ip << ":"
              << Config::master_loader_port << ")";
   try {
+    auto master_actor =
+        remote_actor(Config::master_loader_ip, Config::master_loader_port);
     caf::scoped_actor self;
-    self->sync_send(master_actor_, IpPortAtom::value, self_ip, self_port);
+    self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port);
   } catch (exception& e) {
-    LOG(ERROR) << e.what();
+    LOG(ERROR) << "can't send self ip&port to master loader " << e.what();
     return rFailure;
   }
   return rSuccess;
@@ -202,7 +208,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     }
     uint64_t data_length = *reinterpret_cast<uint64_t*>(head_buffer + 3 * 4);
     uint64_t real_packet_length = data_length + LoadPacket::kHeadLength;
-    assert(data_length >= 4);
+    assert(data_length >= 4 && data_length <= 10000000);
     LOG(INFO) << "real packet length is :" << real_packet_length
               << ". date length is " << data_length;
 
@@ -246,6 +252,7 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
 
   cout << "connected with master loader" << endl;
   // TODO(YK): error handle
+
   slave_loader->ReceiveAndWorkLoop();
   assert(false);
   return NULL;
@@ -320,8 +327,10 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
 RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
                                            bool is_commited) {
   try {
+    auto master_actor =
+        remote_actor(Config::master_loader_ip, Config::master_loader_port);
     caf::scoped_actor self;
-    self->sync_send(master_actor_, LoadAckAtom::value, txn_id, is_commited);
+    self->sync_send(master_actor, LoadAckAtom::value, txn_id, is_commited);
   } catch (exception& e) {
     LOG(ERROR) << e.what();
     return rFailure;

@@ -95,7 +95,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         assert(new_slave_fd > 3);
 
         mloader->slave_addr_to_socket_.insert(
-            pair<NodeAddress, int>(NodeAddress(ip, port), new_slave_fd));
+            std::pair<NodeAddress, int>(NodeAddress(ip, port), new_slave_fd));
         DLOG(INFO) << "start to send test message to slave";
 
         /// test whether socket works well
@@ -158,7 +158,7 @@ RetCode MasterLoader::ConnectWithSlaves() {
     DLOG(INFO) << "published in " << master_loader_ip_ << ":"
                << master_loader_port_;
   } catch (exception& e) {
-    LOG(ERROR) << e.what();
+    LOG(ERROR) << "publish master loader actor failed" << e.what();
     return rFailure;
   }
   return ret;
@@ -166,6 +166,10 @@ RetCode MasterLoader::ConnectWithSlaves() {
 
 RetCode MasterLoader::Ingest() {
   RetCode ret = rSuccess;
+
+  int temp;
+  cin >> temp;
+  cout << "Well , temp is received" << std::endl;
   string message = GetMessage();
 
   // get message from MQ
@@ -572,9 +576,9 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->ConnectWithSlaves(),
                           "failed to connect all slaves");
 
-  while (true)
-    EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
-                            "failed to ingest data");
+  //  while (true)
+  //    EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
+  //                            "failed to ingest data");
 
   return NULL;
 }

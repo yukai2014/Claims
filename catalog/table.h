@@ -215,12 +215,14 @@ class TableDescriptor {
 
   TableFileConnector* write_connector_ = NULL;
 
+  void InitConnector();
+
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive& ar, const unsigned int version) {  // NOLINT
     ar& tableName& attributes& table_id_& projection_list_& row_number_&
         has_deleted_tuples_;
-    //    InitLocks();
+    InitConnector();
   }
 };
 

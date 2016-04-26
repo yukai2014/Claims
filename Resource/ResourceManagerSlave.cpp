@@ -33,7 +33,7 @@ NodeID InstanceResourceManager::Register() {
   framework_->Send(message, receiver.GetAddress(),
                    Theron::Address("ResourceManagerMaster"));
   Theron::Address from;
-  if (receiver.TimeOutWait(1, 1000) == 1) {
+  if (receiver.TimeOutWait(1, 10000) == 1) {
     resultCatcher.Pop(ret, from);
     logging_->log(
         "Successfully registered to the master, the allocated id =%d.", ret);
