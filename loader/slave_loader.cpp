@@ -238,26 +238,6 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
   }
 }
 
-void* SlaveLoader::StartSlaveLoader(void* arg) {
-  Config::getInstance();
-  LOG(INFO) << "start slave loader...";
-
-  SlaveLoader* slave_loader = Environment::getInstance()->get_slave_loader();
-  int ret = rSuccess;
-  EXEC_AND_LOG(ret, slave_loader->ConnectWithMaster(),
-               "succeed to connect with master",
-               "failed to connect with master ");
-
-  assert(rSuccess == ret && "can't connect with master");
-
-  cout << "connected with master loader" << endl;
-  // TODO(YK): error handle
-
-  slave_loader->ReceiveAndWorkLoop();
-  assert(false);
-  return NULL;
-}
-
 RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   RetCode ret = rSuccess;
   const uint64_t table_id = GetTableIdFromGlobalPartId(packet.global_part_id_);
@@ -336,6 +316,26 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
     return rFailure;
   }
   return rSuccess;
+}
+
+void* SlaveLoader::StartSlaveLoader(void* arg) {
+  Config::getInstance();
+  LOG(INFO) << "start slave loader...";
+
+  SlaveLoader* slave_loader = Environment::getInstance()->get_slave_loader();
+  int ret = rSuccess;
+  EXEC_AND_LOG(ret, slave_loader->ConnectWithMaster(),
+               "succeed to connect with master",
+               "failed to connect with master ");
+
+  assert(rSuccess == ret && "can't connect with master");
+
+  cout << "connected with master loader" << endl;
+  // TODO(YK): error handle
+
+  slave_loader->ReceiveAndWorkLoop();
+  assert(false);
+  return NULL;
 }
 
 } /* namespace loader */

@@ -66,3 +66,9 @@ RetCode NodeTracker::GetNodeAddr(const NodeID& target,
   assert(false && "can't find node address according node ID");
   return claims::common::rFailure;
 }
+
+RetCode NodeTracker::InsertRegisteredNode(const NodeID& node_id,
+                                          const NodeAddress& node_addr) {
+  address_to_id_[node_addr] = node_id;
+  return claims::common::rSuccess;
+}

@@ -30,6 +30,9 @@ class NodeTracker {
   std::string GetNodeIP(const NodeID&) const;
   RetCode GetNodeAddr(const NodeID&, NodeAddress& node_addr) const;
 
+  RetCode InsertRegisteredNode(const NodeID& node_id,
+                               const NodeAddress& node_addr);
+
   std::vector<NodeID> GetNodeIDList() const;
 
  private:

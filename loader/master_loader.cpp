@@ -50,6 +50,7 @@
 #include "../Config.h"
 #include "../Environment.h"
 #include "../loader/data_ingestion.h"
+#include "../Resource/NodeTracker.h"
 #include "../txn_manager/txn.hpp"
 #include "../txn_manager/txn_client.hpp"
 #include "../utility/resource_guard.h"
@@ -94,8 +95,9 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         }
         assert(new_slave_fd > 3);
 
-        mloader->slave_addr_to_socket_.insert(
-            std::pair<NodeAddress, int>(NodeAddress(ip, port), new_slave_fd));
+        DLOG(INFO) << "going to push socket into map";
+        mloader->slave_addr_to_socket_[NodeAddress(ip, to_string(port))] =
+            new_slave_fd;
         DLOG(INFO) << "start to send test message to slave";
 
         /// test whether socket works well
@@ -146,6 +148,13 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           mloader->txn_commint_info_.erase(txn_id);
         }
       },
+      [=](RegNodeAtom, NodeAddress addr,
+          NodeID node_id) -> caf::message {  // NOLINT
+        LOG(INFO) << "get node register info from " << addr.ip << ":"
+                  << addr.port;
+        NodeTracker::GetInstance()->InsertRegisteredNode(node_id, addr);
+        return caf::make_message(OkAtom::value);
+      },
       caf::others >> [] { LOG(ERROR) << "nothing matched!!!"; }};
 }
 
@@ -153,10 +162,10 @@ RetCode MasterLoader::ConnectWithSlaves() {
   int ret = rSuccess;
   try {
     auto listening_actor = spawn(&MasterLoader::ReceiveSlaveReg, this);
-    publish(listening_actor, master_loader_port_, master_loader_ip_.c_str(),
-            true);
+    publish(listening_actor, master_loader_port_);
     DLOG(INFO) << "published in " << master_loader_ip_ << ":"
                << master_loader_port_;
+    cout << "published in " << master_loader_ip_ << ":" << master_loader_port_;
   } catch (exception& e) {
     LOG(ERROR) << "publish master loader actor failed" << e.what();
     return rFailure;
@@ -167,6 +176,7 @@ RetCode MasterLoader::ConnectWithSlaves() {
 RetCode MasterLoader::Ingest() {
   RetCode ret = rSuccess;
 
+  cout << "\ninput a number to continue" << std::endl;
   int temp;
   cin >> temp;
   cout << "Well , temp is received" << std::endl;
@@ -182,12 +192,13 @@ RetCode MasterLoader::Ingest() {
   TableDescriptor* table =
       Environment::getInstance()->getCatalog()->getTable(req.table_name_);
   assert(table != NULL && "table is not exist!");
+
   vector<vector<vector<void*>>> tuple_buffers_per_part(
       table->getNumberOfProjection());
-  for (auto proj : (*(table->GetProjectionList()))) {
-    tuple_buffers_per_part.push_back(vector<vector<void*>>(
-        proj->getPartitioner()->getNumberOfPartitions(), vector<void*>()));
-  }
+  for (int i = 0; i < table->getNumberOfProjection(); ++i)
+    tuple_buffers_per_part[i].resize(
+        table->getProjectoin(i)->getPartitioner()->getNumberOfPartitions());
+
   vector<Validity> columns_validities;
   EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
                                        columns_validities),
@@ -212,7 +223,7 @@ RetCode MasterLoader::Ingest() {
   EXEC_AND_LOG(ret, ApplyTransaction(table, partition_buffers, ingest),
                "applied transaction", "failed to apply transaction");
 
-  txn_commint_info_.insert(pair<uint64_t, CommitInfo>(
+  txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
       ingest.Id, CommitInfo(ingest.StripList.size())));
 
   // write data log
@@ -508,11 +519,21 @@ RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
     vector<vector<vector<void*>>>& tuple_buffer_per_part,
     vector<vector<PartitionBuffer>>& partition_buffers) {
   RetCode ret = rSuccess;
+  assert(tuple_buffer_per_part.size() == table->getNumberOfProjection() &&
+         "projection number is not match!!");
   for (int i = 0; i < tuple_buffer_per_part.size(); ++i) {
+    assert(tuple_buffer_per_part[i].size() ==
+               table->getProjectoin(i)
+                   ->getPartitioner()
+                   ->getNumberOfPartitions() &&
+           "partition number is not match");
     for (int j = 0; j < tuple_buffer_per_part[i].size(); ++j) {
       int tuple_count = tuple_buffer_per_part[i][j].size();
       int tuple_len = table->getProjectoin(i)->getSchema()->getTupleMaxSize();
       int buffer_len = tuple_count * tuple_len;
+      LOG(INFO) << "the tuple length of prj:" << i << ",part:" << j
+                << ",table:" << table->getTableName() << " is:" << tuple_len;
+      LOG(INFO) << "tuple size is:" << tuple_count;
 
       void* new_buffer = Malloc(buffer_len);
       if (NULL == new_buffer) return ret = claims::common::rNoMemory;
@@ -576,9 +597,9 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->ConnectWithSlaves(),
                           "failed to connect all slaves");
 
-  //  while (true)
-  //    EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
-  //                            "failed to ingest data");
+  while (true)
+    EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
+                            "failed to ingest data");
 
   return NULL;
 }

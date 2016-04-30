@@ -36,6 +36,8 @@ namespace loader {
 
 using IpPortAtom = caf::atom_constant<caf::atom("ip_port")>;
 using LoadAckAtom = caf::atom_constant<caf::atom("load_ack")>;
+using RegNodeAtom = caf::atom_constant<caf::atom("reg_node")>;
+using OkAtom = caf::atom_constant<caf::atom("ok")>;
 
 /**************  LoadPacket format  *****************/
 /** field             type          length **********/

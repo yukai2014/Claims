@@ -6,6 +6,9 @@
  */
 
 #include "ResourceManagerSlave.h"
+
+#include <string>
+
 #include "../Environment.h"
 #include "../common/TimeOutReceiver.h"
 #define ResourceManagerMasterName "ResourceManagerMaster"
@@ -29,11 +32,12 @@ NodeID InstanceResourceManager::Register() {
   unsigned port = Environment::getInstance()->getPort();
   NodeRegisterMessage message(ip, port);
 
-  DLOG(INFO) << "resourceManagerSlave is going to register to master";
+  DLOG(INFO) << "resourceManagerSlave is going to register (" << ip << ","
+             << port << ")to master";
   framework_->Send(message, receiver.GetAddress(),
                    Theron::Address("ResourceManagerMaster"));
   Theron::Address from;
-  if (receiver.TimeOutWait(1, 10000) == 1) {
+  if (receiver.TimeOutWait(1, 1000) == 1) {
     resultCatcher.Pop(ret, from);
     logging_->log(
         "Successfully registered to the master, the allocated id =%d.", ret);
@@ -49,5 +53,5 @@ void InstanceResourceManager::ReportStorageBudget(
                    Theron::Address(ResourceManagerMasterName));
 }
 
-void InstanceResourceManager::setStorageBudget(unsigned long memory,
-                                               unsigned long disk) {}
+void InstanceResourceManager::setStorageBudget(uint64_t memory, uint64_t disk) {
+}

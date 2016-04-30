@@ -75,6 +75,12 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
   }
   logging_->log("Initializing the AdaptiveEndPoint...");
   initializeEndPoint();
+
+  logging_->log("Initializing the loader...");
+  if (!InitLoader()) {
+    LOG(ERROR) << "failed to initialize loader";
+  }
+
   /**
    * TODO:
    * DO something in AdaptiveEndPoint such that the construction function does
@@ -96,11 +102,6 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
 
   logging_->log("Initializing the BufferManager...");
   initializeBufferManager();
-
-  logging_->log("Initializing the loader...");
-  if (!InitLoader()) {
-    LOG(ERROR) << "failed to initialize loader";
-  }
 
   logging_->log("Initializing txn manager");
   if (!InitTxnManager()) LOG(ERROR) << "failed to initialize txn manager";
@@ -228,7 +229,6 @@ bool Environment::InitLoader() {
   std::thread slave_thread(&SlaveLoader::StartSlaveLoader, nullptr);
   slave_thread.detach();
 
-  //  caf::await_all_actors_done();
   return true;
 }
 
