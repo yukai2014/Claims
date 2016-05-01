@@ -31,6 +31,12 @@
 // #define DEBUG_MODE
 #include "catalog/catalog.h"
 
+#include "txn_manager/txn_server.hpp"
+#include "txn_manager/txn_client.hpp"
+#include "txn_manager/txn_log.hpp"
+#include "txn_manager/txn.hpp"
+
+
 using claims::common::InitAggAvgDivide;
 using claims::common::InitOperatorFunc;
 using claims::common::InitTypeCastFunc;
@@ -38,6 +44,12 @@ using claims::common::InitTypeConversionMatrix;
 using claims::common::rSuccess;
 using claims::loader::MasterLoader;
 using claims::loader::SlaveLoader;
+
+using claims::txn::TxnServer;
+using claims::txn::TxnClient;
+using claims::txn::LogServer;
+using claims::txn::LogClient;
+using claims::txn::GetGlobalPartId;
 
 Environment* Environment::_instance = 0;
 
@@ -229,6 +241,32 @@ bool Environment::InitTxnManager() {
   if (Config::enable_txn_server) {
     LOG(INFO) << "I'm txn manager server" ;
     TxnServer::Init(Config::txn_server_cores, Config::txn_server_port);
+    auto cat = Catalog::getInstance();
+    auto table_count = cat->getNumberOfTable();
+    //cout << "table count:" << table_count << endl;
+    for (auto table_id = 0; table_id < table_count; table_id ++) {
+     auto table = cat->getTable(table_id);
+     auto proj_count = table->getNumberOfProjection();
+    // cout << "proj_count:" << proj_count << endl;
+     for (auto proj_id = 0; proj_id < proj_count; proj_id++) {
+        auto proj = table->getProjectoin(proj_id);
+        auto part= proj->getPartitioner();
+        auto part_count = part->getNumberOfPartitions();
+        //cout << "part_count:" << part_count << endl;
+        for (auto part_id = 0; part_id < part_count; part_id ++) {
+            auto global_part_id = GetGlobalPartId(table_id, proj_id, part_id);
+         //   cout << global_part_id << endl;
+            TxnServer::pos_list_[global_part_id] =
+                TxnServer::logic_cp_list_[global_part_id] =
+                TxnServer::phy_cp_list_[global_part_id] =
+                    part->getPartitionBlocks(part_id) * 64 * 1024;
+          }
+       }
+     }
+
+    cout<<"*******pos_list*******" << endl;
+    for (auto & pos : TxnServer::pos_list_)
+      cout << "partition[" << pos.first << "] => " << pos.second << endl;
   }
   TxnClient::Init(Config::txn_server_ip, Config::txn_server_port);
   return true;

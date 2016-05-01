@@ -267,6 +267,21 @@ inline void SerConfig() {
                                       &Checkpoint::set_abort_strip_list));
 }
 
+inline UInt64 GetGlobalPartId(UInt64 table_id, UInt64 projeciton_id,
+                              UInt64 partition_id) {
+  return table_id + 1000 * (projeciton_id + 1000 * partition_id);
+}
+
+inline UInt64 GetTableIdFromGlobalPartId(UInt64 global_partition_id) {
+  return global_partition_id / (1000 * 1000);
+}
+
+inline UInt64 GetProjectionIdFromGlobalPartId(UInt64 global_partition_id) {
+  return (global_partition_id % (1000 * 1000)) / 1000;
+}
+inline UInt64 GetPartitionIdFromGlobalPartId(UInt64 global_partition_id) {
+  return global_partition_id % (1000);
+}
 
 
 }

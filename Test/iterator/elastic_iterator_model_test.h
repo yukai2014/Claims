@@ -329,6 +329,7 @@ TEST_F(ElasticIteratorModelTest, droptestdata) {
 
 TEST_F(ElasticIteratorModelTest, CreateTempTableForTableFileConnectorTest) {
   string table_name = "sfdfsf";
+  string drop_table_sql = "drop table sfdfsf;";
   string create_table_stmt =
       "create table " + table_name + " (a int , b varchar(12));";
   string create_prj_stmt1 = "create projection on " + table_name +
@@ -346,6 +347,10 @@ TEST_F(ElasticIteratorModelTest, CreateTempTableForTableFileConnectorTest) {
   cout << message << endl;
   client_.submit(create_prj_stmt2.c_str(), message, rs);
   EXPECT_EQ("create projection successfully\n", message);
+  cout << message << endl;
+
+  client_.submit(drop_table_sql.c_str(), message, rs);
+  EXPECT_EQ("drop table successfully!\n", message);
   cout << message << endl;
 }
 
