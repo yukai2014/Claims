@@ -8,6 +8,7 @@
 #include "NodeTracker.h"
 
 #include <assert.h>
+#include <glog/logging.h>
 NodeTracker* NodeTracker::instance_ = 0;
 NodeTracker::NodeTracker() : allocate_cur_(0) {}
 NodeTracker* NodeTracker::GetInstance() {
@@ -70,5 +71,7 @@ RetCode NodeTracker::GetNodeAddr(const NodeID& target,
 RetCode NodeTracker::InsertRegisteredNode(const NodeID& node_id,
                                           const NodeAddress& node_addr) {
   address_to_id_[node_addr] = node_id;
+  LOG(INFO) << "inserted node:" << node_id
+            << ". Now size of addr2id is:" << address_to_id_.size();
   return claims::common::rSuccess;
 }

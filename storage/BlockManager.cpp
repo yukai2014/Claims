@@ -7,6 +7,7 @@
 #include <sstream>
 #include "BlockManager.h"
 
+#include <glog/logging.h>
 #include "../common/file_handle/hdfs_connector.h"
 #include "../Environment.h"
 #include "../common/rename.h"
@@ -368,6 +369,8 @@ bool BlockManager::removePartition(const PartitionID& partition_id) {
 
 PartitionStorage* BlockManager::getPartitionHandle(
     const PartitionID& partition_id) const {
+  LOG(INFO) << "partid2storage size is:" << partition_id_to_storage_.size();
+  LOG(INFO) << "going to find storage [" << partition_id.getName() << "]";
   boost::unordered_map<PartitionID, PartitionStorage*>::const_iterator it =
       partition_id_to_storage_.find(partition_id);
   if (it == partition_id_to_storage_.cend()) {

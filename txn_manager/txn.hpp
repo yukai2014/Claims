@@ -96,7 +96,7 @@ static const int kTailSize = sizeof(unsigned);
 
 inline UInt64 GetGlobalPartId(UInt64 table_id, UInt64 projeciton_id,
                               UInt64 partition_id) {
-  return table_id + 1000 * (projeciton_id + 1000 * partition_id);
+  return partition_id + 1000 * (projeciton_id + 1000 * table_id);
 }
 
 inline UInt64 GetTableIdFromGlobalPartId(UInt64 global_partition_id) {

@@ -27,6 +27,9 @@
  */
 
 #include "./load_packet.h"
+
+#include <glog/logging.h>
+
 #include "../common/memory_handle.h"
 
 using namespace claims::common;  // NOLINT
@@ -46,14 +49,16 @@ RetCode LoadPacket::Serialize(void*& packet_buffer,
   }
 
   *reinterpret_cast<uint64_t*>(packet_buffer) = txn_id_;
-  *reinterpret_cast<uint64_t*>(packet_buffer + sizeof(uint64_t)) =
+  *reinterpret_cast<uint64_t*>(packet_buffer + 1 * sizeof(uint64_t)) =
       global_part_id_;
   *reinterpret_cast<uint64_t*>(packet_buffer + 2 * sizeof(uint64_t)) = pos_;
   *reinterpret_cast<uint64_t*>(packet_buffer + 3 * sizeof(uint64_t)) = offset_;
   *reinterpret_cast<uint64_t*>(packet_buffer + 4 * sizeof(uint64_t)) =
       data_length_;
+  LOG(INFO) << "Serialize packet: " << txn_id_ << " " << global_part_id_ << " "
+            << pos_ << " " << offset_ << " " << data_length_;
 
-  memcpy(packet_buffer + 4 * sizeof(uint64_t), data_buffer_, data_length_);
+  memcpy(packet_buffer + kHeadLength, data_buffer_, data_length_);
   return rSuccess;
 }
 
@@ -67,7 +72,8 @@ RetCode LoadPacket::Deserialize(const void* const head_buffer,
       *reinterpret_cast<const uint64_t*>(head_buffer + 3 * sizeof(uint64_t));
   data_length_ =
       *reinterpret_cast<const uint64_t*>(head_buffer + 4 * sizeof(uint64_t));
-
+  LOG(INFO) << "Deserialize packet: " << txn_id_ << " " << global_part_id_
+            << " " << pos_ << " " << offset_ << " " << data_length_;
   data_buffer_ = data_buffer;
   return rSuccess;
 }

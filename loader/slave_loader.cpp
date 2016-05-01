@@ -48,7 +48,6 @@
 #include "../utility/resource_guard.h"
 using caf::event_based_actor;
 using caf::io::remote_actor;
-using caf::mixin::sync_sender_impl;
 using caf::spawn;
 using claims::common::Malloc;
 using claims::common::rSuccess;
@@ -161,9 +160,12 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
     auto master_actor =
         remote_actor(Config::master_loader_ip, Config::master_loader_port);
     caf::scoped_actor self;
-    self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port);
+    self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port)
+        .await([&](int r) {  // NOLINT
+          LOG(INFO) << "sent ip&port and received response";
+        });
   } catch (exception& e) {
-    LOG(ERROR) << "can't send self ip&port to master loader " << e.what();
+    LOG(ERROR) << "can't send self ip&port to master loader. " << e.what();
     return rFailure;
   }
   return rSuccess;
@@ -202,15 +204,23 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     RetCode ret = rSuccess;
 
     // get load packet
-    if (-1 ==
-        recv(master_fd_, head_buffer, LoadPacket::kHeadLength, MSG_WAITALL)) {
+    int real_read_num;
+    if (-1 == (real_read_num = recv(master_fd_, head_buffer,
+                                    LoadPacket::kHeadLength, MSG_WAITALL))) {
       PLOG(ERROR) << "failed to receive message length from master";
+      continue;
+    } else if (real_read_num < LoadPacket::kHeadLength) {
+      LOG(ERROR) << "received message error! only read " << real_read_num
+                 << " bytes";
+      continue;
     }
-    uint64_t data_length = *reinterpret_cast<uint64_t*>(head_buffer + 3 * 4);
+    uint64_t data_length =
+        *reinterpret_cast<uint64_t*>(head_buffer + LoadPacket::kHeadLength -
+                                     sizeof(uint64_t));
     uint64_t real_packet_length = data_length + LoadPacket::kHeadLength;
-    assert(data_length >= 4 && data_length <= 10000000);
     LOG(INFO) << "real packet length is :" << real_packet_length
               << ". date length is " << data_length;
+    assert(data_length >= 4 && data_length <= 10000000);
 
     char* data_buffer = Malloc(data_length);
     MemoryGuard<char> guard(data_buffer);  // auto-release
@@ -234,7 +244,9 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
                  "failed to store");
 
     // return result to master loader
-    SendAckToMasterLoader(packet.txn_id_, rSuccess == ret);
+    EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
+                 "sent commit result to master loader",
+                 "failed to send commit res to master loader");
   }
 }
 
@@ -246,18 +258,25 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   const uint64_t part_id =
       GetPartitionIdFromGlobalPartId(packet.global_part_id_);
 
-  uint64_t chunk_id = packet.pos_ / CHUNK_SIZE;
   PartitionStorage* part_storage =
       BlockManager::getInstance()->getPartitionHandle(
           PartitionID(ProjectionID(table_id, prj_id), part_id));
+  assert(part_storage != NULL);
 
-  // set HDFS because the memory is not applied actually
-  // it will be set to MEMORY in function
-  EXEC_AND_LOG_RETURN(ret,
-                      part_storage->AddChunkWithMemoryToNum(chunk_id, HDFS),
-                      "added chunk to " << chunk_id, "failed to add chunk");
+  /// set HDFS because the memory is not applied actually
+  /// it will be set to MEMORY in function
+  uint64_t last_chunk_id = (packet.pos_ + packet.offset_) / CHUNK_SIZE;
+  //  assert(last_chunk_id <=
+  //             (1024UL * 1024 * 1024 * 1024 * 1024) / (64 * 1024 * 1024) &&
+  //         " memory for chunk should not larger than 1PB");
+  DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
+             << " CHUNK SIZE is:" << CHUNK_SIZE
+             << " last chunk id is:" << last_chunk_id;
+  EXEC_AND_LOG_RETURN(
+      ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
+      "added chunk to " << last_chunk_id + 1, "failed to add chunk");
 
-  // copy data into applied memory
+  /// copy data into applied memory
   const uint64_t tuple_size = Catalog::getInstance()
                                   ->getTable(table_id)
                                   ->getProjectoin(prj_id)
@@ -270,7 +289,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   uint64_t total_written_length = 0;
   HdfsInMemoryChunk chunk_info;
   while (total_written_length < offset) {
-    // get start position of current chunk
+    /// get start position of current chunk
     if (BlockManager::getInstance()->getMemoryChunkStore()->getChunk(
             ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
                     cur_chunk_id),
@@ -283,6 +302,9 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
             writer.Write(packet.data_buffer_ + total_written_length,
                          offset - total_written_length);
         total_written_length += written_length;
+        LOG(INFO) << "written " << written_length
+                  << " bytes into chunk:" << cur_chunk_id
+                  << ". Now total written " << total_written_length << " bytes";
         if (total_written_length == offset) {
           // all tuple is written into memory
           return rSuccess;
@@ -292,6 +314,8 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
       } while (writer.NextBlock());
 
       ++cur_chunk_id;  // get next chunk to write
+      LOG(INFO) << "Now chunk id is " << cur_chunk_id
+                << ", the number of chunk is" << part_storage->GetChunkNum();
       assert(cur_chunk_id < part_storage->GetChunkNum());
       cur_block_id = 0;  // the block id of next chunk is 0
       pos_in_block = 0;
@@ -306,14 +330,24 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
 
 RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
                                            bool is_commited) {
-  try {
-    auto master_actor =
-        remote_actor(Config::master_loader_ip, Config::master_loader_port);
-    caf::scoped_actor self;
-    self->sync_send(master_actor, LoadAckAtom::value, txn_id, is_commited);
-  } catch (exception& e) {
-    LOG(ERROR) << e.what();
-    return rFailure;
+  int time = 0;
+  int retry_max_time = 10;
+  while (1) {
+    try {
+      auto master_actor =
+          remote_actor(Config::master_loader_ip, Config::master_loader_port);
+      caf::scoped_actor self;
+      self->sync_send(master_actor, LoadAckAtom::value, txn_id, is_commited)
+          .await([&](int r) {  // NOLINT
+            LOG(INFO) << "sent commit result:" << is_commited
+                      << " to master and received response";
+          });
+      return rSuccess;
+    } catch (exception& e) {
+      LOG(ERROR) << "failed to send commit result to master loader in "
+                 << ++time << "time." << e.what();
+      if (time >= retry_max_time) return rFailure;
+    }
   }
   return rSuccess;
 }

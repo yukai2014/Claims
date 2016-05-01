@@ -6,23 +6,22 @@
  */
 
 #include "Environment.h"
-
 #include <assert.h>
-#include "caf/all.hpp"
+#include <libconfig.h++>
 
-#include "txn_manager/txn_server.hpp"
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #undef GLOG_NO_ABBREVIATED_SEVERITIES
-#include <libconfig.h++>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <thread>  // NOLINT
+#include "caf/all.hpp"
 #include "loader/master_loader.h"
 #include "loader/slave_loader.h"
 #include "./Debug.h"
 #include "./Config.h"
+#include "common/ids.h"
 #include "common/Logging.h"
 #include "common/TypePromotionMap.h"
 #include "common/TypeCast.h"
@@ -33,7 +32,9 @@
 #include "common/expression/type_conversion_matrix.h"
 // #define DEBUG_MODE
 #include "catalog/catalog.h"
+#include "txn_manager/txn_server.hpp"
 
+using caf::announce;
 using claims::common::InitAggAvgDivide;
 using claims::common::InitOperatorFunc;
 using claims::common::InitTypeCastFunc;
@@ -46,6 +47,11 @@ using claims::txn::TxnServer;
 Environment* Environment::_instance = 0;
 
 Environment::Environment(bool ismaster) : ismaster_(ismaster) {
+  announce<NodeAddress>("NodeAddress", &NodeAddress::ip, &NodeAddress::port);
+  announce<ProjectionID>("ProjectionID", &ProjectionID::table_id,
+                         &ProjectionID::projection_off);
+  announce<PartitionID>("PartitionID", &PartitionID::projection_id,
+                        &PartitionID::partition_off);
   _instance = this;
   Config::getInstance();
   CodeGenerator::getInstance();

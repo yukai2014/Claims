@@ -169,7 +169,9 @@ RetCode SchemaFix::CheckAndToValue(std::string text_tuple, void* binary_tuple,
             rInvalidInsertData == ret) {  // error
           if (kSQL == raw_data_source) {  // treated as error
             columns_validities.push_back(std::move(Validity(i, ret)));
-            ELOG(ret, "Data from SQL is for column whose index is " << i);
+            ELOG(ret, "Data:" << text_column
+                              << " from SQL is for column whose index is "
+                              << i);
             return ret;
           } else {  // treated as warning and set default
             columns_validities.push_back(std::move(Validity(i, ret)));

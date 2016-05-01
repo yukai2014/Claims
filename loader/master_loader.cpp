@@ -59,7 +59,6 @@ using caf::behavior;
 using caf::event_based_actor;
 using caf::io::publish;
 using caf::io::remote_actor;
-using caf::mixin::sync_sender_impl;
 using caf::spawn;
 using std::endl;
 using claims::catalog::Catalog;
@@ -83,7 +82,7 @@ MasterLoader::~MasterLoader() {}
 static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
                                               MasterLoader* mloader) {
   return {
-      [=](IpPortAtom, std::string ip, int port) {  // NOLINT
+      [=](IpPortAtom, std::string ip, int port) -> int {  // NOLINT
         LOG(INFO) << "receive slave network address(" << ip << ":" << port
                   << ")" << endl;
         int new_slave_fd = -1;
@@ -96,8 +95,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         assert(new_slave_fd > 3);
 
         DLOG(INFO) << "going to push socket into map";
-        mloader->slave_addr_to_socket_[NodeAddress(ip, to_string(port))] =
-            new_slave_fd;
+        mloader->slave_addr_to_socket_[NodeAddress(ip, "")] = new_slave_fd;
         DLOG(INFO) << "start to send test message to slave";
 
         /// test whether socket works well
@@ -126,8 +124,10 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         //        } else {
         //          DLOG(INFO) << "message buffer is sent";
         //        }
+
+        return 1;
       },
-      [=](LoadAckAtom, int txn_id, bool is_commited) {  // NOLINT
+      [=](LoadAckAtom, uint64_t txn_id, bool is_commited) -> int {  // NOLINT
         // TODO(ANYONE): there should be a thread checking whether transaction
         // overtime periodically and abort these transaction and delete from
         // map.
@@ -136,24 +136,45 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         claims::txn::Ingest ingest;
         ingest.Id = txn_id;
         if (is_commited) {
+          LOG(INFO) << "received a commit result of txn with id:" << txn_id;
+          cout << "received a commit result of txn with id:" << txn_id << endl;
           if (++(mloader->txn_commint_info_.at(txn_id).commited_part_num_) >=
               mloader->txn_commint_info_.at(txn_id).total_part_num_) {
             // TODO(lizhifang): optimize the interface of TxnClient
             TxnClient::CommitIngest(ingest);
             mloader->txn_commint_info_.erase(txn_id);
+            LOG(INFO) << "committed txn with id:" << txn_id
+                      << " to txn manager";
+            cout << "committed txn with id:" << txn_id << " to txn manager"
+                 << endl;
           }
         } else {
           // TODO(lizhifang): optimize the interface of TxnClient
           TxnClient::AbortIngest(ingest);
           mloader->txn_commint_info_.erase(txn_id);
+          LOG(INFO) << "aborted txn with id:" << txn_id << " to txn manager";
+          cout << "aborted txn with id:" << txn_id << " to txn manager" << endl;
         }
+
+        return 1;
       },
-      [=](RegNodeAtom, NodeAddress addr,
-          NodeID node_id) -> caf::message {  // NOLINT
-        LOG(INFO) << "get node register info from " << addr.ip << ":"
-                  << addr.port;
+      [=](RegNodeAtom, NodeAddress addr, NodeID node_id) -> int {  // NOLINT
+        LOG(INFO) << "get node register info : (" << addr.ip << ":" << addr.port
+                  << ") --> " << node_id;
         NodeTracker::GetInstance()->InsertRegisteredNode(node_id, addr);
-        return caf::make_message(OkAtom::value);
+        //        return caf::make_message(OkAtom::value);
+        return 1;
+      },
+      [=](BindPartAtom, PartitionID part_id, NodeID node_id) -> int {  // NOLINT
+        LOG(INFO) << "get part bind info (T" << part_id.projection_id.table_id
+                  << "P" << part_id.projection_id.projection_off << "G"
+                  << part_id.partition_off << ") --> " << node_id;
+        Catalog::getInstance()
+            ->getTable(part_id.projection_id.table_id)
+            ->getProjectoin(part_id.projection_id.projection_off)
+            ->getPartitioner()
+            ->bindPartitionToNode(part_id.partition_off, node_id);
+        return 1;
       },
       caf::others >> [] { LOG(ERROR) << "nothing matched!!!"; }};
 }
@@ -244,7 +265,7 @@ RetCode MasterLoader::Ingest() {
 string MasterLoader::GetMessage() {
   // for testing
   string ret =
-      "LINEITEM,|,\n"
+      "LINEITEM,|,\n,"
       "1|155190|7706|1|17|21168.23|0.04|0.02|N|O|1996-03-13|1996-"
       "02-12|1996-03-22|DELIVER IN PERSON|TRUCK|egular courts above the|\n"
       "1|67310|7311|2|36|45983.16|0.09|0.06|N|O|1996-04-12|1996-02-28|1996-04-"
@@ -319,6 +340,7 @@ RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
 RetCode MasterLoader::GetRequestFromMessage(const string& message,
                                             IngestionRequest* req) {
   //  AddRowIdColumn()
+  static uint64_t row_id = 10000000;
   RetCode ret = rSuccess;
   size_t pos = message.find(',', 0);
   req->table_name_ = message.substr(0, pos);
@@ -327,14 +349,16 @@ RetCode MasterLoader::GetRequestFromMessage(const string& message,
   req->col_sep_ = message.substr(pos, next_pos - pos);
 
   pos = next_pos + 1;
-  next_pos = message.find('\n', pos);
+  next_pos = message.find(',', pos);
   req->row_sep_ = message.substr(pos, next_pos - pos);
 
+  pos = next_pos + 1;
   string tuple;
-  string data_string = message.substr(pos + 1);
+  string data_string = message.substr(pos);
   istringstream iss(data_string);
   while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_)) {
-    req->tuples_.push_back(tuple);
+    uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
+    req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ + tuple);
   }
   req->Show();
   return ret;
@@ -360,6 +384,7 @@ RetCode MasterLoader::GetPartitionTuples(
   // check all tuples to be inserted
   int line = 0;
   for (auto tuple_string : req.tuples_) {
+    DLOG(INFO) << "to be inserted tuple:" << tuple_string;
     void* tuple_buffer = Malloc(table->getSchema()->getTupleMaxSize());
     if (tuple_buffer == NULL) return claims::common::rNoMemory;
     MemoryGuardWithRetCode<void> guard(tuple_buffer, ret);
@@ -438,9 +463,14 @@ RetCode MasterLoader::ApplyTransaction(
     for (int j = 0; j < prj->getPartitioner()->getNumberOfPartitions(); ++j) {
       req.Insert(GetGlobalPartId(table_id, i, j), tuple_length,
                  partition_buffers[i][j].length_ / tuple_length);
+      cout << "the length of partition buffer[" << i << "," << j
+           << "] is:" << partition_buffers[i][j].length_ << std::endl;
     }
   }
+
   TxnClient::BeginIngest(req, ingest);
+
+  cout << req.ToString() << " " << ingest.ToString() << endl;
 
   return ret;
 }
@@ -475,6 +505,7 @@ RetCode MasterLoader::WriteLog(
 
 RetCode MasterLoader::ReplyToMQ(const IngestionRequest& req) {
   // TODO(YUKAI)
+  return rSuccess;
 }
 
 RetCode MasterLoader::SendPartitionTupleToSlave(
@@ -561,10 +592,13 @@ RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
   NodeID node_id_in_rmm =
       table->getProjectoin(prj_id)->getPartitioner()->getPartitionLocation(
           part_id);
+  LOG(INFO) << "node id is " << node_id_in_rmm;
   NodeAddress addr;
   EXEC_AND_LOG_RETURN(
       ret, NodeTracker::GetInstance()->GetNodeAddr(node_id_in_rmm, addr),
       "got node address", "failed to get node address");
+  LOG(INFO) << "node address is " << addr.ip << ":" << addr.port;
+  addr.port = "";  // the port is used for OLAP, not for loading
   socket_fd = slave_addr_to_socket_[addr];
   return ret;
 }

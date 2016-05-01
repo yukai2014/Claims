@@ -8,12 +8,11 @@
 #include "ResourceManagerMaster.h"
 
 #include <unistd.h>
-
+#include <vector>
+#include "../Config.h"
 #include "../Environment.h"
 #include "../loader/load_packet.h"
 #include "caf/io/all.hpp"
-
-#include "../Config.h"
 using caf::io::remote_actor;
 using claims::loader::OkAtom;
 using claims::loader::RegNodeAtom;
@@ -40,48 +39,32 @@ NodeID ResourceManagerMaster::RegisterNewSlave(NodeAddress new_slave_address) {
     return false;
   }
 
-  // send all node info to master loader
+  //  // send all node info to master loader
   //  DLOG(INFO) << "going to send node info to (" << Config::master_loader_ip
   //             << ":" << Config::master_loader_port << ")";
   //  int retry_max_time = 10;
   //  int time = 0;
-  //  bool is_ok = false;
-  //  caf::actor master_actor;
   //  while (1) {
   //    try {
-  //      master_actor =
+  //      caf::actor master_actor =
   //          remote_actor(Config::master_loader_ip,
   //          Config::master_loader_port);
+  //      caf::scoped_actor self;
+  //      self->sync_send(master_actor, RegNodeAtom::value, new_slave_address,
+  //                      new_node_id);
   //    } catch (exception& e) {
   //      //      LOG(ERROR) << "can't send node info to master loader in " <<
   //      //      ++time
   //      cout << "new remote actor " << Config::master_loader_ip << ","
-  //           << Config::master_loader_port << "failed for "
-  //           << " time. " << e.what();
+  //           << Config::master_loader_port << "failed for " << ++time << "
+  //           time. "
+  //           << e.what() << endl;
   //      usleep(100 * 1000);
   //      if (time >= retry_max_time) return false;
   //      continue;
   //    }
-  //    caf::scoped_actor self;
-  //    self->sync_send(master_actor, RegNodeAtom::value, new_slave_address,
-  //                    new_node_id)
-  //        .await([&](OkAtom) {
-  //                 cout << "successfully sent node info to master loader";
-  //                 is_ok = true;
-  //               },
-  //               [&](const caf::sync_exited_msg& msg) {
-  //                 cout << "notify link fail";
-  //                 usleep(100 * 1000);
-  //               },
-  //               caf::after(std::chrono::milliseconds(10)) >>
-  //                   [&]() {
-  //                     cout << "notify timeout for " << ++time << " time.";
-  //                     if (time >= retry_max_time) return false;
-  //                   });
-  //
-  //    if (is_ok) break;
   //  }
-  //
+
   //  if(node_to_resourceinfo_.find(new_node_id)!=node_to_resourceinfo_.end()){
   //    /*The slaveId has already existed.*/
   //    return false;

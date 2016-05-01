@@ -333,6 +333,10 @@ RetCode TxnServer::RecoveryFromCatalog() {
     CountList[i] = 0;
     LogicCPList[i] = 0;
   }
+
+  PosList[10000000] = 2017198080;
+  CountList[10000000] = 6001215;
+  LogicCPList[10000000] = 2017198080;
 }
 
 RetCode TxnServer::RecoveryFromTxnLog() {}

@@ -62,6 +62,8 @@ RetCode PartitionStorage::AddChunkWithMemoryToNum(
     const unsigned& number_of_chunks, const StorageLevel& storage_level) {
   RetCode ret = rSuccess;
   if (number_of_chunks_ >= number_of_chunks - 1) return ret;
+  LOG(INFO) << "now chunk number:" << number_of_chunks_
+            << ". expected chunk num:" << number_of_chunks;
   for (unsigned i = number_of_chunks_; i < number_of_chunks; i++) {
     ChunkStorage* chunk =
         new ChunkStorage(ChunkID(partition_id_, i), BLOCK_SIZE, storage_level);

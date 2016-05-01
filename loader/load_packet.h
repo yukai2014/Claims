@@ -37,6 +37,7 @@ namespace loader {
 using IpPortAtom = caf::atom_constant<caf::atom("ip_port")>;
 using LoadAckAtom = caf::atom_constant<caf::atom("load_ack")>;
 using RegNodeAtom = caf::atom_constant<caf::atom("reg_node")>;
+using BindPartAtom = caf::atom_constant<caf::atom("bind_part")>;
 using OkAtom = caf::atom_constant<caf::atom("ok")>;
 
 /**************  LoadPacket format  *****************/
@@ -66,7 +67,7 @@ struct LoadPacket {
   RetCode Deserialize(const void* const head_buffer, void* data_buffer);
 
  public:
-  static const int kHeadLength = 5 * 4;
+  static const int kHeadLength = 5 * sizeof(uint64_t);
 
  public:
   uint64_t txn_id_;
