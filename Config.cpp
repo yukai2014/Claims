@@ -94,7 +94,6 @@ bool Config::is_master_loader;
 std::string Config::master_loader_ip;
 int Config::master_loader_port;
 
-
 bool Config::enable_txn_server;
 int Config::txn_server_cores;
 std::string Config::txn_server_ip;
@@ -103,6 +102,7 @@ int Config::txn_server_port;
 bool Config::enable_txn_log;
 std::string Config::txn_log_path;
 
+int Config::master_loader_thread_num;
 
 Config *Config::getInstance() {
   if (instance_ == 0) {
@@ -184,6 +184,8 @@ void Config::initialize() {
   enable_txn_log = getBoolean("txn_log", true);
 
   txn_log_path = getString("txn_log_path", ".");
+
+  master_loader_thread_num = getInt("master_loader_thread_num", 4);
 
 #ifdef DEBUG_Config
   print_configure();

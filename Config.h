@@ -91,6 +91,7 @@ class Config {
   static bool enable_txn_log;
   static std::string txn_log_path;
 
+  static int master_loader_thread_num;
 
  private:
   static Config* instance_;

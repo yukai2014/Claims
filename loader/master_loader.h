@@ -31,6 +31,7 @@
 
 #include <boost/unordered/unordered_map.hpp>
 #include <glog/logging.h>
+#include <functional>
 #include <string>
 #include <vector>
 #include "caf/all.hpp"
@@ -39,6 +40,9 @@
 #include "../common/error_define.h"
 #include "../common/ids.h"
 #include "../txn_manager/txn.hpp"
+#include "../utility/lock.h"
+
+using std::function;
 
 namespace claims {
 namespace catalog {
@@ -54,6 +58,9 @@ using caf::event_based_actor;
 using claims::catalog::TableDescriptor;
 
 class MasterLoader {
+  // public:
+  //  enum DataIngestSource { kActiveMQ };
+
  public:
   struct IngestionRequest {
     string table_name_;
@@ -66,6 +73,21 @@ class MasterLoader {
                 << ", row separator:" << row_sep_
                 << ", tuples size is:" << tuples_.size();
     }
+  };
+  struct WorkerPara {
+    WorkerPara(MasterLoader* mloader, const std::string& brokerURI,
+               const std::string& destURI, bool use_topic = false,
+               bool client_ack = false)
+        : use_topic_(use_topic),
+          brokerURI_(brokerURI),
+          destURI_(destURI),
+          client_ack_(client_ack),
+          master_loader_(mloader) {}
+    const std::string& brokerURI_;
+    const std::string& destURI_;
+    bool use_topic_ = false;
+    bool client_ack_ = false;
+    MasterLoader* master_loader_;
   };
 
   struct CommitInfo {
@@ -92,7 +114,7 @@ class MasterLoader {
 
   RetCode ConnectWithSlaves();
 
-  RetCode Ingest();
+  RetCode Ingest(const string& message, function<int()> ack_function);
 
  private:
   string GetMessage();
@@ -148,6 +170,7 @@ class MasterLoader {
                                   MasterLoader* mloader);
 
  public:
+  static void* Work(void* para);
   static void* StartMasterLoader(void* arg);
 
  private:
@@ -159,6 +182,7 @@ class MasterLoader {
 
   // store  id of transactions which are not finished
   boost::unordered_map<uint64_t, CommitInfo> txn_commint_info_;
+  Lock lock_;
 };
 
 } /* namespace loader */

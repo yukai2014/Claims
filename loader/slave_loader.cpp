@@ -282,13 +282,14 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
                                   ->getProjectoin(prj_id)
                                   ->getSchema()
                                   ->getTupleMaxSize();
-  const uint64_t offset = packet.offset_;
+
   uint64_t cur_chunk_id = packet.pos_ / CHUNK_SIZE;
   uint64_t cur_block_id = (packet.pos_ % CHUNK_SIZE) / BLOCK_SIZE;
   uint64_t pos_in_block = packet.pos_ % BLOCK_SIZE;
   uint64_t total_written_length = 0;
+  uint64_t data_length = packet.data_length_;
   HdfsInMemoryChunk chunk_info;
-  while (total_written_length < offset) {
+  while (total_written_length < data_length) {
     /// get start position of current chunk
     if (BlockManager::getInstance()->getMemoryChunkStore()->getChunk(
             ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
@@ -300,15 +301,15 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
       do {  // write to every block
         uint64_t written_length =
             writer.Write(packet.data_buffer_ + total_written_length,
-                         offset - total_written_length);
+                         data_length - total_written_length);
         total_written_length += written_length;
         LOG(INFO) << "written " << written_length
                   << " bytes into chunk:" << cur_chunk_id
                   << ". Now total written " << total_written_length << " bytes";
-        if (total_written_length == offset) {
+        if (total_written_length == data_length) {
           // all tuple is written into memory
           return rSuccess;
-        } else if (total_written_length > offset) {
+        } else if (total_written_length > data_length) {
           assert(false);
         }
       } while (writer.NextBlock());

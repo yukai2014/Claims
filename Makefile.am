@@ -11,7 +11,7 @@ AM_CPPFLAGS=-fPIC  -DTHERON_XS\
 
 #-L/usr/local/lib \
 #-I/usr/local/include
-AM_LDFLAGS=  -lc -lm -lrt -lpthread \
+AM_LDFLAGS=  -lc -lm -lrt -lpthread -lactivemq-cpp\
 	-lconfig++ -lxs -lnuma -lreadline -lhistory -lz -ltinfo -Wl,--no-as-needed -ldl -rdynamic -lglog
 
 if OPT_TCMALLOC

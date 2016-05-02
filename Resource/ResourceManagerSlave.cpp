@@ -80,6 +80,7 @@ NodeID InstanceResourceManager::Register() {
     return ret;
   } else {
     logging_->elog("Failed to get NodeId from the master.");
+    cerr << "Failed to get NodeId from the master." << endl;
     return -1;
   }
 }

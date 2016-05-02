@@ -79,7 +79,7 @@ bool ProjectionDescriptor::AllPartitionBound() const {
 }
 std::vector<Attribute> ProjectionDescriptor::getAttributeList() const {
   std::vector<Attribute> ret;
-  LOG(INFO) << "the length of column list is:" << column_list_.size();
+  //  DLOG(INFO) << "the length of column list is:" << column_list_.size();
   for (unsigned i = 0; i < this->column_list_.size(); i++) {
     ret.push_back((Attribute)column_list_[i]);
   }

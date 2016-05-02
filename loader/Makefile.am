@@ -7,7 +7,9 @@ AM_CPPFLAGS= -fPIC -fpermissive \
 -I${JAVA_HOME}/include/linux \
 -I${THERON_HOME}/Include \
 -I${CAF_HOME}/libcaf_io	\
--I${CAF_HOME}/libcaf_core
+-I${CAF_HOME}/libcaf_core \
+-I/usr/local/include/activemq-cpp-3.9.3 \
+-I/usr/local/apr/include/apr-1
 
 AM_LDFLAGS=-lc -lm -lrt -lcaf_core -lcaf_io -lxs -lboost_serialization
 
@@ -37,7 +39,8 @@ libloader_a_SOURCES = \
 	slave_loader.cpp 		slave_loader.h \
 	table_file_connector.cpp 		table_file_connector.h \
 	validity.cpp 		validity.h \
-	load_packet.h		load_packet.cpp
+	load_packet.h		load_packet.cpp \
+	AMQ_consumer.h		AMQ_consumer.cpp
 
 SUBDIRS = test
 DIST_SUBDIRS = test

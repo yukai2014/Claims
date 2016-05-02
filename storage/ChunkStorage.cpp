@@ -418,10 +418,11 @@ uint64_t InMemoryChunkWriterIterator::Write(const void* const buffer_to_write,
       block_offset + block_size_ - sizeof(unsigned));
   int can_store_tuple_count =
       (block_size_ - sizeof(unsigned)) / tuple_size_ - *tuple_count_in_block;
-  LOG(INFO) << "block whose id is " << block_id_ << " stored "
-            << *tuple_count_in_block << " tuple and leaf "
-            << can_store_tuple_count
-            << " tuple space. and tuple size is:" << tuple_size_;
+  assert(can_store_tuple_count >= 0);
+  DLOG(INFO) << "block whose id is " << block_id_ << " stored "
+             << *tuple_count_in_block << " tuple and leaf "
+             << can_store_tuple_count
+             << " tuple space. and tuple size is:" << tuple_size_;
 
   // there are space to store data
   if (can_store_tuple_count > 0) {
@@ -429,10 +430,13 @@ uint64_t InMemoryChunkWriterIterator::Write(const void* const buffer_to_write,
         length_to_write / tuple_size_ > can_store_tuple_count
             ? can_store_tuple_count
             : length_to_write / tuple_size_;
+    DLOG(INFO) << "memcpy start pos is "
+               << block_offset + (*tuple_count_in_block) * block_size_
+               << ". buffer to write: " << buffer_to_write;
     memcpy(block_offset + (*tuple_count_in_block) * block_size_,
            buffer_to_write, actual_written_tuple_count * tuple_size_);
-    LOG(INFO) << "copy " << actual_written_tuple_count * tuple_size_
-              << " bytes into block:" << block_id_;
+    DLOG(INFO) << "copy " << actual_written_tuple_count * tuple_size_
+               << " bytes into block:" << block_id_;
 
     __sync_add_and_fetch(tuple_count_in_block, actual_written_tuple_count);
     return actual_written_tuple_count * tuple_size_;

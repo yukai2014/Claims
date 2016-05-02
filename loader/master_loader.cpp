@@ -27,6 +27,8 @@
  */
 
 #include "./master_loader.h"
+
+#include <activemq/library/ActiveMQCPP.h>
 #include <iostream>
 #include <string>
 #include <functional>
@@ -37,6 +39,7 @@
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 
+#include "./AMQ_consumer.h"
 #include "./load_packet.h"
 #include "./loader_message.h"
 #include "./validity.h"
@@ -183,7 +186,7 @@ RetCode MasterLoader::ConnectWithSlaves() {
   int ret = rSuccess;
   try {
     auto listening_actor = spawn(&MasterLoader::ReceiveSlaveReg, this);
-    publish(listening_actor, master_loader_port_);
+    publish(listening_actor, master_loader_port_, nullptr, true);
     DLOG(INFO) << "published in " << master_loader_ip_ << ":"
                << master_loader_port_;
     cout << "published in " << master_loader_ip_ << ":" << master_loader_port_;
@@ -194,14 +197,12 @@ RetCode MasterLoader::ConnectWithSlaves() {
   return ret;
 }
 
-RetCode MasterLoader::Ingest() {
+RetCode MasterLoader::Ingest(const string& message,
+                             function<int()> ack_function) {
   RetCode ret = rSuccess;
 
-  cout << "\ninput a number to continue" << std::endl;
-  int temp;
-  cin >> temp;
-  cout << "Well , temp is received" << std::endl;
-  string message = GetMessage();
+  //  string message = GetMessage();
+  //  DLOG(INFO) << "get message:\n" << message;
 
   // get message from MQ
   IngestionRequest req;
@@ -228,6 +229,7 @@ RetCode MasterLoader::Ingest() {
   if (ret != rSuccess && ret != claims::common::rNoMemory) {
     // TODO(YUKAI): error handle, like sending error message to client
     LOG(ERROR) << "the tuple is not valid";
+    ack_function();
     return rFailure;
   }
 
@@ -252,7 +254,7 @@ RetCode MasterLoader::Ingest() {
                "failed to write log");
 
   // reply ACK to MQ
-  EXEC_AND_LOG(ret, ReplyToMQ(req), "replied to MQ", "failed to reply to MQ");
+  EXEC_AND_LOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
 
   // distribute partition load task
   EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
@@ -384,7 +386,7 @@ RetCode MasterLoader::GetPartitionTuples(
   // check all tuples to be inserted
   int line = 0;
   for (auto tuple_string : req.tuples_) {
-    DLOG(INFO) << "to be inserted tuple:" << tuple_string;
+    //    DLOG(INFO) << "to be inserted tuple:" << tuple_string;
     void* tuple_buffer = Malloc(table->getSchema()->getTupleMaxSize());
     if (tuple_buffer == NULL) return claims::common::rNoMemory;
     MemoryGuardWithRetCode<void> guard(tuple_buffer, ret);
@@ -463,14 +465,14 @@ RetCode MasterLoader::ApplyTransaction(
     for (int j = 0; j < prj->getPartitioner()->getNumberOfPartitions(); ++j) {
       req.Insert(GetGlobalPartId(table_id, i, j), tuple_length,
                  partition_buffers[i][j].length_ / tuple_length);
-      cout << "the length of partition buffer[" << i << "," << j
-           << "] is:" << partition_buffers[i][j].length_ << std::endl;
+      //      DLOG(INFO) << "the length of partition buffer[" << i << "," << j
+      //           << "] is:" << partition_buffers[i][j].length_ << std::endl;
     }
   }
 
   TxnClient::BeginIngest(req, ingest);
 
-  cout << req.ToString() << " " << ingest.ToString() << endl;
+  //  cout << req.ToString() << " " << ingest.ToString() << endl;
 
   return ret;
 }
@@ -606,6 +608,7 @@ RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
 RetCode MasterLoader::SendPacket(const int socket_fd,
                                  const void* const packet_buffer,
                                  const uint64_t packet_length) {
+  LockGuard<Lock> guard(lock_);
   size_t total_write_num = 0;
   while (total_write_num < packet_length) {
     ssize_t write_num = write(
@@ -620,6 +623,15 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
   return rSuccess;
 }
 
+void* MasterLoader::Work(void* arg) {
+  WorkerPara* para = static_cast<WorkerPara*>(arg);
+  AMQConsumer consumer(para->brokerURI_, para->destURI_, para->use_topic_,
+                       para->client_ack_);
+  consumer.run(para->master_loader_);
+  while (1) sleep(10);
+  return NULL;
+}
+
 void* MasterLoader::StartMasterLoader(void* arg) {
   Config::getInstance();
   LOG(INFO) << "start master loader...";
@@ -631,9 +643,63 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->ConnectWithSlaves(),
                           "failed to connect all slaves");
 
-  while (true)
-    EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
-                            "failed to ingest data");
+  activemq::library::ActiveMQCPP::initializeLibrary();
+  // Use either stomp or openwire, the default ports are different for each
+  //
+  // Examples:
+  //    tcp://127.0.0.1:61616                      default to openwire
+  //    tcp://127.0.0.1:61616?wireFormat=openwire  same as above
+  //    tcp://127.0.0.1:61613?wireFormat=stomp     use stomp instead
+  //
+  std::string brokerURI =
+      "failover:(tcp://"
+      "58.198.176.92:61616?wireFormat=openwire&connection.useAsyncSend=true"
+      //        "&transport.commandTracingEnabled=true"
+      //        "&transport.tcpTracingEnabled=true"
+      //        "&wireFormat.tightEncodingEnabled=true"
+      ")";
+
+  //============================================================
+  // This is the Destination Name and URI options.  Use this to
+  // customize where the consumer listens, to have the consumer
+  // use a topic or queue set the 'useTopics' flag.
+  //============================================================
+  std::string destURI =
+      "t123?consumer.prefetchSize = 1 ";  // ?consumer.prefetchSize=1";
+
+  //============================================================
+  // set to true to use topics instead of queues
+  // Note in the code above that this causes createTopic or
+  // createQueue to be used in the consumer.
+  //============================================================
+  bool use_topics = false;
+
+  //============================================================
+  // set to true if you want the consumer to use client ack mode
+  // instead of the default auto ack mode.
+  //============================================================
+  bool client_ack = true;
+
+  cout << "\n input a number to continue" << std::endl;
+  int temp;
+  cin >> temp;
+  cout << "Well , start flag is received" << std::endl;
+
+  //  AMQConsumer consumer(brokerURI, destURI, use_topics, client_ack);
+  //  consumer.run(master_loader);
+  for (int i = 0; i < Config::master_loader_thread_num - 1; ++i) {
+    WorkerPara para(master_loader, brokerURI, destURI, use_topics, client_ack);
+    Environment::getInstance()->getThreadPool()->AddTask(MasterLoader::Work,
+                                                         &para);
+  }
+  // i am also a worker
+  WorkerPara para(master_loader, brokerURI, destURI, use_topics, client_ack);
+  Work(&para);
+
+  while (1) sleep(10);
+
+  //      while (true) EXEC_AND_ONLY_LOG_ERROR(ret, master_loader->Ingest(),
+  //                                           "failed to ingest data");
 
   return NULL;
 }

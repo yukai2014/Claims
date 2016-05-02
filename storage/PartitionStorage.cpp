@@ -7,6 +7,7 @@
 
 #include "PartitionStorage.h"
 
+#include <assert.h>
 #include "../common/error_define.h"
 #include "../Debug.h"
 #include "MemoryStore.h"
@@ -59,12 +60,13 @@ void PartitionStorage::updateChunksWithInsertOrAppend(
 }
 
 RetCode PartitionStorage::AddChunkWithMemoryToNum(
-    const unsigned& number_of_chunks, const StorageLevel& storage_level) {
+    const unsigned& expected_number_of_chunks,
+    const StorageLevel& storage_level) {
   RetCode ret = rSuccess;
-  if (number_of_chunks_ >= number_of_chunks - 1) return ret;
+  if (number_of_chunks_ >= expected_number_of_chunks) return ret;
   LOG(INFO) << "now chunk number:" << number_of_chunks_
-            << ". expected chunk num:" << number_of_chunks;
-  for (unsigned i = number_of_chunks_; i < number_of_chunks; i++) {
+            << ". expected chunk num:" << expected_number_of_chunks;
+  for (unsigned i = number_of_chunks_; i < expected_number_of_chunks; i++) {
     ChunkStorage* chunk =
         new ChunkStorage(ChunkID(partition_id_, i), BLOCK_SIZE, storage_level);
     EXEC_AND_LOG(ret, chunk->ApplyMemory(), "applied memory for chunk("
@@ -74,7 +76,8 @@ RetCode PartitionStorage::AddChunkWithMemoryToNum(
                                                      << "," << i << ")");
     chunk_list_.push_back(chunk);
   }
-  number_of_chunks_ = number_of_chunks;
+  number_of_chunks_ = expected_number_of_chunks;
+  assert(chunk_list_.size() == number_of_chunks_);
 
   return ret;
 }

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <libconfig.h++>
 #include <netdb.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <iostream>
 #include <ostream>
@@ -154,18 +155,20 @@ void *Coordinator::ListeningNewNode(void *arg) {
     int recvbytes;
     int port;
 
-    if ((recvbytes = recv(socket_fd_new, &port, sizeof(port), MSG_WAITALL)) ==
-        -1) {
+    int retry_time = 10;
+    int time = 0;
+    while ((recvbytes =
+                recv(socket_fd_new, &port, sizeof(port), MSG_WAITALL)) == -1) {
       std::cout
           << "New node " << inet_ntoa(remote_addr.sin_addr)
           << " has connected, but the receiving the information times out!"
-          << std::endl;
-      FileClose(socket_fd_new);
-      // logging->elog("-----for debug: fd %d is closed",
-      // socket_fd_new);
-      continue;
-      // return false;
+          << strerror(errno) << std::endl;
+      if (++time >= retry_time) {
+        FileClose(socket_fd_new);
+        break;
+      }
     }
+    if (time >= retry_time) continue;
     if (recvbytes != sizeof(int)) {
       std::cout << "Information received, but the length is not right!"
                 << std::endl;
@@ -198,7 +201,8 @@ void *Coordinator::ListeningNewNode(void *arg) {
                           new_node_port.c_str());
     } else {
       Cthis->logging->log(
-          "[Coordinator]: The Coordinator EndPoint has successfully connected "
+          "[Coordinator]: The Coordinator EndPoint has successfully "
+          "connected "
           "to the EndPoint of the new node!");
     }
 
@@ -212,7 +216,8 @@ void *Coordinator::ListeningNewNode(void *arg) {
      * message to each NodeConnectionActor until the feedback is received
      * which means the target node has conducted new connection based on
      * message received.
-     * However, if the target node is dead, the message will be sent repeatedly
+     * However, if the target node is dead, the message will be sent
+     * repeatedly
      * and infinitely. Additional code is needed to handle the dead node.
      */
     for (unsigned i = 0; i < Cthis->PeersIpPort.size(); i++) {
@@ -255,10 +260,12 @@ void *Coordinator::ListeningNewNode(void *arg) {
 
     Cthis->SendReadyNotificationToNewNode(socket_fd_new, 'R');
 
-    // below code should be keep in case of dynamically selecting master loader
+    // below code should be keep in case of dynamically selecting master
+    // loader
     /*if (1 == Cthis->PeersIpPort.size()) {
       // select the first new node as loader master
-      LOG(INFO) << "Congratulations! (" << new_node_ip << ", " << new_node_port
+      LOG(INFO) << "Congratulations! (" << new_node_ip << ", " <<
+    new_node_port
                 << ") is selected to be master loader";
       if (Cthis->SendReadyNotificationToNewNode(socket_fd_new, 'M'))
         LOG(INFO) << "succeed to send M notify this node";

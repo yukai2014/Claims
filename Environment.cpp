@@ -65,12 +65,6 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
     initializeCoordinator();
     logging_->log("Initializing the catalog ...");
   }
-  catalog_ = claims::catalog::Catalog::getInstance();
-  logging_->log("restore the catalog ...");
-  if (rSuccess != catalog_->restoreCatalog()) {
-    LOG(ERROR) << "failed to restore catalog" << std::endl;
-    cerr << "ERROR: restore catalog failed" << endl;
-  }
 
   if (true == g_thread_pool_used) {
     logging_->log("Initializing the ThreadPool...");
@@ -91,17 +85,20 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
    * TODO:
    * DO something in AdaptiveEndPoint such that the construction function does
           not return until the connection is completed. If so, the following
-   sleep()
-          dose not needed.
-
+         sleep() dose not needed.
           This is done in Aug.18 by Li :)
    */
-
   /*Before initializing Resource Manager, the instance ip and port should be
    * decided.*/
-
   logging_->log("Initializing the ResourceManager...");
   initializeResourceManager();
+
+  catalog_ = claims::catalog::Catalog::getInstance();
+  logging_->log("restore the catalog ...");
+  if (rSuccess != catalog_->restoreCatalog()) {
+    LOG(ERROR) << "failed to restore catalog" << std::endl;
+    cerr << "ERROR: restore catalog failed" << endl;
+  }
 
   logging_->log("Initializing the Storage...");
   initializeStorage();

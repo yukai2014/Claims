@@ -55,7 +55,7 @@ class PartitionStorage {
                                       const unsigned& number_of_chunks,
                                       const StorageLevel& storage_level);
 
-  RetCode AddChunkWithMemoryToNum(const unsigned& number_of_chunks,
+  RetCode AddChunkWithMemoryToNum(const unsigned& expected_number_of_chunks,
                                   const StorageLevel& storage_level);
   void removeAllChunks(const PartitionID& partition_id);
   PartitionReaderItetaor* createReaderIterator();
