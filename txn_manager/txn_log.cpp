@@ -31,120 +31,133 @@ namespace claims{
 namespace txn{
 
 
-string LogServer::log_path = ".";
-FILE * LogServer::log_handler = nullptr;
-UInt64 LogServer::log_size = 0;
-UInt64 LogServer::max_log_size = kMaxLogSize;
-char * LogServer::buffer = nullptr;
-UInt64 LogServer::buffer_size  = 0;
-UInt64 LogServer::max_buffer_size = kMaxLogSize * 10;
-caf::actor LogServer::log_server;
-bool LogServer::is_active = false;
-
-RetCode LogServer::init(const string path) {
+string LogServer::file_path_ = ".";
+FILE * LogServer::file_handler_ = nullptr;
+UInt64 LogServer::file_size_ = 0;
+UInt64 LogServer::file_capacity_ = kMaxLogSize;
+char * LogServer::buffer_ = nullptr;
+UInt64 LogServer::buffer_size_  = 0;
+UInt64 LogServer::buffer_capacity_ = kMaxLogSize * 10;
+caf::actor LogServer::proxy_;
+bool LogServer::active_ = false;
+RetCode LogServer::Init(const string path) {
   cout << "log server init" << endl;
-  log_server = caf::spawn<LogServer>();
-  log_path = path;
-  buffer = (char*)malloc(max_buffer_size);
-  if (buffer == nullptr) return -1;
-  is_active = true;
+  proxy_ = caf::spawn<LogServer, caf::detached>();
+  file_path_ = path;
+  buffer_ = (char*)malloc(buffer_capacity_);
+  if (buffer_ == nullptr) return -1;
+  active_ = true;
   return 0;
 }
 
 caf::behavior LogServer::make_behavior() {
 
   return {
-    [=](BeginAtom, UInt64 id)->RetCode {
-        return Append(BeginLog(id));
+    [=](IngestAtom, shared_ptr<Ingest> ingest)->caf::message {
+       Append(BeginLog(ingest->id_));
+       for (auto & strip : ingest->strip_list_)
+         Append(WriteLog(ingest->id_, strip.first, strip.second.first,strip.second.second));
+      //cout << "begin" << endl;
+      return caf::make_message(0, *ingest);
       },
-    [=](WriteAtom,UInt64 id, UInt64 part, UInt64 pos,
-        UInt64 offset)->RetCode {
-        return Append(WriteLog(id, part, pos, offset));
+    [=](CommitIngestAtom, const UInt64 id)->caf::message {
+        Append(CommitLog(id));
+        //cout << "commit" << endl;
+        Refresh();
+        return caf::make_message(0);
       },
-    [=](CommitAtom, UInt64 id)->RetCode {
-        return Append(CommitLog(id));
-      },
-    [=](AbortAtom, UInt64 id)->RetCode {
-        return Append(AbortLog(id));
+    [=](AbortIngestAtom, UInt64 id)->caf::message {
+        Append(AbortLog(id));
+        //cout << "abort" << endl;
+        Refresh();
+        return caf::make_message(0);
       },
     [=](CheckpointAtom, UInt64 part, UInt64 logic_cp, UInt64 phy_cp)
             ->RetCode {
         return Append(CheckpointLog(part, logic_cp, phy_cp));
       },
     [=](DataAtom,UInt64 part, UInt64 pos, UInt64 offset,
-        void * buffer, UInt64 size)->RetCode {
+        void * buffer, UInt64 size)->caf::message {
         Append(DataLogPrefix(part, pos, offset, size));
         Append(buffer, size);
-        return 0;
+        return caf::make_message(0);
       },
-    [=](RefreshAtom)->RetCode {
-       return Refresh();
+    [=](RefreshAtom)->caf::message {
+
+        Refresh();
+        return caf::make_message(0);
       },
-    caf::others >> [=] () { cout << "unkown log message" << endl; }
+    caf::others >> [=] () { cout << "unknown log message" << endl; }
   };
 }
 
 RetCode LogServer::Append (const string & log) {
-  if (buffer_size + log.length() >= max_buffer_size) {
+  if (buffer_size_ + log.length() >= buffer_capacity_) {
     cout << "append fail" << endl;
     return -1;
   }
-  memcpy(buffer + buffer_size, log.c_str(), log.length());
-  buffer_size += log.length();
-  log_size += log.length();
+  memcpy(buffer_ + buffer_size_, log.c_str(), log.length());
+  buffer_size_ += log.length();
+  file_size_ += log.length();
   return 0;
 }
 
 RetCode LogServer::Append(void * data, UInt64 size){
- if (buffer_size + size >= max_buffer_size)
+ if (buffer_size_ + size >= buffer_capacity_)
    return -1;
 
- memcpy(buffer + buffer_size, data, size);
- buffer_size += size;
- buffer[buffer_size++] = '\n';
- log_size += size + 1;
+ memcpy(buffer_ + buffer_size_, data, size);
+ buffer_size_ += size;
+ buffer_[buffer_size_++] = '\n';
+ file_size_ += size + 1;
 
  return 0;
 }
 
 RetCode LogServer::Refresh() {
-  if (log_handler == nullptr) {
+ // cout << "refresh" << endl;
+  if (file_handler_ == nullptr) {
      struct timeval ts;
      gettimeofday (&ts, NULL);
-     string file = log_path + "/" + kTxnLogFileName + to_string(ts.tv_sec);
-     log_handler = fopen (file.c_str(),"a");
-     if (log_handler == nullptr) return -1;
+     string file = file_path_ + "/" + kTxnLogFileName + to_string(ts.tv_sec);
+     //cout << file << endl;
+     file_handler_ = fopen (file.c_str(),"a");
+     if (file_handler_ == nullptr){
+       //cout <<"open file fail"<<endl;
+       return -1;
+     }
   }
 
-  if (buffer_size == 0)
+  if (buffer_size_ == 0)
     return 0;
   //cout << buffer_size << endl;
-  fwrite(buffer, sizeof(char), buffer_size, log_handler);
-  fflush(log_handler);
-  buffer_size = 0;
+  fwrite(buffer_, sizeof(char), buffer_size_, file_handler_);
+  fflush(file_handler_);
+  buffer_size_ = 0;
 
 
   /* 日志文件已满 */
-  if(log_size >= max_log_size) {
-    if (log_handler == nullptr) return -1;
-    fclose(log_handler);
-    log_handler = nullptr;
-    log_size = 0;
+  if(file_size_ >= file_capacity_) {
+    if (file_handler_ == nullptr) return -1;
+    fclose(file_handler_);
+    file_handler_ = nullptr;
+    file_size_ = 0;
   }
   return 0;
 }
 
 RetCode LogClient::Begin(UInt64 id) {
-  RetCode ret = 0;
-  caf::scoped_actor self;
-  self->sync_send( LogServer::log_server,BeginAtom::value, id).
-      await( [&](RetCode ret_code) { ret = ret_code;});
-  return ret;
+//  RetCode ret = 0;
+//  caf::scoped_actor self;
+//  cout<<"going to send begin atom to log server :"<<LogServer::proxy_.id()<<endl;
+//  self->sync_send( log_s,BeginAtom::value, id).
+//      await( [&](RetCode ret_code) { cout<<"log:Begin, ret"<<ret_code<<endl;ret = ret_code;});
+//  return ret;
 }
 RetCode LogClient::Write(UInt64 id, UInt64 part, UInt64 pos, UInt64 offset) {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send(LogServer::log_server,
+  self->sync_send(LogServer::proxy_,
                   WriteAtom::value, id, part, pos, offset).await(
                       [&](RetCode ret_code) { ret = ret_code;}
                         );
@@ -153,7 +166,7 @@ RetCode LogClient::Write(UInt64 id, UInt64 part, UInt64 pos, UInt64 offset) {
 RetCode LogClient::Commit(UInt64 id) {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send( LogServer::log_server,
+  self->sync_send( LogServer::proxy_,
                   CommitAtom::value,id).await(
                       [&](RetCode ret_code) { ret = ret_code;}
                         );
@@ -162,7 +175,7 @@ RetCode LogClient::Commit(UInt64 id) {
 RetCode LogClient::Abort(UInt64 id) {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send( LogServer::log_server,
+  self->sync_send( LogServer::proxy_,
                   AbortAtom::value, id).await(
                       [&](RetCode ret_code) { ret = ret_code;}
                         );
@@ -171,7 +184,7 @@ RetCode LogClient::Abort(UInt64 id) {
 RetCode LogClient::Data(UInt64 part, UInt64 pos, UInt64 offset, void * buffer, UInt64 size) {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send( LogServer::log_server,
+  self->sync_send( LogServer::proxy_,
                   DataAtom::value, part, pos, offset, buffer, size).await(
                       [&](RetCode ret_code) { ret = ret_code;}
                       );
@@ -180,7 +193,7 @@ RetCode LogClient::Data(UInt64 part, UInt64 pos, UInt64 offset, void * buffer, U
 RetCode LogClient::Checkpoint(UInt64 part, UInt64 logic_cp, UInt64 phy_cp) {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send(LogServer::log_server,
+  self->sync_send(LogServer::proxy_,
                   CheckpointAtom::value, part, logic_cp, phy_cp).await(
                       [&](RetCode ret_code) { ret = ret_code;}
                       );
@@ -190,7 +203,7 @@ RetCode LogClient::Checkpoint(UInt64 part, UInt64 logic_cp, UInt64 phy_cp) {
 RetCode LogClient::Refresh() {
   RetCode ret = 0;
   caf::scoped_actor self;
-  self->sync_send(LogServer::log_server, RefreshAtom::value).
+  self->sync_send(LogServer::proxy_, RefreshAtom::value).
       await( [&](RetCode ret_code) { ret = ret_code;});
   return ret;
 }

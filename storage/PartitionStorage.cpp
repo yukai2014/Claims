@@ -184,3 +184,43 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
     }
   }
 }
+PartitionStorage::TxnPartitionReaderIterator::~TxnPartitionReaderIterator() {
+
+}
+PartitionStorage::PartitionReaderItetaor* PartitionStorage::createTxnReaderIterator() {
+  return new TxnPartitionReaderIterator(this);
+}
+
+bool PartitionStorage::TxnPartitionReaderIterator::nextBlock(
+    BlockStreamBase*& block) {
+  lock_.acquire();
+  ChunkReaderIterator::block_accessor* ba;
+  if (chunk_it_ != 0 && chunk_it_->getNextBlockAccessor(ba)) {
+    lock_.release();
+    ba->getBlock(block);
+    auto block_addr = (char*)block->getBlock();
+    auto chunk_addr = (char*)((InMemoryChunkReaderItetaor*)chunk_it_)->getChunk();
+    //cout << (block_addr - chunk_addr) / (64 * 1024) << endl;
+    return true;
+  }
+  else {
+    if ((chunk_it_ = PartitionReaderItetaor::nextChunk()) > 0) {
+      lock_.release();
+      return nextBlock(block);
+    }
+    else {
+      lock_.release();
+      return false;
+    }
+  }
+}
+ChunkReaderIterator* PartitionStorage::TxnPartitionReaderIterator::nextChunk() {
+//  lock_.acquire();
+  ChunkReaderIterator* ret;
+  if (chunk_cur_ < ps->number_of_chunks_)
+    ret = ps->chunk_list_[chunk_cur_++]->createChunkReaderIterator();
+  else
+    ret = 0;
+//  lock_.release();
+  return ret;
+}

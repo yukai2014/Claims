@@ -96,7 +96,7 @@ bool PhysicalProjectionScan::Open(const PartitionOffset& kPartitionOffset) {
       SetReturnStatus(false);
     } else {
       partition_reader_iterator_ =
-          partition_handle_->createAtomicReaderIterator();
+          partition_handle_->createTxnReaderIterator();
       SetReturnStatus(true);
     }
 

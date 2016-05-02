@@ -43,10 +43,10 @@
 #include <sys/time.h>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
-#include "txn.hpp"
+//#include "txn.hpp"
 #include "txn_server.hpp"
 #include "txn_client.hpp"
-#include "txn_log.cpp"
+#include "txn_log.hpp"
 using std::cin;
 using std::cout;
 using std::endl;
@@ -62,8 +62,9 @@ using std::tuple;
 using std::make_pair;
 using std::make_tuple;
 using std::get;
-
-using namespace claims::txn;
+using std::shared_ptr;
+using std::make_shared;
+//using namespace claims::txn;
 
 using UInt64 = unsigned long long;
 using UInt32 = unsigned int;
@@ -71,6 +72,8 @@ using UInt16 = unsigned short;
 using UInt8 = char;
 using RetCode = int;
 using OkAtom = caf::atom_constant<caf::atom("ok")>;
+using IngestAtom = caf::atom_constant<caf::atom("ingest")>;
+using QueryAtom = caf::atom_constant<caf::atom("query")>;
 using FailAtom = caf::atom_constant<caf::atom("fail")>;
 using QuitAtom = caf::atom_constant<caf::atom("quit")>;
 
@@ -94,153 +97,135 @@ inline bool operator == (const Foo & a, const Foo & b) {
 }
 
 
-class AA:public caf::event_based_actor {
-  caf::behavior make_behavior() override {
-    return{
 
-      [] (FixTupleIngestReq & request){
-          cout << request.ToString() << endl;
-        },
-      [] (int a) {cout << a << endl;},
-      caf::others >> []() {
-        cout << "no matched" << endl;
-        }
-    };
-  }
-};
-class C:public caf::event_based_actor {
-  caf::behavior make_behavior() override {
-    return {
-      [=] (int a)->int { quit(); aout(this)<< a*1000 << endl;},
-      caf::others >> []() {cout << "no matched" << endl;}
-    };
-  }
-};
 
-class Foo2 {
+
+class A{
  public:
-  int a = 0;
-  int b = 0;
-};
-class Foo3{
- public:
+  vector<int> list_ ;
   int c = 0;
+  void set_list_(const vector<int> list) { list_ = list;}
+  vector<int> get_list_() const { return list_;}
 };
-using Foo2Atom = caf::atom_constant<caf::atom("foo2")>;
-using Foo3Atom = caf::atom_constant<caf::atom("foo3")>;
+inline bool operator == (const A & a1, const A & a2) {
+  return a1.list_ == a2.list_;
+}
 
-class B:public caf::event_based_actor {
+void ConfigA(){
+  caf::announce<A>("A", make_pair(&A::get_list_, &A::set_list_));
+}
+
+class Core: public caf::event_based_actor {
  public:
-  caf::actor Router;
-  B() {}
-  B(caf::actor router):Router(router) {}
-  caf::behavior make_behavior() override {
-   return {
-     [=](int a) {
-         forward_to(caf::spawn<C>());
-       },
-     [=](Foo2Atom, Foo2 * foo2)->int {
-         foo2->a = 97;
-         foo2->b = 98;
-         cout << "foo2" << endl;
-         return 101;
-       },
-     [=](Foo3Atom, Foo3 * foo3)->int {
-         foo3->c = 99;
-         cout << "foo3" << endl;
-         return 102;
-       },
-       caf::others >> []() { cout << "unkown" << endl;}
-    };
-  }
+  int id_;
+  int v_;
+  Core(int id):id_(id) {}
+  caf::behavior make_behavior() override;
 };
-using claims::txn::TxnServer;
+class Proxy: public caf::event_based_actor {
+ public:
+  caf::behavior make_behavior() override;
+};
+vector<caf::actor> cores;
+caf::actor proxy;
+caf::behavior Core::make_behavior() {
+  return {
+    [=](IngestAtom, int v)->int {
+      v_ = v;
+      //cout << "ingest:" << v_ << endl;
+      return -v_;
+     },
+     [=](QueryAtom, shared_ptr<A> ptr)->A {
+       //cout << id_ << endl;
+       ptr->list_.push_back(-id_*id_);
+      // ptr->list_.push_back(id_);
+       if(id_ != cores.size() - 1) {
+         this->forward_to(cores[id_ + 1]);
+         return A();
+         }
+       else {
+         return *ptr;
+         };
+       cout << "err" << endl;
+
+       return A();
+       },
+     caf::others >> [] { cout << "core receive unkown message" << endl;}
+  };
+}
+
+caf::behavior Proxy::make_behavior() {
+  return {
+    [=](IngestAtom, int v) {
+        //cout << "begin ingest" << endl;
+        this->forward_to(cores[v%cores.size()]);
+     },
+    [=](QueryAtom) {
+       shared_ptr<A> ptr = make_shared<A>();
+       this->current_message() = caf::make_message(QueryAtom::value, ptr);
+       this->forward_to(cores[0]);
+     },
+     caf::others >> [] { cout << "proxy receive unkown message" << endl;}
+  };
+}
+void task(int index){
+for (auto i=0;i<index;i++) {
+    caf::scoped_actor self;
+    self->sync_send(proxy, IngestAtom::value, i).await(
+        [=](int ret) { /*cout <<"receive:" << ret << endl;*/},
+        caf::after(std::chrono::seconds(2)) >> [] {
+            cout << "ingest time out" << endl;
+         }
+     );
+
+  }
+}
+
+
 using claims::txn::FixTupleIngestReq;
 using claims::txn::Ingest;
-char v[1024+10];
-
-
-
-void task(int time){
-  for (auto i = 0; i< time; i++) {
-
-      FixTupleIngestReq request1;
-      Ingest ingest;
-      request1.Content = {{0, {45, 10}},
-                                   {1, {35, 20}},
-                                   {2,{15,100}}};
-      TxnClient::BeginIngest(request1, ingest);
-      LogClient::Data(1, 1, 1111,(void*)v, 1024);
-      LogClient::Data(1, 1, 1111,(void*)v, 1024);
-      LogClient::Data(1, 1, 1111,(void*)v, 1024);
-
-      TxnClient::CommitIngest(ingest);
-//    }
+using claims::txn::TxnServer;
+using claims::txn::TxnClient;
+using claims::txn::LogServer;
+using claims::txn::LogClient;
+char buffer[3*1024+10];
+void task2(int times){
+for (auto i=0; i<times; i++) {
+    FixTupleIngestReq req;
+    Ingest ingest;
+    req.InsertStrip(0, 50, 10);
+    req.InsertStrip(1, 10 , 10);
+    TxnClient::BeginIngest(req, ingest);
+  //  cout << ingest.ToString() << endl;
+   // LogClient::Data(0,0,0,buffer,1*1024);
+    //LogClient::Data(0,0,0,buffer,1*1024);
+    TxnClient::CommitIngest(ingest.id_);
   }
 }
 
-
-void task2(int time) {
-  for (auto i = 0; i< time; i++) {
-
-    LogClient::Begin(i);
-    LogClient::Write(i, 1, 0, 100 );
-    LogClient::Write(i, 2, 0, 100 );
-    LogClient::Write(i, 3, 0, 100 );
-
-    //LogClient::PushToDisk() ;
-  }
-
-}
-
-int main(){
-//  auto server = caf::spawn<A>();
-//  SerializeConfig();
-//  caf::announce<Foo>("foo",
-//                     make_pair(&Foo::get_request1, &Foo::set_request1),
-//                     make_pair(&Foo::get_request2, &Foo::set_request2),
-//                     make_pair(&Foo::get_request3, &Foo::set_request3));
-//
-//  try {
-//    caf::io::publish(server, 8088);
-//  } catch (...) {
-//     cout << "bind fail" << endl;
-//  }
-
-//
-//  TxnServer::Init();
-
-//  for (auto j = 0;j < 100  ;j++) {
-////        request1.Content[0] = {45, 10};
-////        request1.Content[1] = {54, 10};
-//    FixTupleIngestReq request1;
-//    Ingest ingest;
-//    request1.Content = {{0, {45, 10}}, {1, {54, 10}}};
-//    TxnServer::BeginIngest(request1, ingest);
-//    TxnServer::CommitIngest(ingest);
-//   }
-//  sleep(1);
-  memset(v, 1024, '*');
-  string path;
-  cout << "input path" << endl;
-  cin >> path;
-  TxnServer::Init();
-  LogServer::init(path);
-  struct  timeval tv1, tv2;
-  vector<std::thread> v;
-  int n = 1, time =1;
-  cout << "input #thread, #time" << endl;
-  cin >> n >> time;
-  gettimeofday(&tv1,NULL);
-  for (auto i=0;i<n;i++)
-    v.push_back(std::thread(task, time));
-  for (auto i=0;i<n;i++)
-    v[i].join();
-  //cout << "count2:" << LogServer::count2 << endl;
-  gettimeofday(&tv2,NULL);
-  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
-
-
-
+int is_log = 0;
+int main(int argc,char *argv[]){
+  int con = stoi(string(argv[1]));
+  int port = stoi(string(argv[2]));
+  is_log = stoi(string(argv[3]));
+  //memset(buffer,3*1024,'*');
+  TxnServer::Init(con, port);
+  //TxnClient::Init();
+  if (is_log == 1)
+    LogServer::Init("txn-log");
+//  struct  timeval tv1, tv2;
+//  vector<std::thread> threads;
+//  int n,times;
+//  cin >> n >> times;
+//  for (auto i=0;i<n;i++)
+//    threads.push_back(std::thread(task2, times));
+//  gettimeofday(&tv1,NULL);
+//  for (auto i=0;i<n;i++)
+//    threads.push_back(std::thread(task2, times));
+//  for (auto i=0;i<n;i++)
+//    threads[i].join();
+//  gettimeofday(&tv2,NULL);
+//  cout << tv2.tv_sec - tv1.tv_sec << "-" << (tv2.tv_usec - tv1.tv_usec)/1000 <<endl;
   caf::await_all_actors_done();
+  caf::shutdown();
 }

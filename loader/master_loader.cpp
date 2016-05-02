@@ -33,7 +33,6 @@
 #include <string>
 #include <functional>
 #include <vector>
-#include <map>
 #include <utility>
 
 #include "caf/all.hpp"
@@ -47,6 +46,7 @@
 #include "../catalog/partitioner.h"
 #include "../catalog/table.h"
 #include "../common/data_type.h"
+#include "../common/error_define.h"
 #include "../common/ids.h"
 #include "../common/memory_handle.h"
 #include "../common/Schema/TupleConvertor.h"
@@ -56,6 +56,7 @@
 #include "../Resource/NodeTracker.h"
 #include "../txn_manager/txn.hpp"
 #include "../txn_manager/txn_client.hpp"
+#include "../txn_manager/txn_log.hpp"
 #include "../utility/resource_guard.h"
 using caf::aout;
 using caf::behavior;
@@ -136,15 +137,13 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         // map.
         // Consider that: if this function access the item in map just deleted
         // by above thread, unexpected thing happens.
-        claims::txn::Ingest ingest;
-        ingest.Id = txn_id;
         if (is_commited) {
           LOG(INFO) << "received a commit result of txn with id:" << txn_id;
           cout << "received a commit result of txn with id:" << txn_id << endl;
           if (++(mloader->txn_commint_info_.at(txn_id).commited_part_num_) >=
               mloader->txn_commint_info_.at(txn_id).total_part_num_) {
             // TODO(lizhifang): optimize the interface of TxnClient
-            TxnClient::CommitIngest(ingest);
+            TxnClient::CommitIngest(txn_id);
             mloader->txn_commint_info_.erase(txn_id);
             LOG(INFO) << "committed txn with id:" << txn_id
                       << " to txn manager";
@@ -153,7 +152,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           }
         } else {
           // TODO(lizhifang): optimize the interface of TxnClient
-          TxnClient::AbortIngest(ingest);
+          TxnClient::AbortIngest(txn_id);
           mloader->txn_commint_info_.erase(txn_id);
           LOG(INFO) << "aborted txn with id:" << txn_id << " to txn manager";
           cout << "aborted txn with id:" << txn_id << " to txn manager" << endl;
@@ -247,7 +246,7 @@ RetCode MasterLoader::Ingest(const string& message,
                "applied transaction", "failed to apply transaction");
 
   txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
-      ingest.Id, CommitInfo(ingest.StripList.size())));
+      ingest.id_, CommitInfo(ingest.strip_list_.size())));
 
   // write data log
   EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log ",
@@ -376,6 +375,8 @@ RetCode MasterLoader::GetPartitionTuples(
     vector<vector<vector<void*>>>& tuple_buffer_per_part,
     vector<Validity>& columns_validities) {
   RetCode ret = rSuccess;
+  Schema* table_schema = table->getSchema();
+  MemoryGuard<Schema> table_schema_guard(table_schema);
   vector<void*> correct_tuple_buffer;
   STLGuardWithRetCode<vector<void*>> guard(correct_tuple_buffer,
                                            ret);  // attention!
@@ -387,10 +388,10 @@ RetCode MasterLoader::GetPartitionTuples(
   int line = 0;
   for (auto tuple_string : req.tuples_) {
     //    DLOG(INFO) << "to be inserted tuple:" << tuple_string;
-    void* tuple_buffer = Malloc(table->getSchema()->getTupleMaxSize());
+    void* tuple_buffer = Malloc(table_schema->getTupleMaxSize());
     if (tuple_buffer == NULL) return claims::common::rNoMemory;
     MemoryGuardWithRetCode<void> guard(tuple_buffer, ret);
-    if (rSuccess != (ret = table->getSchema()->CheckAndToValue(
+    if (rSuccess != (ret = table_schema->CheckAndToValue(
                          tuple_string, tuple_buffer, req.col_sep_,
                          RawDataSource::kSQL, columns_validities))) {
       // handle error which stored in the end
@@ -418,12 +419,13 @@ RetCode MasterLoader::GetPartitionTuples(
   for (int i = 0; i < table->getNumberOfProjection(); i++) {
     ProjectionDescriptor* prj = table->getProjectoin(i);
     Schema* prj_schema = prj->getSchema();
+    MemoryGuard<Schema> guard(prj_schema);
     vector<Attribute> prj_attrs = prj->getAttributeList();
     vector<unsigned> prj_index;
     for (int j = 0; j < prj_attrs.size(); j++) {
       prj_index.push_back(prj_attrs[j].index);
     }
-    SubTuple sub_tuple(table->getSchema(), prj_schema, prj_index);
+    SubTuple sub_tuple(table_schema, prj_schema, prj_index);
 
     const int partition_key_local_index =
         prj->getAttributeIndex(prj->getPartitioner()->getPartitionKey());
@@ -463,17 +465,15 @@ RetCode MasterLoader::ApplyTransaction(
     ProjectionDescriptor* prj = table->getProjectoin(i);
     uint64_t tuple_length = prj->getSchema()->getTupleMaxSize();
     for (int j = 0; j < prj->getPartitioner()->getNumberOfPartitions(); ++j) {
-      req.Insert(GetGlobalPartId(table_id, i, j), tuple_length,
-                 partition_buffers[i][j].length_ / tuple_length);
+      req.InsertStrip(GetGlobalPartId(table_id, i, j), tuple_length,
+                      partition_buffers[i][j].length_ / tuple_length);
       //      DLOG(INFO) << "the length of partition buffer[" << i << "," << j
       //           << "] is:" << partition_buffers[i][j].length_ << std::endl;
     }
   }
 
   TxnClient::BeginIngest(req, ingest);
-
   //  cout << req.ToString() << " " << ingest.ToString() << endl;
-
   return ret;
 }
 
@@ -491,15 +491,14 @@ RetCode MasterLoader::WriteLog(
 
       EXEC_AND_LOG(ret,
                    LogClient::Data(global_part_id,
-                                   ingest.StripList.at(global_part_id).first,
-                                   ingest.StripList.at(global_part_id).second,
+                                   ingest.strip_list_.at(global_part_id).first,
+                                   ingest.strip_list_.at(global_part_id).second,
                                    partition_buffers[prj_id][part_id].buffer_,
                                    partition_buffers[prj_id][part_id].length_),
                    "written data log for partition:" << global_part_id,
                    "failed to write data log for partition:" << global_part_id);
     }
   }
-
   EXEC_AND_LOG(ret, LogClient::Refresh(), "flushed data log into disk",
                "failed to flush data log");
   return ret;
@@ -521,9 +520,9 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
     for (int part_id = 0; part_id < partition_buffers[prj_id].size();
          ++part_id) {
       uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
-      LoadPacket packet(ingest.Id, global_part_id,
-                        ingest.StripList.at(global_part_id).first,
-                        ingest.StripList.at(global_part_id).second,
+      LoadPacket packet(ingest.id_, global_part_id,
+                        ingest.strip_list_.at(global_part_id).first,
+                        ingest.strip_list_.at(global_part_id).second,
                         partition_buffers[prj_id][part_id].length_,
                         partition_buffers[prj_id][part_id].buffer_);
       void* packet_buffer;
@@ -635,8 +634,6 @@ void* MasterLoader::Work(void* arg) {
 void* MasterLoader::StartMasterLoader(void* arg) {
   Config::getInstance();
   LOG(INFO) << "start master loader...";
-
-  TxnClient::Init();
 
   int ret = rSuccess;
   MasterLoader* master_loader = Environment::getInstance()->get_master_loader();

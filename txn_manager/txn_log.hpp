@@ -37,6 +37,7 @@
 #include <iostream>
 #include <thread>
 #include <algorithm>
+#include <memory>
 #include <regex>
 #include "unistd.h"
 #include "dirent.h"
@@ -52,6 +53,8 @@ using std::cout;
 using std::endl;
 using std::ifstream;
 using std::to_string;
+using std::shared_ptr;
+
 
 namespace claims{
 namespace txn{
@@ -74,7 +77,7 @@ const int kTypeData = 6;
 
 class LogServer:public caf::event_based_actor {
  public:
-  static RetCode init(const string path = ".");
+  static RetCode Init(const string path = ".");
   static RetCode Append (const string & log);
   static RetCode Append (void * buffer, UInt64 size);
   static RetCode Refresh ();
@@ -102,16 +105,16 @@ class LogServer:public caf::event_based_actor {
         ","+to_string(offset)+","+to_string(size)+">\n";
   }
   caf::behavior make_behavior();
-  static caf::actor log_server;
-  static bool is_active;
+  static caf::actor proxy_;
+  static bool active_;
  private:
-  static string log_path;
-  static FILE * log_handler;
-  static UInt64 log_size;
-  static UInt64 max_log_size;
-  static char * buffer;
-  static UInt64 buffer_size;
-  static UInt64 max_buffer_size;
+  static string file_path_;
+  static FILE * file_handler_;
+  static UInt64 file_size_;
+  static UInt64 file_capacity_;
+  static char * buffer_;
+  static UInt64 buffer_size_;
+  static UInt64 buffer_capacity_;
 
 };
 

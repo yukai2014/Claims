@@ -33,16 +33,16 @@ using claims::txn::Strip;
 void Strip::Map(vector<Strip> & input, map<UInt64,vector<Strip>> & output) {
   output.clear();
   for (auto & strip:input) {
-    if (output.find(strip.Part) != output.end())
-      output[strip.Part].push_back(strip);
+    if (output.find(strip.part_) != output.end())
+      output[strip.part_].push_back(strip);
     else
-      output[strip.Part] = vector<Strip>();
+      output[strip.part_] = vector<Strip>();
   }
 }
 
 void Strip::Sort(vector<Strip> & input) {
   sort(input.begin(), input.end(),
-       [](const Strip & a, const Strip &b){ return a.Pos < b.Pos;});
+       [](const Strip & a, const Strip &b){ return a.pos_ < b.pos_;});
 }
 
 void Strip::Sort(vector<PStrip> & input) {
@@ -56,16 +56,16 @@ void Strip::Merge(vector<Strip> & input){
   vector<Strip> buffer(input);
   input.clear();
   if (buffer.size() == 0) return;
-  auto pid = buffer[0].Part;
-  auto begin = buffer[0].Pos;
-  auto end = buffer[0].Pos + buffer[0].Offset;
+  auto pid = buffer[0].part_;
+  auto begin = buffer[0].pos_;
+  auto end = buffer[0].pos_ + buffer[0].offset_;
   for (auto i = 1; i < buffer.size(); i ++) {
-    if (end == buffer[i].Pos)
-      end = buffer[i].Pos + buffer[i].Offset;
+    if (end == buffer[i].pos_)
+      end = buffer[i].pos_ + buffer[i].offset_;
     else {
       input.emplace_back(pid, begin, end - begin);
-      begin = buffer[i].Pos;
-      end = begin + buffer[i].Offset;
+      begin = buffer[i].pos_;
+      end = begin + buffer[i].offset_;
     }
   }
   input.emplace_back(pid, begin, end - begin);
@@ -100,27 +100,27 @@ void Strip::Filter(vector<Strip> & input, function<bool(const Strip &)> predicat
 
 string Strip::ToString() {
   string str = "*******Strip******\n";
-  str += "part:" + to_string(Part) +
-      ",pos:" + to_string(Pos) +
-      ",Offset:" + to_string(Offset) + "\n";
+  str += "part:" + to_string(part_) +
+      ",pos:" + to_string(pos_) +
+      ",Offset:" + to_string(offset_) + "\n";
   return str;
 }
 
 string FixTupleIngestReq::ToString() {
   string str = "*******FixTupleIngestReq********\n";
-  for (auto & item : Content)
+  for (auto & item : content_)
     str += "part:" + to_string(item.first) +
         ",tuple_size:" + to_string(item.second.first) +
         ",tuple_count:"+ to_string(item.second.second)+"\n";
   return str;
 }
 string Ingest::ToString() {
-  UInt64 core_id = Id % 1000;
+  UInt64 core_id = id_ % 1000;
   core_id << 54;
   core_id >> 54;
   string str = "*******Ingest*********\n";
-  str += "id:" + to_string(Id) + ",core:" + to_string(core_id)+ "\n";
-  for (auto & item : StripList)
+  str += "id:" + to_string(id_) + ",core:" + to_string(core_id)+ "\n";
+  for (auto & item : strip_list_)
     str += "part:" + to_string(item.first) +
         ",pos:" + to_string(item.second.first) +
         ",offset:"+ to_string(item.second.second)+"\n";
@@ -128,14 +128,14 @@ string Ingest::ToString() {
 }
 string QueryReq::ToString() {
   string str = "*******QueryReq********\n";
-  for (auto & part : PartList)
+  for (auto & part : part_list_)
     str += "part:" + to_string(part) +"\n";
   return str;
 }
 
 string Query::ToString() {
   string str = "******Query*******\n";
-  for (auto & part : Snapshot){
+  for (auto & part : snapshot_){
    str += "part:" + to_string(part.first)+"\n";
    for (auto & strip : part.second)
      str += "Pos:" + to_string(strip.first) +
@@ -147,18 +147,18 @@ string Query::ToString() {
 string Checkpoint::ToString() {
   string str = "******checkpoint******\n";
 
-  str += "part:" + to_string(Part) +"\n";
+  str += "part:" + to_string(part_) +"\n";
   str += "commit strip\n";
-  for (auto & strip : CommitStripList)
+  for (auto & strip : commit_strip_list_)
     str += "Pos:" + to_string(strip.first) +
             ",Offset:" + to_string(strip.second) + "\n";
 
   str += "abort strip\n";
-  for (auto & strip : AbortStripList)
+  for (auto & strip : abort_strip_list_)
     str += "Pos:" + to_string(strip.first) +
             ",Offset:" + to_string(strip.second) + "\n";
-  str += "logic cp:" + to_string(LogicCP) + "\n";
-  str += "phy cp:" + to_string(PhyCP) + "\n";
+  str += "logic cp:" + to_string(logic_cp_) + "\n";
+  str += "phy cp:" + to_string(phy_cp_) + "\n";
   return str;
 }
 

@@ -255,6 +255,17 @@ const int rInvalidNullData = -2008;
 const int rTooFewColumn = -2009;
 const int rTooManyColumn = -2010;
 
+const int rLinkTmTimeout = -2499;
+const int rLinkTmFail = -2500;
+const int rBeginIngestTxnFail = -2501;
+const int rCommitIngestTxnFail = -2502;
+const int rAbortIngestTxnFail = -2503;
+const int rBeginQueryFail = -2504;
+const int rBeginCheckpointFail = -2505;
+const int rCommitCheckpointFail = -2506;
+
+
+
 /* errorno for codegen -3001 ~ -4000 */
 const int rTestError = -3001;
 

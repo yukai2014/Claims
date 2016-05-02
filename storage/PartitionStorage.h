@@ -7,6 +7,8 @@
 
 #ifndef PARTITIONSTORAGE_H_
 #define PARTITIONSTORAGE_H_
+#include <vector>
+
 #include "../common/error_define.h"
 
 #ifdef DMALLOC
@@ -44,6 +46,17 @@ class PartitionStorage {
    private:
     Lock lock_;
   };
+  class TxnPartitionReaderIterator : public PartitionReaderItetaor {
+   public:
+    TxnPartitionReaderIterator(PartitionStorage* partition_storage)
+        : PartitionReaderItetaor(partition_storage){};
+    virtual ~TxnPartitionReaderIterator();
+    ChunkReaderIterator* nextChunk();
+    virtual bool nextBlock(BlockStreamBase*& block);
+
+   private:
+    Lock lock_;
+  };
 
  public:
   friend class PartitionReaderItetaor;
@@ -60,6 +73,7 @@ class PartitionStorage {
   void removeAllChunks(const PartitionID& partition_id);
   PartitionReaderItetaor* createReaderIterator();
   PartitionReaderItetaor* createAtomicReaderIterator();
+  PartitionReaderItetaor* createTxnReaderIterator();
   const int GetChunkNum() const { return chunk_list_.size(); }
 
  protected:
