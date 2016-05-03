@@ -614,6 +614,8 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
         socket_fd, static_cast<const char*>(packet_buffer) + total_write_num,
         packet_length - total_write_num);
     if (-1 == write_num) {
+      std::cerr << "failed to send buffer to slave(" << socket_fd
+                << "): " << std::endl;
       PLOG(ERROR) << "failed to send buffer to slave(" << socket_fd << "): ";
       return claims::common::rSentMessageError;
     }

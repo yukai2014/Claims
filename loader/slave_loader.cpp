@@ -247,6 +247,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
                  "sent commit result to master loader",
                  "failed to send commit res to master loader");
+    if (rSuccess != ret) return ret;
   }
 }
 
@@ -295,6 +296,9 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
             ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
                     cur_chunk_id),
             chunk_info)) {
+      DLOG(INFO) << "start address of chunk:" << cur_chunk_id << " is "
+                 << chunk_info.hook << ", end addr is "
+                 << chunk_info.hook + CHUNK_SIZE;
       InMemoryChunkWriterIterator writer(chunk_info.hook, CHUNK_SIZE,
                                          cur_block_id, BLOCK_SIZE, pos_in_block,
                                          tuple_size);
@@ -316,7 +320,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
 
       ++cur_chunk_id;  // get next chunk to write
       LOG(INFO) << "Now chunk id is " << cur_chunk_id
-                << ", the number of chunk is" << part_storage->GetChunkNum();
+                << ", total number of chunk is" << part_storage->GetChunkNum();
       assert(cur_chunk_id < part_storage->GetChunkNum());
       cur_block_id = 0;  // the block id of next chunk is 0
       pos_in_block = 0;

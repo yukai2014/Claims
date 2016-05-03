@@ -413,7 +413,11 @@ void ChunkReaderIterator::InHDFSBlockAccessor::getBlock(
 
 uint64_t InMemoryChunkWriterIterator::Write(const void* const buffer_to_write,
                                             uint64_t length_to_write) {
+  DLOG(INFO) << "current block id is:" << block_id_
+             << ", block size is:" << block_size_;
   void* block_offset = chunk_offset_ + block_id_ * block_size_;
+  assert(block_offset < chunk_offset_ + CHUNK_SIZE &&
+         "this block is not in this chunk");
   unsigned* tuple_count_in_block = reinterpret_cast<unsigned*>(
       block_offset + block_size_ - sizeof(unsigned));
   int can_store_tuple_count =
@@ -431,9 +435,9 @@ uint64_t InMemoryChunkWriterIterator::Write(const void* const buffer_to_write,
             ? can_store_tuple_count
             : length_to_write / tuple_size_;
     DLOG(INFO) << "memcpy start pos is "
-               << block_offset + (*tuple_count_in_block) * block_size_
+               << block_offset + (*tuple_count_in_block) * tuple_size_
                << ". buffer to write: " << buffer_to_write;
-    memcpy(block_offset + (*tuple_count_in_block) * block_size_,
+    memcpy(block_offset + (*tuple_count_in_block) * tuple_size_,
            buffer_to_write, actual_written_tuple_count * tuple_size_);
     DLOG(INFO) << "copy " << actual_written_tuple_count * tuple_size_
                << " bytes into block:" << block_id_;

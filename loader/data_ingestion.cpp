@@ -187,7 +187,7 @@ DataIngestion::DataIngestion(TableDescriptor* table, const string col_separator,
       prj_index.push_back(prj_attrs[j].index);
     }
     SubTuple* st = new SubTuple(
-        table_->getSchema(), table_->getProjectoin(i)->getSchema(), prj_index);
+        table_schema_, table_->getProjectoin(i)->getSchema(), prj_index);
     sub_tuple_generator_.push_back(st);
   }
 
