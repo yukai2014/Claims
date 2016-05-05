@@ -29,6 +29,9 @@
 #include "./master_loader.h"
 
 #include <activemq/library/ActiveMQCPP.h>
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include <iostream>
 #include <string>
 #include <functional>
@@ -139,25 +142,37 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         // by above thread, unexpected thing happens.
         if (is_commited) {
           LOG(INFO) << "received a commit result of txn with id:" << txn_id;
-          cout << "received a commit result of txn with id:" << txn_id << endl;
-          if (++(mloader->txn_commint_info_.at(txn_id).commited_part_num_) >=
-              mloader->txn_commint_info_.at(txn_id).total_part_num_) {
-            // TODO(lizhifang): optimize the interface of TxnClient
-            TxnClient::CommitIngest(txn_id);
-            mloader->txn_commint_info_.erase(txn_id);
-            LOG(INFO) << "committed txn with id:" << txn_id
-                      << " to txn manager";
-            cout << "committed txn with id:" << txn_id << " to txn manager"
-                 << endl;
-          }
-        } else {
-          // TODO(lizhifang): optimize the interface of TxnClient
-          TxnClient::AbortIngest(txn_id);
-          mloader->txn_commint_info_.erase(txn_id);
-          LOG(INFO) << "aborted txn with id:" << txn_id << " to txn manager";
-          cout << "aborted txn with id:" << txn_id << " to txn manager" << endl;
-        }
+          cout << "(" << syscall(__NR_gettid)
+               << ")received a commit result of txn with id:" << txn_id << endl;
+          try {
+            CommitInfo& commit_info = mloader->txn_commint_info_.at(txn_id);
 
+            if (++commit_info.commited_part_num_ >=
+                commit_info.total_part_num_) {
+              //            cout << "going to commit txn with id:" << txn_id <<
+              //            endl;
+              LOG(INFO) << "going to commit txn with id:" << txn_id << endl;
+              TxnClient::CommitIngest(txn_id);
+              mloader->txn_commint_info_.erase(txn_id);
+              LOG(INFO) << "committed txn with id:" << txn_id
+                        << " to txn manager";
+              //            cout << "committed txn with id:" << txn_id << " to
+              //            txn
+              //            manager"
+              //                 << endl;
+            } else {
+              TxnClient::AbortIngest(txn_id);
+              mloader->txn_commint_info_.erase(txn_id);
+              LOG(INFO) << "aborted txn with id:" << txn_id
+                        << " to txn manager";
+              cout << "aborted txn with id:" << txn_id << " to txn manager"
+                   << endl;
+            }
+          } catch (const std::out_of_range& e) {
+            LOG(ERROR) << "no find " << txn_id << " in map";
+            assert(false);
+          }
+        }
         return 1;
       },
       [=](RegNodeAtom, NodeAddress addr, NodeID node_id) -> int {  // NOLINT
@@ -245,8 +260,18 @@ RetCode MasterLoader::Ingest(const string& message,
   EXEC_AND_LOG(ret, ApplyTransaction(table, partition_buffers, ingest),
                "applied transaction", "failed to apply transaction");
 
+  spin_lock_.acquire();
   txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
       ingest.id_, CommitInfo(ingest.strip_list_.size())));
+  spin_lock_.release();
+  // TODO()need to deleted after testing
+  try {
+    CommitInfo temp = txn_commint_info_.at(ingest.id_);
+  } catch (const std::out_of_range& e) {
+    LOG(ERROR) << "Oh~~~NO!!!! no find " << ingest.id_ << " in map";
+    assert(false);
+  }
+  DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
   // write data log
   EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log ",
@@ -259,6 +284,7 @@ RetCode MasterLoader::Ingest(const string& message,
   EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
                "sent every partition data to its slave",
                "failed to send every partition data to its slave");
+  assert(rSuccess == ret);
 
   return ret;
 }
@@ -269,48 +295,64 @@ string MasterLoader::GetMessage() {
       "LINEITEM,|,\n,"
       "1|155190|7706|1|17|21168.23|0.04|0.02|N|O|1996-03-13|1996-"
       "02-12|1996-03-22|DELIVER IN PERSON|TRUCK|egular courts above the|\n"
-      "1|67310|7311|2|36|45983.16|0.09|0.06|N|O|1996-04-12|1996-02-28|1996-04-"
+      "1|67310|7311|2|36|45983.16|0.09|0.06|N|O|1996-04-12|1996-02-28|1996-"
+      "04-"
       "20|TAKE BACK RETURN|MAIL|ly final dependencies: slyly bold |\n"
       "1|63700|3701|3|8|13309.60|0.10|0.02|N|O|1996-01-29|1996-03-05|1996-01-"
       "31|TAKE BACK RETURN|REG AIR|riously. regular, express dep|\n"
       "1|2132|4633|4|28|28955.64|0.09|0.06|N|O|1996-04-21|1996-03-30|1996-05-"
       "16|NONE|AIR|lites. fluffily even de|\n"
-      "1|24027|1534|5|24|22824.48|0.10|0.04|N|O|1996-03-30|1996-03-14|1996-04-"
+      "1|24027|1534|5|24|22824.48|0.10|0.04|N|O|1996-03-30|1996-03-14|1996-"
+      "04-"
       "01|NONE|FOB| pending foxes. slyly re|\n"
       "1|15635|638|6|32|49620.16|0.07|0.02|N|O|1996-01-30|1996-02-07|1996-02-"
       "03|DELIVER IN PERSON|MAIL|arefully slyly ex|\n"
-      "2|106170|1191|1|38|44694.46|0.00|0.05|N|O|1997-01-28|1997-01-14|1997-02-"
+      "2|106170|1191|1|38|44694.46|0.00|0.05|N|O|1997-01-28|1997-01-14|1997-"
+      "02-"
       "02|TAKE BACK RETURN|RAIL|ven requests. deposits breach a|\n"
       "3|4297|1798|1|45|54058.05|0.06|0.00|R|F|1994-02-02|1994-01-04|1994-02-"
       "23|NONE|AIR|ongside of the furiously brave acco|\n"
-      "3|19036|6540|2|49|46796.47|0.10|0.00|R|F|1993-11-09|1993-12-20|1993-11-"
+      "3|19036|6540|2|49|46796.47|0.10|0.00|R|F|1993-11-09|1993-12-20|1993-"
+      "11-"
       "24|TAKE BACK RETURN|RAIL| unusual accounts. eve|\n"
-      "3|128449|3474|3|27|39890.88|0.06|0.07|A|F|1994-01-16|1993-11-22|1994-01-"
+      "3|128449|3474|3|27|39890.88|0.06|0.07|A|F|1994-01-16|1993-11-22|1994-"
+      "01-"
       "23|DELIVER IN PERSON|SHIP|nal foxes wake. |\n"
-      "3|29380|1883|4|2|2618.76|0.01|0.06|A|F|1993-12-04|1994-01-07|1994-01-01|"
+      "3|29380|1883|4|2|2618.76|0.01|0.06|A|F|1993-12-04|1994-01-07|1994-01-"
+      "01|"
       "NONE|TRUCK|y. fluffily pending d|\n"
-      "7|145243|7758|2|9|11594.16|0.08|0.08|N|O|1996-02-01|1996-03-02|1996-02-"
+      "7|145243|7758|2|9|11594.16|0.08|0.08|N|O|1996-02-01|1996-03-02|1996-"
+      "02-"
       "19|TAKE BACK RETURN|SHIP|es. instructions|\n"
-      "7|94780|9799|3|46|81639.88|0.10|0.07|N|O|1996-01-15|1996-03-27|1996-02-"
+      "7|94780|9799|3|46|81639.88|0.10|0.07|N|O|1996-01-15|1996-03-27|1996-"
+      "02-"
       "03|COLLECT COD|MAIL| unusual reques|\n"
-      "7|163073|3074|4|28|31809.96|0.03|0.04|N|O|1996-03-21|1996-04-08|1996-04-"
+      "7|163073|3074|4|28|31809.96|0.03|0.04|N|O|1996-03-21|1996-04-08|1996-"
+      "04-"
       "20|NONE|FOB|. slyly special requests haggl|\n"
-      "7|151894|9440|5|38|73943.82|0.08|0.01|N|O|1996-02-11|1996-02-24|1996-02-"
+      "7|151894|9440|5|38|73943.82|0.08|0.01|N|O|1996-02-11|1996-02-24|1996-"
+      "02-"
       "18|DELIVER IN PERSON|TRUCK|ns haggle carefully ironic deposits. bl|\n"
-      "7|79251|1759|6|35|43058.75|0.06|0.03|N|O|1996-01-16|1996-02-23|1996-01-"
+      "7|79251|1759|6|35|43058.75|0.06|0.03|N|O|1996-01-16|1996-02-23|1996-"
+      "01-"
       "22|TAKE BACK RETURN|FOB|jole. excuses wake carefully alongside of |\n"
       "7|157238|2269|7|5|6476.15|0.04|0.02|N|O|1996-02-10|1996-03-26|1996-02-"
       "13|NONE|FOB|ithely regula|\n"
-      "32|82704|7721|1|28|47227.60|0.05|0.08|N|O|1995-10-23|1995-08-27|1995-10-"
+      "32|82704|7721|1|28|47227.60|0.05|0.08|N|O|1995-10-23|1995-08-27|1995-"
+      "10-"
       "26|TAKE BACK RETURN|TRUCK|sleep quickly. req|\n"
-      "32|197921|441|2|32|64605.44|0.02|0.00|N|O|1995-08-14|1995-10-07|1995-08-"
+      "32|197921|441|2|32|64605.44|0.02|0.00|N|O|1995-08-14|1995-10-07|1995-"
+      "08-"
       "27|COLLECT COD|AIR|lithely regular deposits. fluffily |\n"
       "32|44161|6666|3|2|2210.32|0.09|0.02|N|O|1995-08-07|1995-10-07|1995-08-"
       "23|DELIVER IN PERSON|AIR| express accounts wake according to the|\n"
-      "32|2743|7744|4|4|6582.96|0.09|0.03|N|O|1995-08-04|1995-10-01|1995-09-03|"
+      "32|2743|7744|4|4|6582.96|0.09|0.03|N|O|1995-08-04|1995-10-01|1995-09-"
+      "03|"
       "NONE|REG AIR|e slyly final pac|\n"
-      "32|85811|8320|5|44|79059.64|0.05|0.06|N|O|1995-08-28|1995-08-20|1995-09-"
-      "14|DELIVER IN PERSON|AIR|symptotes nag according to the ironic depo|\n";
+      "32|85811|8320|5|44|79059.64|0.05|0.06|N|O|1995-08-28|1995-08-20|1995-"
+      "09-"
+      "14|DELIVER IN PERSON|AIR|symptotes nag according to the ironic "
+      "depo|\n";
   return ret;
 }
 
@@ -364,10 +406,6 @@ RetCode MasterLoader::GetRequestFromMessage(const string& message,
   req->Show();
   return ret;
 }
-
-// RetCode MasterLoader::CheckAndToValue(const IngestionRequest& req,
-//                                      void* tuple_buffer,
-//                                      vector<Validity>& column_validities) {}
 
 // map every tuple into associate part
 RetCode MasterLoader::GetPartitionTuples(

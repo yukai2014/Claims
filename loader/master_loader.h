@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 #include "caf/all.hpp"
+#include <unordered_map>
 
 #include "./validity.h"
 #include "../common/error_define.h"
@@ -43,6 +44,7 @@
 #include "../utility/lock.h"
 
 using std::function;
+using std::unordered_map;
 
 namespace claims {
 namespace catalog {
@@ -180,9 +182,10 @@ class MasterLoader {
   //  vector<int> slave_sockets_;
   boost::unordered_map<NodeAddress, int> slave_addr_to_socket_;
 
-  // store  id of transactions which are not finished
-  boost::unordered_map<uint64_t, CommitInfo> txn_commint_info_;
+  // store id of transactions which are not finished
+  unordered_map<uint64_t, CommitInfo> txn_commint_info_;
   Lock lock_;
+  SpineLock spin_lock_;
 };
 
 } /* namespace loader */

@@ -32,6 +32,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <exception>
+#include <chrono>
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 
@@ -55,6 +56,7 @@ using claims::common::rFailure;
 using claims::txn::GetPartitionIdFromGlobalPartId;
 using claims::txn::GetProjectionIdFromGlobalPartId;
 using claims::txn::GetTableIdFromGlobalPartId;
+using std::chrono::milliseconds;
 
 namespace claims {
 namespace loader {
@@ -208,7 +210,10 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     if (-1 == (real_read_num = recv(master_fd_, head_buffer,
                                     LoadPacket::kHeadLength, MSG_WAITALL))) {
       PLOG(ERROR) << "failed to receive message length from master";
-      continue;
+      return rFailure;
+    } else if (0 == real_read_num) {
+      PLOG(ERROR) << "master loader socket has been closed";
+      return rFailure;
     } else if (real_read_num < LoadPacket::kHeadLength) {
       LOG(ERROR) << "received message error! only read " << real_read_num
                  << " bytes";
@@ -344,13 +349,20 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
       caf::scoped_actor self;
       self->sync_send(master_actor, LoadAckAtom::value, txn_id, is_commited)
           .await([&](int r) {  // NOLINT
-            LOG(INFO) << "sent commit result:" << is_commited
-                      << " to master and received response";
-          });
+                   LOG(INFO) << "sent txn " << txn_id
+                             << " commit result:" << is_commited
+                             << " to master and received response";
+                 },
+                 caf::after(milliseconds(100)) >>
+                     [&] {
+                       LOG(INFO) << "receiving response of txn " << txn_id
+                                 << " time out";
+                       throw caf::network_error("receiving response  time out");
+                     });
       return rSuccess;
     } catch (exception& e) {
-      LOG(ERROR) << "failed to send commit result to master loader in "
-                 << ++time << "time." << e.what();
+      LOG(ERROR) << "failed to send commit result of " << txn_id
+                 << " to master loader in " << ++time << " time." << e.what();
       if (time >= retry_max_time) return rFailure;
     }
   }
