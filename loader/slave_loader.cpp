@@ -57,6 +57,7 @@ using claims::txn::GetPartitionIdFromGlobalPartId;
 using claims::txn::GetProjectionIdFromGlobalPartId;
 using claims::txn::GetTableIdFromGlobalPartId;
 using std::chrono::milliseconds;
+using std::chrono::seconds;
 
 namespace claims {
 namespace loader {
@@ -353,7 +354,7 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
                              << " commit result:" << is_commited
                              << " to master and received response";
                  },
-                 caf::after(milliseconds(100)) >>
+                 caf::after(seconds(2)) >>
                      [&] {
                        LOG(INFO) << "receiving response of txn " << txn_id
                                  << " time out";

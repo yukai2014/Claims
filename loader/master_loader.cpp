@@ -140,38 +140,36 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         // map.
         // Consider that: if this function access the item in map just deleted
         // by above thread, unexpected thing happens.
-        if (is_commited) {
-          LOG(INFO) << "received a commit result of txn with id:" << txn_id;
-          cout << "(" << syscall(__NR_gettid)
-               << ")received a commit result of txn with id:" << txn_id << endl;
-          try {
-            CommitInfo& commit_info = mloader->txn_commint_info_.at(txn_id);
+        LOG(INFO) << "received a commit result " << is_commited
+                  << " of txn with id:" << txn_id;
+        //        cout << "(" << syscall(__NR_gettid) << ")received a commit
+        //        result "
+        //             << is_commited << "of txn with id:" << txn_id << endl;
+        try {
+          CommitInfo& commit_info = mloader->txn_commint_info_.at(txn_id);
 
-            if (++commit_info.commited_part_num_ >=
-                commit_info.total_part_num_) {
-              //            cout << "going to commit txn with id:" << txn_id <<
-              //            endl;
+          if (is_commited) {
+            __sync_add_and_fetch(&commit_info.commited_part_num_, 1);
+          } else {
+            __sync_add_and_fetch(&commit_info.abort_part_num_, 1);
+          }
+          if (commit_info.IsFinished()) {
+            if (0 == commit_info.abort_part_num_) {
               LOG(INFO) << "going to commit txn with id:" << txn_id << endl;
               TxnClient::CommitIngest(txn_id);
-              mloader->txn_commint_info_.erase(txn_id);
               LOG(INFO) << "committed txn with id:" << txn_id
                         << " to txn manager";
-              //            cout << "committed txn with id:" << txn_id << " to
-              //            txn
-              //            manager"
-              //                 << endl;
             } else {
+              LOG(INFO) << "going to abort txn with id:" << txn_id << endl;
               TxnClient::AbortIngest(txn_id);
-              mloader->txn_commint_info_.erase(txn_id);
               LOG(INFO) << "aborted txn with id:" << txn_id
                         << " to txn manager";
-              cout << "aborted txn with id:" << txn_id << " to txn manager"
-                   << endl;
             }
-          } catch (const std::out_of_range& e) {
-            LOG(ERROR) << "no find " << txn_id << " in map";
-            assert(false);
+            mloader->txn_commint_info_.erase(txn_id);
           }
+        } catch (const std::out_of_range& e) {
+          LOG(ERROR) << "no find " << txn_id << " in map";
+          assert(false);
         }
         return 1;
       },

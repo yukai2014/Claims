@@ -96,9 +96,16 @@ class MasterLoader {
     explicit CommitInfo(uint64_t total_part_num)
         : total_part_num_(total_part_num),
           commited_part_num_(0),
+          abort_part_num_(0),
           wait_period_(0) {}
+
+    inline bool IsFinished() {
+      return commited_part_num_ + abort_part_num_ >= total_part_num_;
+    }
+
     uint64_t total_part_num_;
     uint64_t commited_part_num_;
+    uint64_t abort_part_num_;
     // initial value is 0, add by 1 every time check thread traverses
     // if wait period exceeds the specified value, this transaction fails
     uint64_t wait_period_;
