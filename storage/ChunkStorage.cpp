@@ -5,15 +5,14 @@
  *      Author: wangli
  */
 #include <hdfs.h>
-#include "ChunkStorage.h"
-
+#include <glog/logging.h>
+#include "./BlockManager.h"
+#include "./ChunkStorage.h"
 #include "../common/file_handle/hdfs_connector.h"
-#include "BlockManager.h"
-
-#include "../Debug.h"
-#include "../utility/warmup.h"
-#include "../utility/rdtsc.h"
 #include "../Config.h"
+#include "../Debug.h"
+#include "../utility/rdtsc.h"
+#include "../utility/warmup.h"
 
 using claims::common::HdfsConnector;
 

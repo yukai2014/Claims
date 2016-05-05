@@ -4,10 +4,10 @@
  *  Created on: 2013-10-11
  *      Author: casa
  */
-#include <sstream>
 #include "BlockManager.h"
 
 #include <glog/logging.h>
+#include <sstream>
 #include "../common/file_handle/hdfs_connector.h"
 #include "../Environment.h"
 #include "../common/rename.h"
@@ -369,8 +369,8 @@ bool BlockManager::removePartition(const PartitionID& partition_id) {
 
 PartitionStorage* BlockManager::getPartitionHandle(
     const PartitionID& partition_id) const {
-  LOG(INFO) << "partid2storage size is:" << partition_id_to_storage_.size();
-  LOG(INFO) << "going to find storage [" << partition_id.getName() << "]";
+  DLOG(INFO) << "partid2storage size is:" << partition_id_to_storage_.size();
+  DLOG(INFO) << "going to find storage [" << partition_id.getName() << "]";
   boost::unordered_map<PartitionID, PartitionStorage*>::const_iterator it =
       partition_id_to_storage_.find(partition_id);
   if (it == partition_id_to_storage_.cend()) {

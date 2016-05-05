@@ -28,11 +28,12 @@
 
 #include "./slave_loader.h"
 
+#include <glog/logging.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <exception>
-#include <chrono>
+#include <chrono>  //NOLINT
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
 
@@ -76,9 +77,9 @@ RetCode SlaveLoader::ConnectWithMaster() {
   int ret = rSuccess;
   int retry_time = 10;
   for (int i = 0; Clean(), i < retry_time; ++i) {  // if failed, call Clean()
-    EXEC_AND_LOG(ret, EstablishListeningSocket(),
-                 "established listening socket",
-                 "failed to establish listening socket in " << i << " times");
+    EXEC_AND_DLOG(ret, EstablishListeningSocket(),
+                  "established listening socket",
+                  "failed to establish listening socket in " << i << " times");
     if (rSuccess == ret) break;
   }
   if (rSuccess != ret) {
@@ -87,8 +88,8 @@ RetCode SlaveLoader::ConnectWithMaster() {
   }
 
   for (int i = 1; i <= retry_time; ++i) {
-    EXEC_AND_LOG(ret, SendSelfAddrToMaster(), "sent self ip/port to master",
-                 "failed to send self ip/port to master in " << i << " times");
+    EXEC_AND_DLOG(ret, SendSelfAddrToMaster(), "sent self ip/port to master",
+                  "failed to send self ip/port to master in " << i << " times");
     if (rSuccess == ret) break;
     sleep(1);
   }
@@ -98,9 +99,9 @@ RetCode SlaveLoader::ConnectWithMaster() {
   }
 
   for (int i = 0; i < retry_time; ++i) {
-    EXEC_AND_LOG(ret, GetConnectedSocket(), "got connected socket with master",
-                 "failed to get connected socket with master in " << i
-                                                                  << " times");
+    EXEC_AND_DLOG(ret, GetConnectedSocket(), "got connected socket with master",
+                  "failed to get connected socket with master in " << i
+                                                                   << " times");
     if (rSuccess == ret) break;
   }
   if (rSuccess != ret) Clean();
@@ -165,7 +166,7 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
     caf::scoped_actor self;
     self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port)
         .await([&](int r) {  // NOLINT
-          LOG(INFO) << "sent ip&port and received response";
+          DLOG(INFO) << "sent ip&port and received response";
         });
   } catch (exception& e) {
     LOG(ERROR) << "can't send self ip&port to master loader. " << e.what();
@@ -224,8 +225,8 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
         *reinterpret_cast<uint64_t*>(head_buffer + LoadPacket::kHeadLength -
                                      sizeof(uint64_t));
     uint64_t real_packet_length = data_length + LoadPacket::kHeadLength;
-    LOG(INFO) << "real packet length is :" << real_packet_length
-              << ". date length is " << data_length;
+    DLOG(INFO) << "real packet length is :" << real_packet_length
+               << ". date length is " << data_length;
     assert(data_length >= 4 && data_length <= 10000000);
 
     char* data_buffer = Malloc(data_length);
@@ -246,13 +247,13 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     LoadPacket packet;
     packet.Deserialize(head_buffer, data_buffer);
 
-    EXEC_AND_LOG(ret, StoreDataInMemory(packet), "stored data",
-                 "failed to store");
+    EXEC_AND_DLOG(ret, StoreDataInMemory(packet), "stored data",
+                  "failed to store");
 
     // return result to master loader
-    EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
-                 "sent commit result to master loader",
-                 "failed to send commit res to master loader");
+    EXEC_AND_DLOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
+                  "sent commit result to master loader",
+                  "failed to send commit res to master loader");
     if (rSuccess != ret) return ret;
   }
 }
@@ -279,7 +280,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
              << " CHUNK SIZE is:" << CHUNK_SIZE
              << " last chunk id is:" << last_chunk_id;
-  EXEC_AND_LOG_RETURN(
+  EXEC_AND_DLOG_RETURN(
       ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
       "added chunk to " << last_chunk_id + 1, "failed to add chunk");
 
@@ -313,9 +314,10 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
             writer.Write(packet.data_buffer_ + total_written_length,
                          data_length - total_written_length);
         total_written_length += written_length;
-        LOG(INFO) << "written " << written_length
-                  << " bytes into chunk:" << cur_chunk_id
-                  << ". Now total written " << total_written_length << " bytes";
+        DLOG(INFO) << "written " << written_length
+                   << " bytes into chunk:" << cur_chunk_id
+                   << ". Now total written " << total_written_length
+                   << " bytes";
         if (total_written_length == data_length) {
           // all tuple is written into memory
           return rSuccess;
@@ -325,14 +327,14 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
       } while (writer.NextBlock());
 
       ++cur_chunk_id;  // get next chunk to write
-      LOG(INFO) << "Now chunk id is " << cur_chunk_id
-                << ", total number of chunk is" << part_storage->GetChunkNum();
+      DLOG(INFO) << "Now chunk id is " << cur_chunk_id
+                 << ", total number of chunk is" << part_storage->GetChunkNum();
       assert(cur_chunk_id < part_storage->GetChunkNum());
       cur_block_id = 0;  // the block id of next chunk is 0
       pos_in_block = 0;
 
     } else {
-      cout << "chunk id is " << cur_chunk_id << endl;
+      LOG(INFO) << "chunk id is " << cur_chunk_id << endl;
       assert(false && "no chunk with this chunk id");
     }
   }
@@ -350,14 +352,14 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
       caf::scoped_actor self;
       self->sync_send(master_actor, LoadAckAtom::value, txn_id, is_commited)
           .await([&](int r) {  // NOLINT
-                   LOG(INFO) << "sent txn " << txn_id
-                             << " commit result:" << is_commited
-                             << " to master and received response";
+                   DLOG(INFO) << "sent txn " << txn_id
+                              << " commit result:" << is_commited
+                              << " to master and received response";
                  },
                  caf::after(seconds(2)) >>
-                     [&] {
-                       LOG(INFO) << "receiving response of txn " << txn_id
-                                 << " time out";
+                     [&] {  // NOLINT
+                       LOG(ERROR) << "receiving response of txn " << txn_id
+                                  << " time out";
                        throw caf::network_error("receiving response  time out");
                      });
       return rSuccess;
@@ -376,9 +378,9 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
 
   SlaveLoader* slave_loader = Environment::getInstance()->get_slave_loader();
   int ret = rSuccess;
-  EXEC_AND_LOG(ret, slave_loader->ConnectWithMaster(),
-               "succeed to connect with master",
-               "failed to connect with master ");
+  EXEC_AND_DLOG(ret, slave_loader->ConnectWithMaster(),
+                "succeed to connect with master",
+                "failed to connect with master ");
 
   assert(rSuccess == ret && "can't connect with master");
 

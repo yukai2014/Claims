@@ -29,6 +29,7 @@
 #include "./master_loader.h"
 
 #include <activemq/library/ActiveMQCPP.h>
+#include <glog/logging.h>
 #include <pthread.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -79,6 +80,11 @@ using namespace claims::txn;  // NOLINT
 
 namespace claims {
 namespace loader {
+void MasterLoader::IngestionRequest::Show() {
+  LOG(INFO) << "table name:" << table_name_ << ", column separator:" << col_sep_
+            << ", row separator:" << row_sep_
+            << ", tuples size is:" << tuples_.size();
+}
 
 MasterLoader::MasterLoader()
     : master_loader_ip_(Config::master_loader_ip),
@@ -140,8 +146,8 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         // map.
         // Consider that: if this function access the item in map just deleted
         // by above thread, unexpected thing happens.
-        LOG(INFO) << "received a commit result " << is_commited
-                  << " of txn with id:" << txn_id;
+        DLOG(INFO) << "received a commit result " << is_commited
+                   << " of txn with id:" << txn_id;
         //        cout << "(" << syscall(__NR_gettid) << ")received a commit
         //        result "
         //             << is_commited << "of txn with id:" << txn_id << endl;
@@ -155,15 +161,15 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           }
           if (commit_info.IsFinished()) {
             if (0 == commit_info.abort_part_num_) {
-              LOG(INFO) << "going to commit txn with id:" << txn_id << endl;
+              DLOG(INFO) << "going to commit txn with id:" << txn_id << endl;
               TxnClient::CommitIngest(txn_id);
-              LOG(INFO) << "committed txn with id:" << txn_id
-                        << " to txn manager";
+              DLOG(INFO) << "committed txn with id:" << txn_id
+                         << " to txn manager";
             } else {
-              LOG(INFO) << "going to abort txn with id:" << txn_id << endl;
+              DLOG(INFO) << "going to abort txn with id:" << txn_id << endl;
               TxnClient::AbortIngest(txn_id);
-              LOG(INFO) << "aborted txn with id:" << txn_id
-                        << " to txn manager";
+              DLOG(INFO) << "aborted txn with id:" << txn_id
+                         << " to txn manager";
             }
             mloader->txn_commint_info_.erase(txn_id);
           }
@@ -218,8 +224,8 @@ RetCode MasterLoader::Ingest(const string& message,
 
   // get message from MQ
   IngestionRequest req;
-  EXEC_AND_LOG(ret, GetRequestFromMessage(message, &req), "got request!",
-               "failed to get request");
+  EXEC_AND_DLOG(ret, GetRequestFromMessage(message, &req), "got request!",
+                "failed to get request");
 
   // parse message and get all tuples of all partitions, then
   // check the validity of all tuple in message
@@ -234,10 +240,10 @@ RetCode MasterLoader::Ingest(const string& message,
         table->getProjectoin(i)->getPartitioner()->getNumberOfPartitions());
 
   vector<Validity> columns_validities;
-  EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
-                                       columns_validities),
-               "got all tuples of every partition",
-               "failed to get all tuples of every partition");
+  EXEC_AND_DLOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
+                                        columns_validities),
+                "got all tuples of every partition",
+                "failed to get all tuples of every partition");
   if (ret != rSuccess && ret != claims::common::rNoMemory) {
     // TODO(YUKAI): error handle, like sending error message to client
     LOG(ERROR) << "the tuple is not valid";
@@ -248,40 +254,41 @@ RetCode MasterLoader::Ingest(const string& message,
   // merge all tuple buffers of partition into one partition buffer
   vector<vector<PartitionBuffer>> partition_buffers(
       table->getNumberOfProjection());
-  EXEC_AND_LOG(ret, MergePartitionTupleIntoOneBuffer(
-                        table, tuple_buffers_per_part, partition_buffers),
-               "merged all tuple of same partition into one buffer",
-               "failed to merge tuples buffers into one buffer");
+  EXEC_AND_DLOG(ret, MergePartitionTupleIntoOneBuffer(
+                         table, tuple_buffers_per_part, partition_buffers),
+                "merged all tuple of same partition into one buffer",
+                "failed to merge tuples buffers into one buffer");
 
   // start transaction from here
   claims::txn::Ingest ingest;
-  EXEC_AND_LOG(ret, ApplyTransaction(table, partition_buffers, ingest),
-               "applied transaction", "failed to apply transaction");
+  EXEC_AND_DLOG(ret, ApplyTransaction(table, partition_buffers, ingest),
+                "applied transaction", "failed to apply transaction");
 
   spin_lock_.acquire();
   txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
       ingest.id_, CommitInfo(ingest.strip_list_.size())));
   spin_lock_.release();
-  // TODO()need to deleted after testing
-  try {
-    CommitInfo temp = txn_commint_info_.at(ingest.id_);
-  } catch (const std::out_of_range& e) {
-    LOG(ERROR) << "Oh~~~NO!!!! no find " << ingest.id_ << " in map";
-    assert(false);
-  }
+  //  // TODO()need to deleted after testing
+  //  try {
+  //    CommitInfo temp = txn_commint_info_.at(ingest.id_);
+  //  } catch (const std::out_of_range& e) {
+  //    LOG(ERROR) << "Oh~~~NO!!!! no find " << ingest.id_ << " in map";
+  //    assert(false);
+  //  }
   DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
   // write data log
-  EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log ",
-               "failed to write log");
+  EXEC_AND_DLOG(ret, WriteLog(table, partition_buffers, ingest), "written log ",
+                "failed to write log");
 
   // reply ACK to MQ
-  EXEC_AND_LOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
+  EXEC_AND_DLOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
 
   // distribute partition load task
-  EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
-               "sent every partition data to its slave",
-               "failed to send every partition data to its slave");
+  EXEC_AND_DLOG(ret,
+                SendPartitionTupleToSlave(table, partition_buffers, ingest),
+                "sent every partition data to its slave",
+                "failed to send every partition data to its slave");
   assert(rSuccess == ret);
 
   return ret;
@@ -525,18 +532,18 @@ RetCode MasterLoader::WriteLog(
          ++part_id) {
       uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
 
-      EXEC_AND_LOG(ret,
-                   LogClient::Data(global_part_id,
-                                   ingest.strip_list_.at(global_part_id).first,
-                                   ingest.strip_list_.at(global_part_id).second,
-                                   partition_buffers[prj_id][part_id].buffer_,
-                                   partition_buffers[prj_id][part_id].length_),
-                   "written data log for partition:" << global_part_id,
-                   "failed to write data log for partition:" << global_part_id);
+      EXEC_AND_DLOG(
+          ret, LogClient::Data(global_part_id,
+                               ingest.strip_list_.at(global_part_id).first,
+                               ingest.strip_list_.at(global_part_id).second,
+                               partition_buffers[prj_id][part_id].buffer_,
+                               partition_buffers[prj_id][part_id].length_),
+          "written data log for partition:" << global_part_id,
+          "failed to write data log for partition:" << global_part_id);
     }
   }
-  EXEC_AND_LOG(ret, LogClient::Refresh(), "flushed data log into disk",
-               "failed to flush data log");
+  EXEC_AND_DLOG(ret, LogClient::Refresh(), "flushed data log into disk",
+                "failed to flush data log");
   return ret;
 }
 
@@ -564,19 +571,20 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
       void* packet_buffer;
       MemoryGuard<void> guard(packet_buffer);  // auto release by guard
       uint64_t packet_length;
-      EXEC_AND_LOG_RETURN(ret, packet.Serialize(packet_buffer, packet_length),
-                          "serialized packet into buffer",
-                          "failed to serialize packet");
+      EXEC_AND_DLOG_RETURN(ret, packet.Serialize(packet_buffer, packet_length),
+                           "serialized packet into buffer",
+                           "failed to serialize packet");
 
       int socket_fd = -1;
-      EXEC_AND_LOG_RETURN(ret, SelectSocket(table, prj_id, part_id, socket_fd),
-                          "selected the socket", "failed to select the socket");
+      EXEC_AND_DLOG_RETURN(ret, SelectSocket(table, prj_id, part_id, socket_fd),
+                           "selected the socket",
+                           "failed to select the socket");
       assert(socket_fd > 3);
 
-      EXEC_AND_LOG_RETURN(ret,
-                          SendPacket(socket_fd, packet_buffer, packet_length),
-                          "sent message to slave :" << socket_fd,
-                          "failed to sent message to slave :" << socket_fd);
+      EXEC_AND_DLOG_RETURN(ret,
+                           SendPacket(socket_fd, packet_buffer, packet_length),
+                           "sent message to slave :" << socket_fd,
+                           "failed to sent message to slave :" << socket_fd);
     }
   }
   return ret;
@@ -597,11 +605,12 @@ RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
            "partition number is not match");
     for (int j = 0; j < tuple_buffer_per_part[i].size(); ++j) {
       int tuple_count = tuple_buffer_per_part[i][j].size();
+      if (0 == tuple_count) continue;
       int tuple_len = table->getProjectoin(i)->getSchema()->getTupleMaxSize();
       int buffer_len = tuple_count * tuple_len;
-      LOG(INFO) << "the tuple length of prj:" << i << ",part:" << j
-                << ",table:" << table->getTableName() << " is:" << tuple_len;
-      LOG(INFO) << "tuple size is:" << tuple_count;
+      DLOG(INFO) << "the tuple length of prj:" << i << ",part:" << j
+                 << ",table:" << table->getTableName() << " is:" << tuple_len;
+      DLOG(INFO) << "tuple size is:" << tuple_count;
 
       void* new_buffer = Malloc(buffer_len);
       if (NULL == new_buffer) return ret = claims::common::rNoMemory;
@@ -629,12 +638,12 @@ RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
   NodeID node_id_in_rmm =
       table->getProjectoin(prj_id)->getPartitioner()->getPartitionLocation(
           part_id);
-  LOG(INFO) << "node id is " << node_id_in_rmm;
+  DLOG(INFO) << "node id is " << node_id_in_rmm;
   NodeAddress addr;
-  EXEC_AND_LOG_RETURN(
+  EXEC_AND_DLOG_RETURN(
       ret, NodeTracker::GetInstance()->GetNodeAddr(node_id_in_rmm, addr),
       "got node address", "failed to get node address");
-  LOG(INFO) << "node address is " << addr.ip << ":" << addr.port;
+  DLOG(INFO) << "node address is " << addr.ip << ":" << addr.port;
   addr.port = "";  // the port is used for OLAP, not for loading
   socket_fd = slave_addr_to_socket_[addr];
   return ret;

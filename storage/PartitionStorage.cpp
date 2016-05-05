@@ -64,16 +64,16 @@ RetCode PartitionStorage::AddChunkWithMemoryToNum(
     const StorageLevel& storage_level) {
   RetCode ret = rSuccess;
   if (number_of_chunks_ >= expected_number_of_chunks) return ret;
-  LOG(INFO) << "now chunk number:" << number_of_chunks_
-            << ". expected chunk num:" << expected_number_of_chunks;
+  DLOG(INFO) << "now chunk number:" << number_of_chunks_
+             << ". expected chunk num:" << expected_number_of_chunks;
   for (unsigned i = number_of_chunks_; i < expected_number_of_chunks; i++) {
     ChunkStorage* chunk =
         new ChunkStorage(ChunkID(partition_id_, i), BLOCK_SIZE, storage_level);
-    EXEC_AND_LOG(ret, chunk->ApplyMemory(), "applied memory for chunk("
-                                                << partition_id_.getName()
-                                                << "," << i << ")",
-                 "failed to apply memory for chunk(" << partition_id_.getName()
-                                                     << "," << i << ")");
+    EXEC_AND_DLOG(ret, chunk->ApplyMemory(), "applied memory for chunk("
+                                                 << partition_id_.getName()
+                                                 << "," << i << ")",
+                  "failed to apply memory for chunk(" << partition_id_.getName()
+                                                      << "," << i << ")");
     chunk_list_.push_back(chunk);
   }
   number_of_chunks_ = expected_number_of_chunks;
@@ -184,10 +184,9 @@ bool PartitionStorage::AtomicPartitionReaderIterator::nextBlock(
     }
   }
 }
-PartitionStorage::TxnPartitionReaderIterator::~TxnPartitionReaderIterator() {
-
-}
-PartitionStorage::PartitionReaderItetaor* PartitionStorage::createTxnReaderIterator() {
+PartitionStorage::TxnPartitionReaderIterator::~TxnPartitionReaderIterator() {}
+PartitionStorage::PartitionReaderItetaor*
+PartitionStorage::createTxnReaderIterator() {
   return new TxnPartitionReaderIterator(this);
 }
 
@@ -199,28 +198,27 @@ bool PartitionStorage::TxnPartitionReaderIterator::nextBlock(
     lock_.release();
     ba->getBlock(block);
     auto block_addr = (char*)block->getBlock();
-    auto chunk_addr = (char*)((InMemoryChunkReaderItetaor*)chunk_it_)->getChunk();
-    //cout << (block_addr - chunk_addr) / (64 * 1024) << endl;
+    auto chunk_addr =
+        (char*)((InMemoryChunkReaderItetaor*)chunk_it_)->getChunk();
+    // cout << (block_addr - chunk_addr) / (64 * 1024) << endl;
     return true;
-  }
-  else {
+  } else {
     if ((chunk_it_ = PartitionReaderItetaor::nextChunk()) > 0) {
       lock_.release();
       return nextBlock(block);
-    }
-    else {
+    } else {
       lock_.release();
       return false;
     }
   }
 }
 ChunkReaderIterator* PartitionStorage::TxnPartitionReaderIterator::nextChunk() {
-//  lock_.acquire();
+  //  lock_.acquire();
   ChunkReaderIterator* ret;
   if (chunk_cur_ < ps->number_of_chunks_)
     ret = ps->chunk_list_[chunk_cur_++]->createChunkReaderIterator();
   else
     ret = 0;
-//  lock_.release();
+  //  lock_.release();
   return ret;
 }

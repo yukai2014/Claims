@@ -59,6 +59,15 @@ typedef int RetCode;  // means return code
     }                                        \
   } while (0)
 
+#define EXEC_AND_DLOG(ret, f, info, err_info) \
+  do {                                        \
+    if (rSuccess == (ret = f)) {              \
+      DLOG(INFO) << info << std::endl;        \
+    } else {                                  \
+      ELOG(ret, err_info)                     \
+    }                                         \
+  } while (0)
+
 #define EXEC_AND_LOG_RETURN(ret, f, info, err_info) \
   do {                                              \
     if (rSuccess == (ret = f)) {                    \
@@ -67,6 +76,16 @@ typedef int RetCode;  // means return code
       ELOG(ret, err_info)                           \
       return ret;                                   \
     }                                               \
+  } while (0)
+
+#define EXEC_AND_DLOG_RETURN(ret, f, info, err_info) \
+  do {                                               \
+    if (rSuccess == (ret = f)) {                     \
+      DLOG(INFO) << info << std::endl;               \
+    } else {                                         \
+      ELOG(ret, err_info)                            \
+      return ret;                                    \
+    }                                                \
   } while (0)
 
 #define EXEC_AND_PLOG(ret, f, info, err_info)                       \
@@ -263,8 +282,6 @@ const int rAbortIngestTxnFail = -2503;
 const int rBeginQueryFail = -2504;
 const int rBeginCheckpointFail = -2505;
 const int rCommitCheckpointFail = -2506;
-
-
 
 /* errorno for codegen -3001 ~ -4000 */
 const int rTestError = -3001;

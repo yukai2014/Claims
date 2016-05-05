@@ -29,7 +29,6 @@
 #ifndef LOADER_SLAVE_LOADER_H_
 #define LOADER_SLAVE_LOADER_H_
 #include <assert.h>
-#include <glog/logging.h>
 #include <iostream>
 #include <string>
 #include "../catalog/catalog.h"
