@@ -17,7 +17,6 @@ LDADD = 	../BlockStreamIterator/libblockstreamiterator.a \
 		../common/Block/libblock.a \
 		../common/libcommon.a \
 		../utility/libutility.a \
-		${THERON_HOME}/Lib/libtherond.a \
 		${BOOST_HOME}/stage/lib/libboost_serialization.a \
 		${BOOST_HOME}/stage/lib/libboost_serialization.so
 
@@ -32,7 +31,7 @@ libexecutor_a_SOURCES = \
 	IteratorExecutorSlave.h 	PortManager.cpp \
 	PortManager.h
 	
-libexecutor_a_LIBADD = 	${THERON_HOME}/Lib/libtherond.a \
+libexecutor_a_LIBADD = \
 				${BOOST_HOME}/stage/lib/libboost_serialization.a \
 				${BOOST_HOME}/stage/lib/libboost_serialization.so
 

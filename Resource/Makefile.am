@@ -29,4 +29,3 @@ libresouce_a_SOURCES = \
 	BufferManager.cpp		BufferManager.h \
 	CPUResource.cpp			CPUResource.h
 
-libresouce_a_LIBADD = ${THERON_HOME}/Lib/libtherond.a

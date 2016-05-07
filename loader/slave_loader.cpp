@@ -60,6 +60,14 @@ using claims::txn::GetTableIdFromGlobalPartId;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
+#define MASTER_LOADER_DEBUG
+
+#ifdef MASTER_LOADER_DEBUG
+#define PERFLOG(info) LOG(INFO) << info << endl;
+#else
+#define PERFLOG
+#endif
+
 namespace claims {
 namespace loader {
 
@@ -221,6 +229,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
                  << " bytes";
       continue;
     }
+    PERFLOG("received packet head");
     uint64_t data_length =
         *reinterpret_cast<uint64_t*>(head_buffer + LoadPacket::kHeadLength -
                                      sizeof(uint64_t));
@@ -244,16 +253,18 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     //    LOG(INFO) << "data of message from master is:" << buffer;
 
     // deserialization of packet
+    PERFLOG("got all packet buffer");
     LoadPacket packet;
-    packet.Deserialize(head_buffer, data_buffer);
+    EXEC_AND_LOG(ret, packet.Deserialize(head_buffer, data_buffer),
+                 "deserialized packet", "failed to deserialize packet");
 
-    EXEC_AND_DLOG(ret, StoreDataInMemory(packet), "stored data",
-                  "failed to store");
+    EXEC_AND_LOG(ret, StoreDataInMemory(packet), "stored data",
+                 "failed to store");
 
     // return result to master loader
-    EXEC_AND_DLOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
-                  "sent commit result to master loader",
-                  "failed to send commit res to master loader");
+    EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
+                 "sent commit result to master loader",
+                 "failed to send commit res to master loader");
     if (rSuccess != ret) return ret;
   }
 }
@@ -280,7 +291,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
              << " CHUNK SIZE is:" << CHUNK_SIZE
              << " last chunk id is:" << last_chunk_id;
-  EXEC_AND_DLOG_RETURN(
+  EXEC_AND_LOG_RETURN(
       ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
       "added chunk to " << last_chunk_id + 1, "failed to add chunk");
 

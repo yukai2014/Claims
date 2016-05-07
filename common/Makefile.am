@@ -21,7 +21,6 @@ endif
 #		types/libtypes.a 
 #		${BOOST_HOME}/stage/lib/libboost_serialization.a \
 #		${BOOST_HOME}/stage/lib/libboost_serialization.so \
-#		${THERON_HOME}/Lib/libtherond.a \
 #		${GTEST_HOME}/libgtest.a
 
 noinst_LIBRARIES=libcommon.a

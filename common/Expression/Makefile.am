@@ -17,7 +17,6 @@ LDADD = 	../../catalog/libcatalog.a \
 		../../common/libcommon.a \
 		../../common/Schema/libschema.a \
 		../../utility/libutility.a \
-		${THERON_HOME}/Lib/libtherond.a \
 		${BOOST_HOME}/stage/lib/libboost_serialization.a \
 		${BOOST_HOME}/stage/lib/libboost_system.a \
 		${BOOST_HOME}/stage/lib/libboost_serialization.so \

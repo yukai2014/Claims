@@ -30,7 +30,6 @@ LDADD =	../../Executor/libexecutor.a \
 		${JAVA_HOME}/jre/lib/amd64/server/libjvm.so\
 		${BOOST_HOME}/stage/lib/libboost_serialization.a \
 		${BOOST_HOME}/stage/lib/libboost_serialization.so \
-		${THERON_HOME}/Lib/libtherond.a  \
 		${GTEST_HOME}/libgtest.a
 
 

@@ -25,7 +25,6 @@ LDADD =  \
 	Test/utility/libutility.a \
 	common/serialization/libserialization.a \
 	Client/libclient.a \
-	Client/Test/libtest.a \
 	Daemon/libdaemon.a \
 	Executor/libexecutor.a \
 	Executor/Test/libtest.a \
@@ -59,7 +58,6 @@ LDADD =  \
 	txn_manager/libtxnmanager.a \
 	${CAF_HOME}/build/lib/libcaf_core.so \
 	${CAF_HOME}/build/lib/libcaf_io.so \
-	${THERON_HOME}/Lib/libtherond.a \
 	${BOOST_HOME}/stage/lib/libboost_serialization.so \
 	${BOOST_HOME}/stage/lib/libboost_system.so \
 	${BOOST_HOME}/stage/lib/libboost_date_time.so \
@@ -74,6 +72,11 @@ LDADD =  \
 
 LDADD += catalog/stat/libstat.a 
 
+if OPT_DEBUG
+LDADD +=	${THERON_HOME}/Lib/libtherond.a 
+else
+LDADD +=	${THERON_HOME}/Lib/libtheron.a 
+endif
  
 include_HEADERS = Config.h \
 				Debug.h \

@@ -18,16 +18,11 @@ AM_CPPFLAGS+=-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-b
 AM_LDFLAGS+=-ltcmalloc 
 endif
 
-LDADD = 	../catalog/libcatalog.a \
-		../common/libcommon.a \
-		../common/Block/libblock.a \
-		../common/file_handle/libfilehandle.a \
-		../common/Schema/libschema.a \
-		${HADOOP_HOME}/lib/native/libhdfs.a\
-		${JAVA_HOME}/jre/lib/amd64/server/libjvm.so\
-		${BOOST_HOME}/stage/lib/libboost_serialization.a \
-		${BOOST_HOME}/stage/lib/libboost_serialization.so \
-		${THERON_HOME}/Lib/libtherond.a 
+#LDADD = 	../catalog/libcatalog.a \
+#		../common/libcommon.a \
+#		../common/Block/libblock.a \
+#		../common/file_handle/libfilehandle.a \
+#		../common/Schema/libschema.a 
 
 noinst_LIBRARIES=libloader.a
 libloader_a_SOURCES = \

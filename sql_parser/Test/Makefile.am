@@ -28,7 +28,6 @@ LDADD =  \
 	${HADOOP_HOME}/lib/native/libhdfs.so\
 	${HADOOP_HOME}/lib/native/libhdfs.a\
 	${JAVA_HOME}/jre/lib/amd64/server/libjvm.so\
-	${THERON_HOME}/Lib/libtherond.a \
 	${GTEST_HOME}/libgtest.a 
 
 

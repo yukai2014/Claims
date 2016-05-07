@@ -20,7 +20,6 @@ LDADD = 	../../catalog/libcatalog.a \
 		${HADOOP_HOME}/lib/native/libhdfs.a\
 		${JAVA_HOME}/jre/lib/amd64/server/libjvm.so\
 		${HADOOP_HOME}/lib/native/libhdfs.so\
-		${THERON_HOME}/Lib/libtherond.a \
 		${BOOST_HOME}/stage/lib/libboost_serialization.so \
 		${BOOST_HOME}/stage/lib/libboost_serialization.a
 
