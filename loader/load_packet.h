@@ -53,16 +53,18 @@ using OkAtom = caf::atom_constant<caf::atom("ok")>;
 struct LoadPacket {
  public:
   LoadPacket() {}
-  LoadPacket(const uint64_t txn_id, const uint64_t g_part_id, uint64_t pos,
-             uint64_t offset, uint64_t data_length, const void* data_buffer)
+  LoadPacket(int socket_fd, const uint64_t txn_id, const uint64_t g_part_id,
+             uint64_t pos, uint64_t offset, uint64_t data_length,
+             const void* data_buffer)
       : txn_id_(txn_id),
         global_part_id_(g_part_id),
         pos_(pos),
         offset_(offset),
         data_buffer_(data_buffer),
-        data_length_(data_length) {}
+        data_length_(data_length),
+        socket_fd_(socket_fd) {}
   ~LoadPacket();
-  RetCode Serialize(void*& packet_buffer, uint64_t& packet_length) const;
+  RetCode Serialize();
 
   RetCode Deserialize(const void* const head_buffer, void* data_buffer);
 
@@ -76,6 +78,10 @@ struct LoadPacket {
   uint64_t offset_;
   uint64_t data_length_;
   void* data_buffer_;
+
+  int socket_fd_ = -1;
+  uint64_t packet_length_ = 0;
+  void* packet_buffer_ = NULL;
 };
 
 } /* namespace loader */

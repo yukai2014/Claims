@@ -309,8 +309,8 @@ RetCode MasterLoader::Ingest(const string& message,
 
   /// distribute partition load task
   EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
-               "sent every partition data to its slave",
-               "failed to send every partition data to its slave");
+               "sent every partition data to send queu",
+               "failed to send every partition data to queue");
 
   assert(rSuccess == ret);
 
@@ -472,9 +472,10 @@ RetCode MasterLoader::GetPartitionTuples(
 
   // check all tuples to be inserted
   int line = 0;
+  int table_tuple_length = table_schema->getTupleMaxSize();
   for (auto tuple_string : req.tuples_) {
     //    DLOG(INFO) << "to be inserted tuple:" << tuple_string;
-    void* tuple_buffer = Malloc(table_schema->getTupleMaxSize());
+    void* tuple_buffer = Malloc(table_tuple_length);
     if (tuple_buffer == NULL) return claims::common::rNoMemory;
     MemoryGuardWithRetCode<void> guard(tuple_buffer, ret);
 #ifdef CHECK_VALIDITY
@@ -526,7 +527,7 @@ RetCode MasterLoader::GetPartitionTuples(
 
     for (auto tuple_buffer : correct_tuple_buffer) {
       // extract the sub tuple according to the projection schema
-      void* target = Malloc(prj_schema->getTupleMaxSize());  // newmalloc
+      void* target = Malloc(tuple_max_length);  // newmalloc
       if (target == NULL) {
         return (ret = claims::common::rNoMemory);
       }
@@ -543,6 +544,47 @@ RetCode MasterLoader::GetPartitionTuples(
       tuple_buffer_per_part[i][part].push_back(target);
     }
   }
+  return ret;
+}
+
+RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
+    const TableDescriptor* table,
+    vector<vector<vector<void*>>>& tuple_buffer_per_part,
+    vector<vector<PartitionBuffer>>& partition_buffers) {
+  RetCode ret = rSuccess;
+  assert(tuple_buffer_per_part.size() == table->getNumberOfProjection() &&
+         "projection number is not match!!");
+  for (int i = 0; i < tuple_buffer_per_part.size(); ++i) {
+    assert(tuple_buffer_per_part[i].size() ==
+               table->getProjectoin(i)
+                   ->getPartitioner()
+                   ->getNumberOfPartitions() &&
+           "partition number is not match");
+    for (int j = 0; j < tuple_buffer_per_part[i].size(); ++j) {
+      int tuple_count = tuple_buffer_per_part[i][j].size();
+      //      if (0 == tuple_count) continue;
+      int tuple_len = table->getProjectoin(i)->getSchema()->getTupleMaxSize();
+      int buffer_len = tuple_count * tuple_len;
+      DLOG(INFO) << "the tuple length of prj:" << i << ",part:" << j
+                 << ",table:" << table->getTableName() << " is:" << tuple_len;
+      DLOG(INFO) << "tuple size is:" << tuple_count;
+
+      void* new_buffer = Malloc(buffer_len);
+      if (NULL == new_buffer) return ret = claims::common::rNoMemory;
+
+      for (int k = 0; k < tuple_count; ++k) {
+        memcpy(new_buffer + k * tuple_len, tuple_buffer_per_part[i][j][k],
+               tuple_len);
+        // release old memory stored tuple buffer
+        DELETE_PTR(tuple_buffer_per_part[i][j][k]);
+      }
+      // push new partition buffer
+      partition_buffers[i].push_back(PartitionBuffer(new_buffer, buffer_len));
+      tuple_buffer_per_part[i][j].clear();
+    }
+    tuple_buffer_per_part[i].clear();
+  }
+  tuple_buffer_per_part.clear();
   return ret;
 }
 
@@ -616,70 +658,29 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
          ++part_id) {
       if (0 == partition_buffers[prj_id][part_id].length_) continue;
       uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
-      LoadPacket packet(ingest.id_, global_part_id,
-                        ingest.strip_list_.at(global_part_id).first,
-                        ingest.strip_list_.at(global_part_id).second,
-                        partition_buffers[prj_id][part_id].length_,
-                        partition_buffers[prj_id][part_id].buffer_);
-      void* packet_buffer;
-      MemoryGuard<void> guard(packet_buffer);  // auto release by guard
-      uint64_t packet_length;
-      EXEC_AND_DLOG_RETURN(ret, packet.Serialize(packet_buffer, packet_length),
-                           "serialized packet into buffer",
-                           "failed to serialize packet");
 
       int socket_fd = -1;
       EXEC_AND_DLOG_RETURN(ret, SelectSocket(table, prj_id, part_id, socket_fd),
                            "selected the socket",
                            "failed to select the socket");
       assert(socket_fd > 3);
-      EXEC_AND_DLOG_RETURN(ret,
-                           SendPacket(socket_fd, packet_buffer, packet_length),
-                           "sent message to slave :" << socket_fd,
-                           "failed to sent message to slave :" << socket_fd);
+
+      LoadPacket* packet =
+          new LoadPacket(socket_fd, ingest.id_, global_part_id,
+                         ingest.strip_list_.at(global_part_id).first,
+                         ingest.strip_list_.at(global_part_id).second,
+                         partition_buffers[prj_id][part_id].length_,
+                         partition_buffers[prj_id][part_id].buffer_);
+
+      EXEC_AND_DLOG_RETURN(ret, packet->Serialize(),
+                           "serialized packet into buffer",
+                           "failed to serialize packet");
+
+      LockGuard<SpineLock> guard(packet_queue_lock_);
+      packet_queue_.push(packet);
+      packet_to_send_count_.post();
     }
   }
-  return ret;
-}
-
-RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
-    const TableDescriptor* table,
-    vector<vector<vector<void*>>>& tuple_buffer_per_part,
-    vector<vector<PartitionBuffer>>& partition_buffers) {
-  RetCode ret = rSuccess;
-  assert(tuple_buffer_per_part.size() == table->getNumberOfProjection() &&
-         "projection number is not match!!");
-  for (int i = 0; i < tuple_buffer_per_part.size(); ++i) {
-    assert(tuple_buffer_per_part[i].size() ==
-               table->getProjectoin(i)
-                   ->getPartitioner()
-                   ->getNumberOfPartitions() &&
-           "partition number is not match");
-    for (int j = 0; j < tuple_buffer_per_part[i].size(); ++j) {
-      int tuple_count = tuple_buffer_per_part[i][j].size();
-      //      if (0 == tuple_count) continue;
-      int tuple_len = table->getProjectoin(i)->getSchema()->getTupleMaxSize();
-      int buffer_len = tuple_count * tuple_len;
-      DLOG(INFO) << "the tuple length of prj:" << i << ",part:" << j
-                 << ",table:" << table->getTableName() << " is:" << tuple_len;
-      DLOG(INFO) << "tuple size is:" << tuple_count;
-
-      void* new_buffer = Malloc(buffer_len);
-      if (NULL == new_buffer) return ret = claims::common::rNoMemory;
-
-      for (int k = 0; k < tuple_count; ++k) {
-        memcpy(new_buffer + k * tuple_len, tuple_buffer_per_part[i][j][k],
-               tuple_len);
-        // release old memory stored tuple buffer
-        DELETE_PTR(tuple_buffer_per_part[i][j][k]);
-      }
-      // push new partition buffer
-      partition_buffers[i].push_back(PartitionBuffer(new_buffer, buffer_len));
-      tuple_buffer_per_part[i][j].clear();
-    }
-    tuple_buffer_per_part[i].clear();
-  }
-  tuple_buffer_per_part.clear();
   return ret;
 }
 
@@ -704,7 +705,6 @@ RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
 RetCode MasterLoader::SendPacket(const int socket_fd,
                                  const void* const packet_buffer,
                                  const uint64_t packet_length) {
-  LockGuard<Lock> guard(lock_);
   size_t total_write_num = 0;
   while (total_write_num < packet_length) {
     ssize_t write_num = write(
@@ -721,6 +721,25 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
   return rSuccess;
 }
 
+void* MasterLoader::SendPacketWork(void* arg) {
+  MasterLoader* loader = static_cast<MasterLoader*>(arg);
+  while (1) {
+    loader->packet_to_send_count_.wait();
+    LoadPacket* packet = nullptr;
+    {
+      LockGuard<SpineLock> guard(loader->packet_queue_lock_);
+      packet = loader->packet_queue_.front();
+      loader->packet_queue_.pop();
+    }
+
+    RetCode ret = rSuccess;
+    EXEC_AND_LOG(ret, SendPacket(packet->socket_fd_, packet->packet_buffer_,
+                                 packet->packet_length_),
+                 "sent packet to" << packet->socket_fd_,
+                 "failed to send packet");
+    DELETE_PTR(packet);
+  }
+}
 void* MasterLoader::Work(void* arg) {
   WorkerPara* para = static_cast<WorkerPara*>(arg);
   AMQConsumer consumer(para->brokerURI_, para->destURI_, para->use_topic_,
@@ -780,6 +799,9 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   int temp;
   cin >> temp;
   cout << "Well , start flag is received" << std::endl;
+
+  Environment::getInstance()->getThreadPool()->AddTask(
+      MasterLoader::SendPacketWork, master_loader);
 
   //  AMQConsumer consumer(brokerURI, destURI, use_topics, client_ack);
   //  consumer.run(master_loader);

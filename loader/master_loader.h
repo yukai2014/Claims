@@ -37,6 +37,7 @@
 #include <vector>
 #include <unordered_map>
 #include "caf/all.hpp"
+#include <queue>
 
 #include "./validity.h"
 #include "../common/error_define.h"
@@ -51,6 +52,7 @@ namespace claims {
 namespace catalog {
 class TableDescriptor;
 }
+
 namespace loader {
 
 using std::map;
@@ -59,6 +61,8 @@ using std::vector;
 using caf::behavior;
 using caf::event_based_actor;
 using claims::catalog::TableDescriptor;
+
+class LoadPacket;
 
 // #define CHECK_VALIDITY
 
@@ -169,9 +173,6 @@ class MasterLoader {
   RetCode SelectSocket(const TableDescriptor* table, const uint64_t prj_id,
                        const uint64_t part_id, int& socket_fd);
 
-  RetCode SendPacket(const int socket_fd, const void* const packet_buffer,
-                     const uint64_t packet_length);
-
   RetCode GetSlaveNetAddr();
   RetCode SetSocketWithSlaves();
   RetCode GetSocketFdConnectedWithSlave(string ip, int port, int* connected_fd);
@@ -180,9 +181,15 @@ class MasterLoader {
 
   static behavior ReceiveSlaveReg(event_based_actor* self,
                                   MasterLoader* mloader);
+  static RetCode SendPacket(const int socket_fd,
+                            const void* const packet_buffer,
+                            const uint64_t packet_length);
 
  public:
   static void* Work(void* para);
+
+  static void* SendPacketWork(void* arg);
+
   static void* StartMasterLoader(void* arg);
 
  private:
@@ -196,6 +203,10 @@ class MasterLoader {
   unordered_map<uint64_t, CommitInfo> txn_commint_info_;
   Lock lock_;
   SpineLock spin_lock_;
+
+  std::queue<LoadPacket*> packet_queue_;
+  SpineLock packet_queue_lock_;
+  semaphore packet_to_send_count_;
 
  private:
   // for test

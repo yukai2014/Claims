@@ -36,28 +36,27 @@ using namespace claims::common;  // NOLINT
 namespace claims {
 namespace loader {
 
-LoadPacket::~LoadPacket() {}
+LoadPacket::~LoadPacket() { DELETE_PTR(packet_buffer_); }
 
-RetCode LoadPacket::Serialize(void*& packet_buffer,
-                              uint64_t& packet_length) const {
-  packet_length = kHeadLength + data_length_;
-  packet_buffer = Malloc(packet_length);
-  if (NULL == packet_length) {
+RetCode LoadPacket::Serialize() {
+  packet_length_ = kHeadLength + data_length_;
+  packet_buffer_ = Malloc(packet_length_);
+  if (NULL == packet_length_) {
     ELOG(rNoMemory, "no memory for packet buffer");
     return rNoMemory;
   }
 
-  *reinterpret_cast<uint64_t*>(packet_buffer) = txn_id_;
-  *reinterpret_cast<uint64_t*>(packet_buffer + 1 * sizeof(uint64_t)) =
+  *reinterpret_cast<uint64_t*>(packet_buffer_) = txn_id_;
+  *reinterpret_cast<uint64_t*>(packet_buffer_ + 1 * sizeof(uint64_t)) =
       global_part_id_;
-  *reinterpret_cast<uint64_t*>(packet_buffer + 2 * sizeof(uint64_t)) = pos_;
-  *reinterpret_cast<uint64_t*>(packet_buffer + 3 * sizeof(uint64_t)) = offset_;
-  *reinterpret_cast<uint64_t*>(packet_buffer + 4 * sizeof(uint64_t)) =
+  *reinterpret_cast<uint64_t*>(packet_buffer_ + 2 * sizeof(uint64_t)) = pos_;
+  *reinterpret_cast<uint64_t*>(packet_buffer_ + 3 * sizeof(uint64_t)) = offset_;
+  *reinterpret_cast<uint64_t*>(packet_buffer_ + 4 * sizeof(uint64_t)) =
       data_length_;
   DLOG(INFO) << "Serialize packet: " << txn_id_ << " " << global_part_id_ << " "
              << pos_ << " " << offset_ << " " << data_length_;
 
-  memcpy(packet_buffer + kHeadLength, data_buffer_, data_length_);
+  memcpy(packet_buffer_ + kHeadLength, data_buffer_, data_length_);
   return rSuccess;
 }
 
