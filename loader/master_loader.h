@@ -30,6 +30,8 @@
 #define LOADER_MASTER_LOADER_H_
 
 #include <boost/unordered/unordered_map.hpp>
+#include <sys/select.h>
+#include <time.h>
 #include <functional>
 #include <string>
 #include <vector>
@@ -194,6 +196,11 @@ class MasterLoader {
   unordered_map<uint64_t, CommitInfo> txn_commint_info_;
   Lock lock_;
   SpineLock spin_lock_;
+
+ private:
+  // for test
+  static uint64_t debug_consumed_message_count;
+  static timeval start_time;
 };
 
 } /* namespace loader */

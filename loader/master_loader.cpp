@@ -32,6 +32,7 @@
 #include <glog/logging.h>
 #include <pthread.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <iostream>
 #include <string>
@@ -86,6 +87,9 @@ using namespace claims::txn;  // NOLINT
 #define PERFLOG
 #endif
 
+uint64_t MasterLoader::debug_consumed_message_count = 0;
+timeval MasterLoader::start_time;
+
 namespace claims {
 namespace loader {
 void MasterLoader::IngestionRequest::Show() {
@@ -119,34 +123,34 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         DLOG(INFO) << "going to push socket into map";
         mloader->slave_addr_to_socket_[NodeAddress(ip, "")] = new_slave_fd;
         DLOG(INFO) << "start to send test message to slave";
+        /*
+                /// test whether socket works well
+                ostringstream oss;
+                oss << "hello, i'm master, whose address is "
+                    << mloader->master_loader_ip << ":"
+                    << to_string(mloader->master_loader_port) << ". \0";
 
-        /// test whether socket works well
-        //        ostringstream oss;
-        //        oss << "hello, i'm master, whose address is "
-        //            << mloader->master_loader_ip << ":"
-        //            << to_string(mloader->master_loader_port) << ". \0";
-        //
-        //        int message_length = oss.str().length();
-        //        DLOG(INFO) << "message length is " << message_length;
-        //
-        //        if (-1 ==
-        //            write(new_slave_fd,
-        //            reinterpret_cast<char*>(&message_length), 4)) {
-        //          PLOG(ERROR) << "failed to send message length to slave(" <<
-        //          ip << ":"
-        //                      << port << ")";
-        //        } else {
-        //          DLOG(INFO) << "message length is sent";
-        //        }
-        //        if (-1 == write(new_slave_fd, oss.str().c_str(),
-        //        message_length)) {
-        //          PLOG(ERROR) << "failed to send message to slave(" << ip <<
-        //          ":" << port
-        //                      << ")";
-        //        } else {
-        //          DLOG(INFO) << "message buffer is sent";
-        //        }
+                int message_length = oss.str().length();
+                DLOG(INFO) << "message length is " << message_length;
 
+                if (-1 ==
+                    write(new_slave_fd,
+           reinterpret_cast<char*>(&message_length), 4)) {
+                  PLOG(ERROR) << "failed to send message length to slave(" << ip
+           << ":"
+                              << port << ")";
+                } else {
+                  DLOG(INFO) << "message length is sent";
+                }
+                if (-1 == write(new_slave_fd, oss.str().c_str(),
+           message_length)) {
+                  PLOG(ERROR) << "failed to send message to slave(" << ip << ":"
+           << port
+                              << ")";
+                } else {
+                  DLOG(INFO) << "message buffer is sent";
+                }
+        */
         return 1;
       },
       [=](LoadAckAtom, uint64_t txn_id, bool is_commited) -> int {  // NOLINT
@@ -196,7 +200,8 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         //        return caf::make_message(OkAtom::value);
         return 1;
       },
-      [=](BindPartAtom, PartitionID part_id, NodeID node_id) -> int {  // NOLINT
+      [=](BindPartAtom, PartitionID part_id,  // NOLINT
+          NodeID node_id) -> int {
         LOG(INFO) << "get part bind info (T" << part_id.projection_id.table_id
                   << "P" << part_id.projection_id.projection_off << "G"
                   << part_id.partition_off << ") --> " << node_id;
@@ -227,31 +232,26 @@ RetCode MasterLoader::ConnectWithSlaves() {
 
 RetCode MasterLoader::Ingest(const string& message,
                              function<int()> ack_function) {
-  static uint64_t debug_consumed_message_count = 0;
-  static double start_time_stamp = 0;
-  static double txn_1000_end_time_stamp = 0;
-  __sync_add_and_fetch(&debug_consumed_message_count, 1);
-  PERFLOG("consumed message :" << debug_consumed_message_count);
-  if (1 == debug_consumed_message_count) {
-    start_time_stamp = GetCurrentMs();
+  if (1 == __sync_add_and_fetch(&debug_consumed_message_count, 1)) {
+    gettimeofday(&start_time, NULL);
   }
-  if (1000 == debug_consumed_message_count) {
-    txn_1000_end_time_stamp = GetCurrentMs();
-    cout << "\n\n 1000 txn used " << txn_1000_end_time_stamp - start_time_stamp
+  if (1000 == __sync_add_and_fetch(&debug_consumed_message_count, 1)) {
+    cout << "\n\n 1000 txn used " << GetElapsedTimeInUs(start_time) << " us"
          << endl;
   }
+  PERFLOG("consumed message :" << debug_consumed_message_count);
 
   RetCode ret = rSuccess;
   //  string message = GetMessage();
   //  DLOG(INFO) << "get message:\n" << message;
 
-  // get message from MQ
+  /// get message from MQ
   IngestionRequest req;
   EXEC_AND_LOG(ret, GetRequestFromMessage(message, &req), "got request!",
                "failed to get request");
 
-  // parse message and get all tuples of all partitions, then
-  // check the validity of all tuple in message
+  /// parse message and get all tuples of all partitions, then
+  /// check the validity of all tuple in message
   TableDescriptor* table =
       Environment::getInstance()->getCatalog()->getTable(req.table_name_);
   assert(table != NULL && "table is not exist!");
@@ -280,7 +280,7 @@ RetCode MasterLoader::Ingest(const string& message,
                "failed to get all tuples of every partition");
 #endif
 
-  // merge all tuple buffers of partition into one partition buffer
+  /// merge all tuple buffers of partition into one partition buffer
   vector<vector<PartitionBuffer>> partition_buffers(
       table->getNumberOfProjection());
   EXEC_AND_LOG(ret, MergePartitionTupleIntoOneBuffer(
@@ -288,7 +288,7 @@ RetCode MasterLoader::Ingest(const string& message,
                "merged all tuple of same partition into one buffer",
                "failed to merge tuples buffers into one buffer");
 
-  // start transaction from here
+  /// start transaction from here
   claims::txn::Ingest ingest;
   EXEC_AND_LOG(ret, ApplyTransaction(table, partition_buffers, ingest),
                "applied transaction: " << ingest.id_,
@@ -298,23 +298,16 @@ RetCode MasterLoader::Ingest(const string& message,
   txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
       ingest.id_, CommitInfo(ingest.strip_list_.size())));
   spin_lock_.release();
-  //  // TODO()need to deleted after testing
-  //  try {
-  //    CommitInfo temp = txn_commint_info_.at(ingest.id_);
-  //  } catch (const std::out_of_range& e) {
-  //    LOG(ERROR) << "Oh~~~NO!!!! no find " << ingest.id_ << " in map";
-  //    assert(false);
-  //  }
   DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
-  // write data log
+  /// write data log
   EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log",
                "failed to write log");
 
-  // reply ACK to MQ
+  /// reply ACK to MQ
   EXEC_AND_DLOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
-  // distribute partition load task
 
+  /// distribute partition load task
   EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
                "sent every partition data to its slave",
                "failed to send every partition data to its slave");
@@ -435,9 +428,11 @@ RetCode MasterLoader::GetRequestFromMessage(const string& message,
   //    string tuple;
   //  string data_string = message.substr(pos);
   //    istringstream iss(data_string);
-  //    while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_)) {
+  //    while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_))
+  //    {
   //        uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
-  //        req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ +
+  //        req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_
+  //        +
   //                               tuple);
   //    }
   //  }
@@ -638,7 +633,6 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
                            "selected the socket",
                            "failed to select the socket");
       assert(socket_fd > 3);
-
       EXEC_AND_DLOG_RETURN(ret,
                            SendPacket(socket_fd, packet_buffer, packet_length),
                            "sent message to slave :" << socket_fd,
