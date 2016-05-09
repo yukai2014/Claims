@@ -19,14 +19,7 @@
 #include "../../utility/Timer.h"
 #include "../common/error_define.h"
 using claims::loader::DataIngestion;
-using claims::common::rTooFewColumn;
-using claims::common::rSuccess;
-using claims::common::rIncorrectData;
-using claims::common::rIncorrectData;
-using claims::common::rInvalidNullData;
-using claims::common::rTooLongData;
-using claims::common::rTooManyColumn;
-using claims::common::rInvalidInsertData;
+using namespace claims::common;  // NOLINT
 
 // #define SCHEMA_FIX_DEBUG
 // #define SCHEMA_FIX_PERF
@@ -99,6 +92,43 @@ Schema* SchemaFix::duplicateSchema() const { return new SchemaFix(columns); }
 
 int SchemaFix::getColumnOffset(unsigned index) const {
   return accum_offsets[index];
+}
+
+// WARNING: using carefully!!!!!
+RetCode SchemaFix::ToValue(std::string text_tuple, void* binary_tuple,
+                           const string attr_separator) {
+  RetCode ret = rSuccess;
+  string::size_type prev_pos = 0;
+  string::size_type pos = 0;
+  string text_column;
+  int attr_sep_length = attr_separator.length();
+
+  /**
+   * let's think : '|' is column separator, '\n' is line separator
+   * data format is always: xxx|xxx|xxx|......xxx|\n
+   */
+  for (int i = 0; i < columns.size(); ++i) {
+    if (pos != string::npos && text_tuple.length() == prev_pos) {
+      // meet the first column without data
+      pos = string::npos;
+      return (ret = rTooFewColumn);
+    } else {
+      pos = text_tuple.find(attr_separator, prev_pos);
+      if (string::npos == pos) {  // not the first column without data
+        return (ret = rFailure);
+      } else {  // correct
+        columns[i].operate->toValue(
+            static_cast<char*>(binary_tuple) + accum_offsets[i],
+            text_tuple.substr(prev_pos, pos - prev_pos).c_str());
+        prev_pos = pos + attr_sep_length;
+      }
+    }
+  }
+  if (text_tuple.length() != prev_pos) {  // too many column data
+    return (ret = rTooManyColumn);
+  }
+  //  PLOG_SF("check_and_to_value func time:" << temp << " us");
+  return ret;
 }
 
 /*

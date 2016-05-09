@@ -58,6 +58,8 @@ using caf::behavior;
 using caf::event_based_actor;
 using claims::catalog::TableDescriptor;
 
+// #define CHECK_VALIDITY
+
 class MasterLoader {
   // public:
   //  enum DataIngestSource { kActiveMQ };
@@ -127,11 +129,16 @@ class MasterLoader {
   RetCode CheckAndToValue(const IngestionRequest& req, void* tuple_buffer,
                           vector<Validity>& column_validities);
 
+#ifdef CHECK_VALIDITY
   RetCode GetPartitionTuples(
       const IngestionRequest& req, const TableDescriptor* table,
       vector<vector<vector<void*>>>& tuple_buffer_per_part,
       vector<Validity>& columns_validities);
-
+#else
+  RetCode GetPartitionTuples(
+      const IngestionRequest& req, const TableDescriptor* table,
+      vector<vector<vector<void*>>>& tuple_buffer_per_part);
+#endif
   /**
    * copy and merge all tuples buffer of the same partition into one buffer,
    * and release all memory in tuple_buffer_per_part

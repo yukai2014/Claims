@@ -52,23 +52,23 @@ void claims::loader::AMQConsumer::run(MasterLoader* mloader) {
     // Create a ConnectionFactory
     ActiveMQConnectionFactory* connectionFactory =
         new ActiveMQConnectionFactory(brokerURI_);
-    DLOG(INFO) << "Create a ConnectionFactory";
+    LOG(INFO) << "Create a ConnectionFactory";
     // Create a Connection
     connection_ = connectionFactory->createConnection();
     delete connectionFactory;
-    DLOG(INFO) << "Create a Connection";
+    LOG(INFO) << "Create a Connection";
 
     ActiveMQConnection* amqConnection =
         dynamic_cast<ActiveMQConnection*>(connection_);
     if (amqConnection != NULL) {
       amqConnection->addTransportListener(this);
     }
-    DLOG(INFO) << "Create a ActiveMQConnection";
+    LOG(INFO) << "Create a ActiveMQConnection";
 
     connection_->start();
 
     connection_->setExceptionListener(this);
-    DLOG(INFO) << "ActiveMQConnection is started";
+    LOG(INFO) << "ActiveMQConnection is started";
 
     // Create a Session
     if (client_ack_) {
@@ -76,7 +76,7 @@ void claims::loader::AMQConsumer::run(MasterLoader* mloader) {
     } else {
       session_ = connection_->createSession(Session::AUTO_ACKNOWLEDGE);
     }
-    DLOG(INFO) << "Create a Session";
+    LOG(INFO) << "Create a Session";
 
     // Create the destination (Topic or Queue)
     if (use_topic_) {
@@ -84,12 +84,12 @@ void claims::loader::AMQConsumer::run(MasterLoader* mloader) {
     } else {
       destination_ = session_->createQueue(destURI_);
     }
-    DLOG(INFO) << "Create a destination";
+    LOG(INFO) << "Create a destination";
 
     // Create a MessageConsumer from the Session to the Topic or Queue
     consumer = session_->createConsumer(destination_);
     consumer->setMessageListener(this);
-    DLOG(INFO) << "Create a MessageConsumer";
+    LOG(INFO) << "Create a MessageConsumer";
     LOG(INFO) << " ready to receive ingest message from ActiveMQ";
     std::cout << "AMQ client listening...." << std::endl;
   } catch (CMSException& e) {

@@ -180,8 +180,8 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
               DLOG(INFO) << "aborted txn with id:" << txn_id
                          << " to txn manager";
             }
-            mloader->txn_commint_info_.erase(txn_id);
             PERFLOG("finished txn with id:" << txn_id);
+            mloader->txn_commint_info_.erase(txn_id);
           }
         } catch (const std::out_of_range& e) {
           LOG(ERROR) << "no find " << txn_id << " in map";
@@ -228,11 +228,20 @@ RetCode MasterLoader::ConnectWithSlaves() {
 RetCode MasterLoader::Ingest(const string& message,
                              function<int()> ack_function) {
   static uint64_t debug_consumed_message_count = 0;
+  static double start_time_stamp = 0;
+  static double txn_1000_end_time_stamp = 0;
   __sync_add_and_fetch(&debug_consumed_message_count, 1);
   PERFLOG("consumed message :" << debug_consumed_message_count);
+  if (1 == debug_consumed_message_count) {
+    start_time_stamp = GetCurrentMs();
+  }
+  if (1000 == debug_consumed_message_count) {
+    txn_1000_end_time_stamp = GetCurrentMs();
+    cout << "\n\n 1000 txn used " << txn_1000_end_time_stamp - start_time_stamp
+         << endl;
+  }
 
   RetCode ret = rSuccess;
-
   //  string message = GetMessage();
   //  DLOG(INFO) << "get message:\n" << message;
 
@@ -253,6 +262,7 @@ RetCode MasterLoader::Ingest(const string& message,
     tuple_buffers_per_part[i].resize(
         table->getProjectoin(i)->getPartitioner()->getNumberOfPartitions());
 
+#ifdef CHECK_VALIDITY
   vector<Validity> columns_validities;
   EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
                                        columns_validities),
@@ -264,6 +274,11 @@ RetCode MasterLoader::Ingest(const string& message,
     ack_function();
     return rFailure;
   }
+#else
+  EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part),
+               "got all tuples of every partition",
+               "failed to get all tuples of every partition");
+#endif
 
   // merge all tuple buffers of partition into one partition buffer
   vector<vector<PartitionBuffer>> partition_buffers(
@@ -293,16 +308,17 @@ RetCode MasterLoader::Ingest(const string& message,
   DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
   // write data log
-  EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log ",
+  EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log",
                "failed to write log");
 
   // reply ACK to MQ
-  EXEC_AND_LOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
-
+  EXEC_AND_DLOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
   // distribute partition load task
+
   EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
                "sent every partition data to its slave",
                "failed to send every partition data to its slave");
+
   assert(rSuccess == ret);
 
   return ret;
@@ -415,22 +431,40 @@ RetCode MasterLoader::GetRequestFromMessage(const string& message,
   req->row_sep_ = message.substr(pos, next_pos - pos);
 
   pos = next_pos + 1;
-  string tuple;
-  string data_string = message.substr(pos);
-  istringstream iss(data_string);
-  while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_)) {
+  //  {
+  //    string tuple;
+  //  string data_string = message.substr(pos);
+  //    istringstream iss(data_string);
+  //    while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_)) {
+  //        uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
+  //        req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ +
+  //                               tuple);
+  //    }
+  //  }
+  int row_seq_length = req->row_sep_.length();
+  while (string::npos != (next_pos = message.find(req->row_sep_, pos))) {
     uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
-    req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ + tuple);
+    req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ +
+                           message.substr(pos, next_pos - pos));
+    pos = next_pos + row_seq_length;
   }
-  req->Show();
+
+  //  req->Show();
   return ret;
 }
 
 // map every tuple into associate part
+#ifdef CHECK_VALIDITY
 RetCode MasterLoader::GetPartitionTuples(
     const IngestionRequest& req, const TableDescriptor* table,
     vector<vector<vector<void*>>>& tuple_buffer_per_part,
     vector<Validity>& columns_validities) {
+#else
+RetCode MasterLoader::GetPartitionTuples(
+    const IngestionRequest& req, const TableDescriptor* table,
+    vector<vector<vector<void*>>>& tuple_buffer_per_part) {
+#endif
+
   RetCode ret = rSuccess;
   Schema* table_schema = table->getSchema();
   MemoryGuard<Schema> table_schema_guard(table_schema);
@@ -448,6 +482,7 @@ RetCode MasterLoader::GetPartitionTuples(
     void* tuple_buffer = Malloc(table_schema->getTupleMaxSize());
     if (tuple_buffer == NULL) return claims::common::rNoMemory;
     MemoryGuardWithRetCode<void> guard(tuple_buffer, ret);
+#ifdef CHECK_VALIDITY
     if (rSuccess != (ret = table_schema->CheckAndToValue(
                          tuple_string, tuple_buffer, req.col_sep_,
                          RawDataSource::kSQL, columns_validities))) {
@@ -469,8 +504,14 @@ RetCode MasterLoader::GetPartitionTuples(
       return ret;
     }
     ++line;
+#else
+    EXEC_AND_RETURN_ERROR(
+        ret, table_schema->ToValue(tuple_string, tuple_buffer, req.col_sep_),
+        "tuple is invalid." << tuple_string);
+#endif
     correct_tuple_buffer.push_back(tuple_buffer);
   }
+  PERFLOG("all tuples are tovalued");
 
   // map every tuple in different partition
   for (int i = 0; i < table->getNumberOfProjection(); i++) {
@@ -714,7 +755,7 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   //
   std::string brokerURI =
       "failover:(tcp://"
-      "58.198.176.92:61616?wireFormat=openwire&connection.useAsyncSend=true"
+      "10.11.1.192:61616?wireFormat=openwire&connection.useAsyncSend=true"
       //        "&transport.commandTracingEnabled=true"
       //        "&transport.tcpTracingEnabled=true"
       //        "&wireFormat.tightEncodingEnabled=true"
