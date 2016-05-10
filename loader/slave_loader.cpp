@@ -60,7 +60,7 @@ using claims::txn::GetTableIdFromGlobalPartId;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
-#define MASTER_LOADER_DEBUG
+// #define MASTER_LOADER_DEBUG
 
 #ifdef MASTER_LOADER_DEBUG
 #define PERFLOG(info) LOG(INFO) << info << endl;
@@ -85,9 +85,9 @@ RetCode SlaveLoader::ConnectWithMaster() {
   int ret = rSuccess;
   int retry_time = 10;
   for (int i = 0; Clean(), i < retry_time; ++i) {  // if failed, call Clean()
-    EXEC_AND_DLOG(ret, EstablishListeningSocket(),
-                  "established listening socket",
-                  "failed to establish listening socket in " << i << " times");
+    EXEC_AND_LOG(ret, EstablishListeningSocket(),
+                 "established listening socket",
+                 "failed to establish listening socket in " << i << " times");
     if (rSuccess == ret) break;
   }
   if (rSuccess != ret) {
@@ -96,8 +96,8 @@ RetCode SlaveLoader::ConnectWithMaster() {
   }
 
   for (int i = 1; i <= retry_time; ++i) {
-    EXEC_AND_DLOG(ret, SendSelfAddrToMaster(), "sent self ip/port to master",
-                  "failed to send self ip/port to master in " << i << " times");
+    EXEC_AND_LOG(ret, SendSelfAddrToMaster(), "sent self ip/port to master",
+                 "failed to send self ip/port to master in " << i << " times");
     if (rSuccess == ret) break;
     sleep(1);
   }
@@ -107,9 +107,9 @@ RetCode SlaveLoader::ConnectWithMaster() {
   }
 
   for (int i = 0; i < retry_time; ++i) {
-    EXEC_AND_DLOG(ret, GetConnectedSocket(), "got connected socket with master",
-                  "failed to get connected socket with master in " << i
-                                                                   << " times");
+    EXEC_AND_LOG(ret, GetConnectedSocket(), "got connected socket with master",
+                 "failed to get connected socket with master in " << i
+                                                                  << " times");
     if (rSuccess == ret) break;
   }
   if (rSuccess != ret) Clean();
@@ -165,16 +165,16 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
   //        remote_actor(Config::master_loader_ip, Config::master_loader_port);
   //    self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port);
   //  });
-  DLOG(INFO) << "going to send self (" << self_ip << ":" << self_port << ")"
-             << "to (" << Config::master_loader_ip << ":"
-             << Config::master_loader_port << ")";
+  LOG(INFO) << "going to send self (" << self_ip << ":" << self_port << ")"
+            << "to (" << Config::master_loader_ip << ":"
+            << Config::master_loader_port << ")";
   try {
     auto master_actor =
         remote_actor(Config::master_loader_ip, Config::master_loader_port);
     caf::scoped_actor self;
     self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port)
         .await([&](int r) {  // NOLINT
-          DLOG(INFO) << "sent ip&port and received response";
+          LOG(INFO) << "sent ip&port and received response";
         });
   } catch (exception& e) {
     LOG(ERROR) << "can't send self ip&port to master loader. " << e.what();
@@ -186,7 +186,7 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
 RetCode SlaveLoader::GetConnectedSocket() {
   assert(listening_fd_ > 3);
   OutputFdIpPort(listening_fd_);
-  DLOG(INFO) << "fd is accepting...";
+  LOG(INFO) << "fd is accepting...";
 
   struct sockaddr_in master_addr;
   socklen_t len = sizeof(sockaddr_in);
@@ -204,18 +204,18 @@ void SlaveLoader::OutputFdIpPort(int fd) {
   if (-1 == getsockname(fd, (struct sockaddr*)(&temp_addr), &addr_len)) {
     PLOG(ERROR) << "failed to get socket name ";
   }
-  DLOG(INFO) << "fd ----> (" << inet_ntoa(temp_addr.sin_addr) << ":"
-             << ntohs(temp_addr.sin_port) << ")";
+  LOG(INFO) << "fd ----> (" << inet_ntoa(temp_addr.sin_addr) << ":"
+            << ntohs(temp_addr.sin_port) << ")";
 }
 
 RetCode SlaveLoader::ReceiveAndWorkLoop() {
   assert(master_fd_ > 3);
   char head_buffer[LoadPacket::kHeadLength];
-  DLOG(INFO) << "slave is receiving ...";
+  LOG(INFO) << "slave is receiving ...";
   while (1) {
     RetCode ret = rSuccess;
 
-    // get load packet
+    /// get load packet
     int real_read_num;
     if (-1 == (real_read_num = recv(master_fd_, head_buffer,
                                     LoadPacket::kHeadLength, MSG_WAITALL))) {
@@ -252,18 +252,19 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     }
     //    LOG(INFO) << "data of message from master is:" << buffer;
 
-    // deserialization of packet
+    /// deserialization of packet
     PERFLOG("got all packet buffer");
     LoadPacket packet;
-    EXEC_AND_LOG(ret, packet.Deserialize(head_buffer, data_buffer),
-                 "deserialized packet", "failed to deserialize packet");
+    EXEC_AND_DLOG(ret, packet.Deserialize(head_buffer, data_buffer),
+                  "deserialized packet", "failed to deserialize packet");
 
-    EXEC_AND_LOG(ret, StoreDataInMemory(packet), "stored data",
-                 "failed to store");
+    EXEC_AND_DLOG(ret, StoreDataInMemory(packet), "stored data",
+                  "failed to store");
 
-    // return result to master loader
+    /// return result to master loader
     EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
-                 "sent commit result to master loader",
+                 "sent commit result of " << packet.txn_id_
+                                          << " to master loader",
                  "failed to send commit res to master loader");
     if (rSuccess != ret) return ret;
   }
@@ -291,7 +292,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
              << " CHUNK SIZE is:" << CHUNK_SIZE
              << " last chunk id is:" << last_chunk_id;
-  EXEC_AND_LOG_RETURN(
+  EXEC_AND_DLOG_RETURN(
       ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
       "added chunk to " << last_chunk_id + 1, "failed to add chunk");
 

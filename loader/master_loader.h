@@ -211,6 +211,7 @@ class MasterLoader {
  private:
   // for test
   static uint64_t debug_consumed_message_count;
+  static uint64_t get_request_time;
   static timeval start_time;
 };
 

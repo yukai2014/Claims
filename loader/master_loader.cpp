@@ -79,16 +79,17 @@ using claims::common::rFailure;
 
 using namespace claims::txn;  // NOLINT
 
-#define MASTER_LOADER_DEBUG
+// #define MASTER_LOADER_DEBUG
 
 #ifdef MASTER_LOADER_DEBUG
 #define PERFLOG(info) LOG(INFO) << info << endl;
 #else
-#define PERFLOG
+#define PERFLOG(info)
 #endif
 
 uint64_t MasterLoader::debug_consumed_message_count = 0;
 timeval MasterLoader::start_time;
+uint64_t MasterLoader::get_request_time = 0;
 
 namespace claims {
 namespace loader {
@@ -154,13 +155,18 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         return 1;
       },
       [=](LoadAckAtom, uint64_t txn_id, bool is_commited) -> int {  // NOLINT
-        // TODO(ANYONE): there should be a thread checking whether transaction
-        // overtime periodically and abort these transaction and delete from
-        // map.
-        // Consider that: if this function access the item in map just deleted
-        // by above thread, unexpected thing happens.
+
+        /*
+          TODO(ANYONE): there should be a thread checking whether
+         transaction overtime periodically and abort these transaction
+         and delete from map.
+         Consider that: if this function access the item in map just deleted
+         by above thread, unexpected thing happens.
+        */
+
         PERFLOG("received a commit result " << is_commited
                                             << " of txn with id:" << txn_id);
+
         //        cout << "(" << syscall(__NR_gettid) << ")received a commit
         //        result "
         //             << is_commited << "of txn with id:" << txn_id << endl;
@@ -184,7 +190,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
               DLOG(INFO) << "aborted txn with id:" << txn_id
                          << " to txn manager";
             }
-            PERFLOG("finished txn with id:" << txn_id);
+            LOG(INFO) << "finished txn with id:" << txn_id;
             mloader->txn_commint_info_.erase(txn_id);
           }
         } catch (const std::out_of_range& e) {
@@ -238,6 +244,7 @@ RetCode MasterLoader::Ingest(const string& message,
   if (1000 == __sync_add_and_fetch(&debug_consumed_message_count, 1)) {
     cout << "\n\n 1000 txn used " << GetElapsedTimeInUs(start_time) << " us"
          << endl;
+    cout << " 1000 txn get request used " << get_request_time << " us" << endl;
   }
   PERFLOG("consumed message :" << debug_consumed_message_count);
 
@@ -246,9 +253,11 @@ RetCode MasterLoader::Ingest(const string& message,
   //  DLOG(INFO) << "get message:\n" << message;
 
   /// get message from MQ
+  GETCURRENTTIME(req_start);
   IngestionRequest req;
-  EXEC_AND_LOG(ret, GetRequestFromMessage(message, &req), "got request!",
-               "failed to get request");
+  EXEC_AND_DLOG(ret, GetRequestFromMessage(message, &req), "got request!",
+                "failed to get request");
+  __sync_add_and_fetch(&get_request_time, GetElapsedTimeInUs(req_start));
 
   /// parse message and get all tuples of all partitions, then
   /// check the validity of all tuple in message
@@ -264,10 +273,10 @@ RetCode MasterLoader::Ingest(const string& message,
 
 #ifdef CHECK_VALIDITY
   vector<Validity> columns_validities;
-  EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
-                                       columns_validities),
-               "got all tuples of every partition",
-               "failed to get all tuples of every partition");
+  EXEC_AND_DLOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part,
+                                        columns_validities),
+                "got all tuples of every partition",
+                "failed to get all tuples of every partition");
   if (ret != rSuccess && ret != claims::common::rNoMemory) {
     // TODO(YUKAI): error handle, like sending error message to client
     LOG(ERROR) << "the tuple is not valid";
@@ -275,18 +284,18 @@ RetCode MasterLoader::Ingest(const string& message,
     return rFailure;
   }
 #else
-  EXEC_AND_LOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part),
-               "got all tuples of every partition",
-               "failed to get all tuples of every partition");
+  EXEC_AND_DLOG(ret, GetPartitionTuples(req, table, tuple_buffers_per_part),
+                "got all tuples of every partition",
+                "failed to get all tuples of every partition");
 #endif
 
   /// merge all tuple buffers of partition into one partition buffer
   vector<vector<PartitionBuffer>> partition_buffers(
       table->getNumberOfProjection());
-  EXEC_AND_LOG(ret, MergePartitionTupleIntoOneBuffer(
-                        table, tuple_buffers_per_part, partition_buffers),
-               "merged all tuple of same partition into one buffer",
-               "failed to merge tuples buffers into one buffer");
+  EXEC_AND_DLOG(ret, MergePartitionTupleIntoOneBuffer(
+                         table, tuple_buffers_per_part, partition_buffers),
+                "merged all tuple of same partition into one buffer",
+                "failed to merge tuples buffers into one buffer");
 
   /// start transaction from here
   claims::txn::Ingest ingest;
@@ -301,16 +310,17 @@ RetCode MasterLoader::Ingest(const string& message,
   DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
   /// write data log
-  EXEC_AND_LOG(ret, WriteLog(table, partition_buffers, ingest), "written log",
-               "failed to write log");
+  EXEC_AND_DLOG(ret, WriteLog(table, partition_buffers, ingest), "written log",
+                "failed to write log");
 
   /// reply ACK to MQ
   EXEC_AND_DLOG(ret, ack_function(), "replied to MQ", "failed to reply to MQ");
 
   /// distribute partition load task
-  EXEC_AND_LOG(ret, SendPartitionTupleToSlave(table, partition_buffers, ingest),
-               "sent every partition data to send queu",
-               "failed to send every partition data to queue");
+  EXEC_AND_DLOG(ret,
+                SendPartitionTupleToSlave(table, partition_buffers, ingest),
+                "sent every partition data to send queu",
+                "failed to send every partition data to queue");
 
   assert(rSuccess == ret);
 
@@ -424,26 +434,26 @@ RetCode MasterLoader::GetRequestFromMessage(const string& message,
   req->row_sep_ = message.substr(pos, next_pos - pos);
 
   pos = next_pos + 1;
-  //  {
-  //    string tuple;
-  //  string data_string = message.substr(pos);
-  //    istringstream iss(data_string);
-  //    while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_))
-  //    {
-  //        uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
-  //        req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_
-  //        +
-  //                               tuple);
-  //    }
-  //  }
-  int row_seq_length = req->row_sep_.length();
-  while (string::npos != (next_pos = message.find(req->row_sep_, pos))) {
-    uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
-    req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ +
-                           message.substr(pos, next_pos - pos));
-    pos = next_pos + row_seq_length;
-  }
 
+  {
+    string tuple;
+    string data_string = message.substr(pos);
+    istringstream iss(data_string);
+    while (DataIngestion::GetTupleTerminatedBy(iss, tuple, req->row_sep_)) {
+      uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
+      req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ +
+                             tuple);
+    }
+  }
+  /* {
+     int row_seq_length = req->row_sep_.length();
+     while (string::npos != (next_pos = message.find(req->row_sep_, pos))) {
+       uint64_t allocated_row_id = __sync_add_and_fetch(&row_id, 1);
+       req->tuples_.push_back(to_string(allocated_row_id) + req->col_sep_ +
+                              message.substr(pos, next_pos - pos));
+       pos = next_pos + row_seq_length;
+     }
+   }*/
   //  req->Show();
   return ret;
 }
@@ -562,7 +572,11 @@ RetCode MasterLoader::MergePartitionTupleIntoOneBuffer(
            "partition number is not match");
     for (int j = 0; j < tuple_buffer_per_part[i].size(); ++j) {
       int tuple_count = tuple_buffer_per_part[i][j].size();
-      //      if (0 == tuple_count) continue;
+      /*
+       * even if it is empty it has to be pushed into buffer, the index in
+       * buffer indicates the index of partition
+       */
+      //  if (0 == tuple_count) continue;
       int tuple_len = table->getProjectoin(i)->getSchema()->getTupleMaxSize();
       int buffer_len = tuple_count * tuple_len;
       DLOG(INFO) << "the tuple length of prj:" << i << ",part:" << j
@@ -626,18 +640,18 @@ RetCode MasterLoader::WriteLog(
       if (0 == partition_buffers[prj_id][part_id].length_) continue;
       uint64_t global_part_id = GetGlobalPartId(table_id, prj_id, part_id);
 
-      EXEC_AND_LOG(ret,
-                   LogClient::Data(global_part_id,
-                                   ingest.strip_list_.at(global_part_id).first,
-                                   ingest.strip_list_.at(global_part_id).second,
-                                   partition_buffers[prj_id][part_id].buffer_,
-                                   partition_buffers[prj_id][part_id].length_),
-                   "written data log for partition:" << global_part_id,
-                   "failed to write data log for partition:" << global_part_id);
+      EXEC_AND_DLOG(
+          ret, LogClient::Data(global_part_id,
+                               ingest.strip_list_.at(global_part_id).first,
+                               ingest.strip_list_.at(global_part_id).second,
+                               partition_buffers[prj_id][part_id].buffer_,
+                               partition_buffers[prj_id][part_id].length_),
+          "written data log for partition:" << global_part_id,
+          "failed to write data log for partition:" << global_part_id);
     }
   }
-  EXEC_AND_LOG(ret, LogClient::Refresh(), "flushed data log into disk",
-               "failed to flush data log");
+  EXEC_AND_DLOG(ret, LogClient::Refresh(), "flushed data log into disk",
+                "failed to flush data log");
   return ret;
 }
 
@@ -733,10 +747,9 @@ void* MasterLoader::SendPacketWork(void* arg) {
     }
 
     RetCode ret = rSuccess;
-    EXEC_AND_LOG(ret, SendPacket(packet->socket_fd_, packet->packet_buffer_,
-                                 packet->packet_length_),
-                 "sent packet to" << packet->socket_fd_,
-                 "failed to send packet");
+    EXEC_AND_DLOG(ret, SendPacket(packet->socket_fd_, packet->packet_buffer_,
+                                  packet->packet_length_),
+                  "sent packet " << packet->txn_id_, "failed to send packet");
     DELETE_PTR(packet);
   }
 }
