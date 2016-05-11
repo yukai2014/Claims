@@ -262,6 +262,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
                   "failed to store");
 
     /// return result to master loader
+    packet.txn_id_ = *reinterpret_cast<const uint64_t*>(head_buffer);
     EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
                  "sent commit result of " << packet.txn_id_
                                           << " to master loader",

@@ -38,6 +38,7 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <queue>
 #include <utility>
 
 #include "caf/all.hpp"
@@ -79,6 +80,8 @@ using claims::common::rFailure;
 
 using namespace claims::txn;  // NOLINT
 
+// #define SEND_THREAD
+
 // #define MASTER_LOADER_DEBUG
 
 #ifdef MASTER_LOADER_DEBUG
@@ -87,6 +90,7 @@ using namespace claims::txn;  // NOLINT
 #define PERFLOG(info)
 #endif
 
+uint64_t MasterLoader::debug_finished_txn_count = 0;
 uint64_t MasterLoader::debug_consumed_message_count = 0;
 timeval MasterLoader::start_time;
 uint64_t MasterLoader::get_request_time = 0;
@@ -102,9 +106,28 @@ void MasterLoader::IngestionRequest::Show() {
 
 MasterLoader::MasterLoader()
     : master_loader_ip_(Config::master_loader_ip),
-      master_loader_port_(Config::master_loader_port) {}
+      master_loader_port_(Config::master_loader_port),
+      send_thread_num_(Config::master_loader_thread_num / 4 + 1) {
+#ifdef SEND_THREAD
+  packet_queues_ = new queue<LoadPacket*>[send_thread_num_];
+  packet_queue_lock_ = new SpineLock[send_thread_num_];
+  packet_queue_to_send_count_ = new semaphore[send_thread_num_];
+#endif
+}
 
-MasterLoader::~MasterLoader() {}
+MasterLoader::~MasterLoader() {
+#ifdef SEND_THREAD
+  for (int i = 0; i < send_thread_num_; ++i) {
+    while (!packet_queues_[i].empty()) {
+      DELETE_PTR(packet_queues_[i].front());
+      packet_queues_[i].pop();
+    }
+  }
+#endif
+  DELETE_ARRAY(packet_queues_);
+  DELETE_ARRAY(packet_queue_lock_);
+  DELETE_ARRAY(packet_queue_to_send_count_);
+}
 
 static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
                                               MasterLoader* mloader) {
@@ -117,12 +140,14 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
             mloader->GetSocketFdConnectedWithSlave(ip, port, &new_slave_fd)) {
           LOG(ERROR) << "failed to get connected fd with slave";
         } else {
-          LOG(INFO) << "succeed to get connected fd with slave";
+          LOG(INFO) << "succeed to get connected fd " << new_slave_fd
+                    << "with slave";
         }
         assert(new_slave_fd > 3);
 
         DLOG(INFO) << "going to push socket into map";
         mloader->slave_addr_to_socket_[NodeAddress(ip, "")] = new_slave_fd;
+        mloader->socket_fd_to_lock_[new_slave_fd] = Lock();
         DLOG(INFO) << "start to send test message to slave";
         /*
                 /// test whether socket works well
@@ -164,14 +189,16 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
          by above thread, unexpected thing happens.
         */
 
-        PERFLOG("received a commit result " << is_commited
-                                            << " of txn with id:" << txn_id);
+        DLOG(INFO) << "received a commit result " << is_commited
+                   << " of txn with id:" << txn_id;
 
         //        cout << "(" << syscall(__NR_gettid) << ")received a commit
         //        result "
         //             << is_commited << "of txn with id:" << txn_id << endl;
         try {
+          mloader->commit_info_spin_lock_.acquire();
           CommitInfo& commit_info = mloader->txn_commint_info_.at(txn_id);
+          mloader->commit_info_spin_lock_.release();
 
           if (is_commited) {
             __sync_add_and_fetch(&commit_info.commited_part_num_, 1);
@@ -191,10 +218,17 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
                          << " to txn manager";
             }
             LOG(INFO) << "finished txn with id:" << txn_id;
+            mloader->commit_info_spin_lock_.acquire();
             mloader->txn_commint_info_.erase(txn_id);
+            mloader->commit_info_spin_lock_.release();
+            if (++debug_finished_txn_count == 1000) {
+              cout << "\n\n 1000 txn used " << GetElapsedTimeInUs(start_time)
+                   << " us" << endl;
+            }
           }
         } catch (const std::out_of_range& e) {
           LOG(ERROR) << "no find " << txn_id << " in map";
+          //          abort();
           assert(false);
         }
         return 1;
@@ -242,11 +276,9 @@ RetCode MasterLoader::Ingest(const string& message,
     gettimeofday(&start_time, NULL);
   }
   if (1000 == __sync_add_and_fetch(&debug_consumed_message_count, 1)) {
-    cout << "\n\n 1000 txn used " << GetElapsedTimeInUs(start_time) << " us"
-         << endl;
     cout << " 1000 txn get request used " << get_request_time << " us" << endl;
   }
-  PERFLOG("consumed message :" << debug_consumed_message_count);
+  LOG(INFO) << "consumed message :" << debug_consumed_message_count;
 
   RetCode ret = rSuccess;
   //  string message = GetMessage();
@@ -303,10 +335,10 @@ RetCode MasterLoader::Ingest(const string& message,
                "applied transaction: " << ingest.id_,
                "failed to apply transaction");
 
-  spin_lock_.acquire();
+  commit_info_spin_lock_.acquire();
   txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
       ingest.id_, CommitInfo(ingest.strip_list_.size())));
-  spin_lock_.release();
+  commit_info_spin_lock_.release();
   DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
   /// write data log
@@ -319,7 +351,7 @@ RetCode MasterLoader::Ingest(const string& message,
   /// distribute partition load task
   EXEC_AND_DLOG(ret,
                 SendPartitionTupleToSlave(table, partition_buffers, ingest),
-                "sent every partition data to send queu",
+                "sent every partition data to send queue",
                 "failed to send every partition data to queue");
 
   assert(rSuccess == ret);
@@ -679,6 +711,7 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
                            "failed to select the socket");
       assert(socket_fd > 3);
 
+#ifdef SEND_THREAD
       LoadPacket* packet =
           new LoadPacket(socket_fd, ingest.id_, global_part_id,
                          ingest.strip_list_.at(global_part_id).first,
@@ -690,9 +723,28 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
                            "serialized packet into buffer",
                            "failed to serialize packet");
 
-      LockGuard<SpineLock> guard(packet_queue_lock_);
-      packet_queue_.push(packet);
-      packet_to_send_count_.post();
+      int queue_index = socket_fd % send_thread_num_;
+      assert(queue_index < send_thread_num_);
+      {
+        LockGuard<SpineLock> guard(packet_queue_lock_[queue_index]);
+        packet_queues_[queue_index].push(packet);
+      }
+      packet_queue_to_send_count_[queue_index].post();
+#else
+      LoadPacket packet(socket_fd, ingest.id_, global_part_id,
+                        ingest.strip_list_.at(global_part_id).first,
+                        ingest.strip_list_.at(global_part_id).second,
+                        partition_buffers[prj_id][part_id].length_,
+                        partition_buffers[prj_id][part_id].buffer_);
+
+      EXEC_AND_LOG_RETURN(ret, packet.Serialize(),
+                          "serialized packet into buffer",
+                          "failed to serialize packet");
+      EXEC_AND_LOG(
+          ret,
+          SendPacket(socket_fd, packet.packet_buffer_, packet.packet_length_),
+          "sent packet of " << packet.txn_id_, "failed to send packet");
+#endif
     }
   }
   return ret;
@@ -720,6 +772,9 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
                                  const void* const packet_buffer,
                                  const uint64_t packet_length) {
   size_t total_write_num = 0;
+
+  // just lock this socket file descriptor
+  LockGuard<Lock> guard(socket_fd_to_lock_[socket_fd]);
   while (total_write_num < packet_length) {
     ssize_t write_num = write(
         socket_fd, static_cast<const char*>(packet_buffer) + total_write_num,
@@ -737,22 +792,27 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
 
 void* MasterLoader::SendPacketWork(void* arg) {
   MasterLoader* loader = static_cast<MasterLoader*>(arg);
+  int index = __sync_fetch_and_add(&(loader->thread_index_), 1);
+  LOG(INFO) << " I got id :" << index;
+  assert(index < send_thread_num_);
   while (1) {
-    loader->packet_to_send_count_.wait();
+    loader->packet_queue_to_send_count_[index].wait();
     LoadPacket* packet = nullptr;
     {
-      LockGuard<SpineLock> guard(loader->packet_queue_lock_);
-      packet = loader->packet_queue_.front();
-      loader->packet_queue_.pop();
+      LockGuard<SpineLock> guard(loader->packet_queue_lock_[index]);
+      packet = loader->packet_queues_[index].front();
+      loader->packet_queues_[index].pop();
     }
 
     RetCode ret = rSuccess;
-    EXEC_AND_DLOG(ret, SendPacket(packet->socket_fd_, packet->packet_buffer_,
-                                  packet->packet_length_),
-                  "sent packet " << packet->txn_id_, "failed to send packet");
+    EXEC_AND_LOG(ret,
+                 loader->SendPacket(packet->socket_fd_, packet->packet_buffer_,
+                                    packet->packet_length_),
+                 "sent packet of " << packet->txn_id_, "failed to send packet");
     DELETE_PTR(packet);
   }
 }
+
 void* MasterLoader::Work(void* arg) {
   WorkerPara* para = static_cast<WorkerPara*>(arg);
   AMQConsumer consumer(para->brokerURI_, para->destURI_, para->use_topic_,
@@ -813,8 +873,12 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   cin >> temp;
   cout << "Well , start flag is received" << std::endl;
 
-  Environment::getInstance()->getThreadPool()->AddTask(
-      MasterLoader::SendPacketWork, master_loader);
+#ifdef SEND_THREAD
+  for (int i = 0; i < master_loader->send_thread_num_; ++i) {
+    Environment::getInstance()->getThreadPool()->AddTask(
+        MasterLoader::SendPacketWork, master_loader);
+  }
+#endif
 
   //  AMQConsumer consumer(brokerURI, destURI, use_topics, client_ack);
   //  consumer.run(master_loader);

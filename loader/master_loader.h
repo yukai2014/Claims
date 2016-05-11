@@ -181,9 +181,8 @@ class MasterLoader {
 
   static behavior ReceiveSlaveReg(event_based_actor* self,
                                   MasterLoader* mloader);
-  static RetCode SendPacket(const int socket_fd,
-                            const void* const packet_buffer,
-                            const uint64_t packet_length);
+  RetCode SendPacket(const int socket_fd, const void* const packet_buffer,
+                     const uint64_t packet_length);
 
  public:
   static void* Work(void* para);
@@ -197,19 +196,24 @@ class MasterLoader {
   int master_loader_port_;
   //  vector<NetAddr> slave_addrs_;
   //  vector<int> slave_sockets_;
+
   boost::unordered_map<NodeAddress, int> slave_addr_to_socket_;
 
   // store id of transactions which are not finished
   unordered_map<uint64_t, CommitInfo> txn_commint_info_;
-  Lock lock_;
-  SpineLock spin_lock_;
+  SpineLock commit_info_spin_lock_;
 
-  std::queue<LoadPacket*> packet_queue_;
-  SpineLock packet_queue_lock_;
-  semaphore packet_to_send_count_;
+  int send_thread_num_;
+  std::queue<LoadPacket*>* packet_queues_;
+  SpineLock* packet_queue_lock_;
+  semaphore* packet_queue_to_send_count_;
+  int thread_index_ = 0;
+
+  unordered_map<int, Lock> socket_fd_to_lock_;
 
  private:
   // for test
+  static uint64_t debug_finished_txn_count;
   static uint64_t debug_consumed_message_count;
   static uint64_t get_request_time;
   static timeval start_time;

@@ -26,7 +26,11 @@
  *
  */
 #include "txn_server.hpp"
+
+#include "caf/all.hpp"
 #include "txn_log.hpp"
+
+using caf::aout;
 namespace claims {
 namespace txn {
 // using claims::common::rSuccess;
@@ -51,6 +55,22 @@ std::unordered_map<UInt64, UInt64> TxnServer::logic_cp_list_;
 std::unordered_map<UInt64, UInt64> TxnServer::phy_cp_list_;
 std::unordered_map<UInt64, atomic<UInt64>> TxnServer::CountList;
 caf::actor test;
+
+// UInt64 txn_id = 0;
+
+void TxnCore::ReMalloc() {
+  size_ = 0;
+  txn_index_.clear();
+  commit_ = new bool[capacity_];
+  abort_ = new bool[capacity_];
+  strip_list_ = new vector<Strip>[capacity_];
+  //  aout(this) << "core id is " << core_id_ << endl;
+}
+
+inline UInt64 TxnCore::GetId() {
+  //  return ((__sync_add_and_fetch(&txn_id_, 1)) * 1000) + core_id_;
+  return (++txn_id_) * 1000 + core_id_;
+}
 
 caf::behavior TxnCore::make_behavior() {
   // this->delayed_send(this, seconds(kGCTime + CoreId), GCAtom::value);

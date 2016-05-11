@@ -232,7 +232,7 @@ bool Environment::InitLoader() {
     master_thread.detach();
     DLOG(INFO) << "started thread as master loader";
 
-    TxnServer::Init(6);
+    //    TxnServer::Init(6);
   }
 
   usleep(10000);
