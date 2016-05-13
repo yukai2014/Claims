@@ -60,6 +60,8 @@ using claims::txn::GetTableIdFromGlobalPartId;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
+// #define MULTI_WORK_THREAD
+
 // #define MASTER_LOADER_DEBUG
 
 #ifdef MASTER_LOADER_DEBUG
@@ -262,7 +264,6 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
                   "failed to store");
 
     /// return result to master loader
-    packet.txn_id_ = *reinterpret_cast<const uint64_t*>(head_buffer);
     EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
                  "sent commit result of " << packet.txn_id_
                                           << " to master loader",
@@ -293,9 +294,15 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
              << " CHUNK SIZE is:" << CHUNK_SIZE
              << " last chunk id is:" << last_chunk_id;
+#ifdef MULTI_WORK_THREAD
+  partition_storage_lock_.acquire();
+#endif
   EXEC_AND_DLOG_RETURN(
       ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
       "added chunk to " << last_chunk_id + 1, "failed to add chunk");
+#ifdef MULTI_WORK_THREAD
+  partition_storage_lock_.release();
+#endif
 
   /// copy data into applied memory
   const uint64_t tuple_size = Catalog::getInstance()
@@ -385,6 +392,30 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
   return rSuccess;
 }
 
+void* SlaveLoader::HandleWork(void* arg) {
+  SlaveLoader* slave_loader = static_cast<SlaveLoader*>(arg);
+  while (1) {
+    RetCode ret = rSuccess;
+    slave_loader->packet_count_.wait();
+    LoadPacket* packet = nullptr;
+    {
+      LockGuard<SpineLock> guard(slave_loader->queue_lock_);
+      packet = slave_loader->packet_queue_.front();
+      slave_loader->packet_queue_.pop();
+    }
+
+    EXEC_AND_DLOG(ret, slave_loader->StoreDataInMemory(*packet), "stored data",
+                  "failed to store");
+
+    /// return result to master loader
+    EXEC_AND_LOG(
+        ret,
+        slave_loader->SendAckToMasterLoader(packet->txn_id_, rSuccess == ret),
+        "sent commit result of " << packet->txn_id_ << " to master loader",
+        "failed to send commit res to master loader");
+  }
+}
+
 void* SlaveLoader::StartSlaveLoader(void* arg) {
   Config::getInstance();
   LOG(INFO) << "start slave loader...";
@@ -398,7 +429,14 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
   assert(rSuccess == ret && "can't connect with master");
 
   cout << "connected with master loader" << endl;
-  // TODO(YK): error handle
+// TODO(YK): error handle
+
+#ifdef MULTI_WORK_THREAD
+  for (int i = 0; i < Config::master_loader_thread_num - 1; ++i) {
+    Environment::getInstance()->getThreadPool()->AddTask(MasterLoader::Work,
+                                                         slave_loader);
+  }
+#endif
 
   slave_loader->ReceiveAndWorkLoop();
   assert(false);

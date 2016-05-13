@@ -19,6 +19,12 @@ static inline double GetCurrentMs() {
   return t_start.tv_sec * 1000 + 1.0 * t_start.tv_usec / 1000;
 }
 
+static inline uint64_t GetCurrentUs() {
+  timeval t_start;
+  gettimeofday(&t_start, NULL);
+  return t_start.tv_sec * 1000000 + t_start.tv_usec;
+}
+
 /*
  * @param start: the start time
  * @return : the elapsed time(ms) from start, accurate to us

@@ -212,11 +212,14 @@ class MasterLoader {
   unordered_map<int, Lock> socket_fd_to_lock_;
 
  private:
-  // for test
+  // for debug
   static uint64_t debug_finished_txn_count;
   static uint64_t debug_consumed_message_count;
   static uint64_t get_request_time;
   static timeval start_time;
+
+  unordered_map<uint64_t, uint64_t> txn_start_time_;
+  static uint64_t txn_average_delay_;
 };
 
 } /* namespace loader */

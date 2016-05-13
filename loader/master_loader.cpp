@@ -64,6 +64,7 @@
 #include "../txn_manager/txn_client.hpp"
 #include "../txn_manager/txn_log.hpp"
 #include "../utility/resource_guard.h"
+#include "../utility/Timer.h"
 using caf::aout;
 using caf::behavior;
 using caf::event_based_actor;
@@ -77,11 +78,11 @@ using claims::catalog::TableDescriptor;
 using claims::common::Malloc;
 using claims::common::rSuccess;
 using claims::common::rFailure;
-
 using namespace claims::txn;  // NOLINT
 
 // #define SEND_THREAD
 
+#define MASTER_LOADER_PREF
 // #define MASTER_LOADER_DEBUG
 
 #ifdef MASTER_LOADER_DEBUG
@@ -90,10 +91,22 @@ using namespace claims::txn;  // NOLINT
 #define PERFLOG(info)
 #endif
 
+#ifdef MASTER_LOADER_PREF
+#define ATOMIC_ADD(var, value) __sync_add_and_fetch(&var, value);
+#define GET_TIME_ML(var) GETCURRENTTIME(var);
+#else
+#define ATOMIC_ADD(var, value)
+#define GET_TIME_ML(var)
+#endif
+
 uint64_t MasterLoader::debug_finished_txn_count = 0;
 uint64_t MasterLoader::debug_consumed_message_count = 0;
 timeval MasterLoader::start_time;
 uint64_t MasterLoader::get_request_time = 0;
+uint64_t MasterLoader::txn_average_delay_ = 0;
+
+static const int txn_count_for_debug = 5000;
+static const char* txn_count_string = "5000";
 
 namespace claims {
 namespace loader {
@@ -221,10 +234,21 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
             mloader->commit_info_spin_lock_.acquire();
             mloader->txn_commint_info_.erase(txn_id);
             mloader->commit_info_spin_lock_.release();
-            if (++debug_finished_txn_count == 1000) {
-              cout << "\n\n 1000 txn used " << GetElapsedTimeInUs(start_time)
-                   << " us" << endl;
+
+            // FOR DEBUG
+#ifdef MASTER_LOADER_PREF
+            if (++debug_finished_txn_count == txn_count_for_debug) {
+              cout << "\n" << txn_count_string << " txn used "
+                   << GetElapsedTimeInUs(start_time) << " us" << endl;
+              cout << "average delay of " << txn_count_string
+                   << "txn (from applied txn to finished txn) is:"
+                   << txn_average_delay_ * 1.0 / txn_count_for_debug << " us"
+                   << endl;
+            } else if (debug_finished_txn_count < txn_count_for_debug) {
+              txn_average_delay_ +=
+                  GetCurrentUs() - mloader->txn_start_time_.at(txn_id);
             }
+#endif
           }
         } catch (const std::out_of_range& e) {
           LOG(ERROR) << "no find " << txn_id << " in map";
@@ -272,27 +296,40 @@ RetCode MasterLoader::ConnectWithSlaves() {
 
 RetCode MasterLoader::Ingest(const string& message,
                              function<int()> ack_function) {
-  if (1 == __sync_add_and_fetch(&debug_consumed_message_count, 1)) {
+  static uint64_t get_tuple_time = 0;
+  static uint64_t merge_tuple_time = 0;
+
+#ifdef MASTER_LOADER_PREF
+  uint64_t temp_message_count =
+      __sync_add_and_fetch(&debug_consumed_message_count, 1);
+  if (1 == temp_message_count) {
     gettimeofday(&start_time, NULL);
   }
-  if (1000 == __sync_add_and_fetch(&debug_consumed_message_count, 1)) {
-    cout << " 1000 txn get request used " << get_request_time << " us" << endl;
+  if (txn_count_for_debug == temp_message_count) {
+    cout << txn_count_string << " txn get request used " << get_request_time
+         << " us" << endl;
+    cout << txn_count_string << " txn get tuples used " << get_tuple_time
+         << " us" << endl;
+    cout << txn_count_string << " txn merge tuples used " << merge_tuple_time
+         << " us" << endl;
   }
-  LOG(INFO) << "consumed message :" << debug_consumed_message_count;
+#endif
+  DLOG(INFO) << "consumed message :" << debug_consumed_message_count;
 
   RetCode ret = rSuccess;
   //  string message = GetMessage();
   //  DLOG(INFO) << "get message:\n" << message;
 
   /// get message from MQ
-  GETCURRENTTIME(req_start);
+  GET_TIME_ML(req_start);
   IngestionRequest req;
   EXEC_AND_DLOG(ret, GetRequestFromMessage(message, &req), "got request!",
                 "failed to get request");
-  __sync_add_and_fetch(&get_request_time, GetElapsedTimeInUs(req_start));
+  ATOMIC_ADD(get_request_time, GetElapsedTimeInUs(req_start));
 
   /// parse message and get all tuples of all partitions, then
   /// check the validity of all tuple in message
+  GET_TIME_ML(get_tuple_start);
   TableDescriptor* table =
       Environment::getInstance()->getCatalog()->getTable(req.table_name_);
   assert(table != NULL && "table is not exist!");
@@ -320,14 +357,17 @@ RetCode MasterLoader::Ingest(const string& message,
                 "got all tuples of every partition",
                 "failed to get all tuples of every partition");
 #endif
+  ATOMIC_ADD(get_tuple_time, GetElapsedTimeInUs(get_tuple_start));
 
   /// merge all tuple buffers of partition into one partition buffer
+  GET_TIME_ML(merge_start);
   vector<vector<PartitionBuffer>> partition_buffers(
       table->getNumberOfProjection());
   EXEC_AND_DLOG(ret, MergePartitionTupleIntoOneBuffer(
                          table, tuple_buffers_per_part, partition_buffers),
                 "merged all tuple of same partition into one buffer",
                 "failed to merge tuples buffers into one buffer");
+  ATOMIC_ADD(merge_tuple_time, GetElapsedTimeInUs(merge_start));
 
   /// start transaction from here
   claims::txn::Ingest ingest;
@@ -338,6 +378,8 @@ RetCode MasterLoader::Ingest(const string& message,
   commit_info_spin_lock_.acquire();
   txn_commint_info_.insert(std::pair<const uint64_t, CommitInfo>(
       ingest.id_, CommitInfo(ingest.strip_list_.size())));
+
+  txn_start_time_.insert(pair<uint64_t, uint64_t>(ingest.id_, GetCurrentUs()));
   commit_info_spin_lock_.release();
   DLOG(INFO) << "insert txn " << ingest.id_ << " into map ";
 
@@ -737,10 +779,10 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
                         partition_buffers[prj_id][part_id].length_,
                         partition_buffers[prj_id][part_id].buffer_);
 
-      EXEC_AND_LOG_RETURN(ret, packet.Serialize(),
-                          "serialized packet into buffer",
-                          "failed to serialize packet");
-      EXEC_AND_LOG(
+      EXEC_AND_DLOG_RETURN(ret, packet.Serialize(),
+                           "serialized packet into buffer",
+                           "failed to serialize packet");
+      EXEC_AND_DLOG(
           ret,
           SendPacket(socket_fd, packet.packet_buffer_, packet.packet_length_),
           "sent packet of " << packet.txn_id_, "failed to send packet");
@@ -771,10 +813,13 @@ RetCode MasterLoader::SelectSocket(const TableDescriptor* table,
 RetCode MasterLoader::SendPacket(const int socket_fd,
                                  const void* const packet_buffer,
                                  const uint64_t packet_length) {
+  static int sent_packetcount = 0;
+  static uint64_t send_total_time = 0;
   size_t total_write_num = 0;
 
   // just lock this socket file descriptor
   LockGuard<Lock> guard(socket_fd_to_lock_[socket_fd]);
+  GET_TIME_ML(send_start);
   while (total_write_num < packet_length) {
     ssize_t write_num = write(
         socket_fd, static_cast<const char*>(packet_buffer) + total_write_num,
@@ -787,6 +832,14 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
     }
     total_write_num += write_num;
   }
+#ifdef MASTER_LOADER_PREF
+  if (__sync_add_and_fetch(&sent_packetcount, 1) == txn_count_for_debug * 4) {
+    cout << "send " << sent_packetcount << " packets used " << send_total_time
+         << ", average time is:" << send_total_time / sent_packetcount << endl;
+  } else {
+    ATOMIC_ADD(send_total_time, GetElapsedTimeInUs(send_start));
+  }
+#endif
   return rSuccess;
 }
 
@@ -805,10 +858,10 @@ void* MasterLoader::SendPacketWork(void* arg) {
     }
 
     RetCode ret = rSuccess;
-    EXEC_AND_LOG(ret,
-                 loader->SendPacket(packet->socket_fd_, packet->packet_buffer_,
-                                    packet->packet_length_),
-                 "sent packet of " << packet->txn_id_, "failed to send packet");
+    EXEC_AND_DLOG(
+        ret, loader->SendPacket(packet->socket_fd_, packet->packet_buffer_,
+                                packet->packet_length_),
+        "sent packet of " << packet->txn_id_, "failed to send packet");
     DELETE_PTR(packet);
   }
 }

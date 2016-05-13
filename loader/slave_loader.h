@@ -34,6 +34,7 @@
 #include "../catalog/catalog.h"
 #include "../storage/BlockManager.h"
 #include "caf/all.hpp"
+#include <queue>
 
 namespace claims {
 namespace loader {
@@ -72,6 +73,8 @@ class SlaveLoader {
   RetCode StoreDataInMemory(const LoadPacket& packet);
   RetCode SendAckToMasterLoader(const uint64_t& txn_id, bool is_commited);
 
+  static void* HandleWork(void* arg);
+
  private:
   int master_socket_fd_;
   string self_ip;
@@ -80,6 +83,12 @@ class SlaveLoader {
 
   int listening_fd_ = -1;
   int master_fd_ = -1;
+
+ private:
+  queue<LoadPacket*> packet_queue_;
+  SpineLock queue_lock_;
+  semaphore packet_count_;
+  Lock partition_storage_lock_;
 };
 
 } /* namespace loader */
