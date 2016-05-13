@@ -171,7 +171,7 @@ RetCode SlaveLoader::SendSelfAddrToMaster() {
             << "to (" << Config::master_loader_ip << ":"
             << Config::master_loader_port << ")";
   try {
-    auto master_actor =
+    static auto master_actor =
         remote_actor(Config::master_loader_ip, Config::master_loader_port);
     caf::scoped_actor self;
     self->sync_send(master_actor, IpPortAtom::value, self_ip, self_port)
@@ -257,6 +257,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     /// deserialization of packet
     PERFLOG("got all packet buffer");
     LoadPacket packet;
+
     EXEC_AND_DLOG(ret, packet.Deserialize(head_buffer, data_buffer),
                   "deserialized packet", "failed to deserialize packet");
 
@@ -264,6 +265,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
                   "failed to store");
 
     /// return result to master loader
+    packet.txn_id_ = *reinterpret_cast<const uint64_t*>(head_buffer);
     EXEC_AND_LOG(ret, SendAckToMasterLoader(packet.txn_id_, rSuccess == ret),
                  "sent commit result of " << packet.txn_id_
                                           << " to master loader",
@@ -367,21 +369,26 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
   int retry_max_time = 10;
   while (1) {
     try {
-      auto master_actor =
+      static auto master_actor =
           remote_actor(Config::master_loader_ip, Config::master_loader_port);
       caf::scoped_actor self;
-      self->sync_send(master_actor, LoadAckAtom::value, txn_id, is_commited)
-          .await([&](int r) {  // NOLINT
-                   DLOG(INFO) << "sent txn " << txn_id
-                              << " commit result:" << is_commited
-                              << " to master and received response";
-                 },
-                 caf::after(seconds(2)) >>
-                     [&] {  // NOLINT
-                       LOG(ERROR) << "receiving response of txn " << txn_id
-                                  << " time out";
-                       throw caf::network_error("receiving response  time out");
-                     });
+      /*      self->sync_send(master_actor, LoadAckAtom::value, txn_id,
+         is_commited)
+                .await([&](int r) {  // NOLINT
+                         DLOG(INFO) << "sent txn " << txn_id
+                                    << " commit result:" << is_commited
+                                    << " to master and received response";
+                       },
+                       caf::after(seconds(2)) >>
+                           [&] {  // NOLINT
+                             LOG(ERROR) << "receiving response of txn " <<
+         txn_id
+                                        << " time out";
+                             throw caf::network_error("receiving response  time
+         out");
+                           });*/
+
+      self->send(master_actor, LoadAckAtom::value, txn_id, is_commited);
       return rSuccess;
     } catch (exception& e) {
       LOG(ERROR) << "failed to send commit result of " << txn_id

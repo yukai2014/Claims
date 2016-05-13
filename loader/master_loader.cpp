@@ -82,6 +82,8 @@ using namespace claims::txn;  // NOLINT
 
 // #define SEND_THREAD
 
+// #define NON_BLOCK_SOCKET
+
 #define MASTER_LOADER_PREF
 // #define MASTER_LOADER_DEBUG
 
@@ -192,7 +194,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         */
         return 1;
       },
-      [=](LoadAckAtom, uint64_t txn_id, bool is_commited) -> int {  // NOLINT
+      [=](LoadAckAtom, uint64_t txn_id, bool is_commited) {  // NOLINT
 
         /*
           TODO(ANYONE): there should be a thread checking whether
@@ -230,6 +232,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
               DLOG(INFO) << "aborted txn with id:" << txn_id
                          << " to txn manager";
             }
+
             LOG(INFO) << "finished txn with id:" << txn_id;
             mloader->commit_info_spin_lock_.acquire();
             mloader->txn_commint_info_.erase(txn_id);
@@ -252,10 +255,11 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           }
         } catch (const std::out_of_range& e) {
           LOG(ERROR) << "no find " << txn_id << " in map";
+          cout << "no find " << txn_id << " in map";
           //          abort();
           assert(false);
         }
-        return 1;
+        //        return 1;
       },
       [=](RegNodeAtom, NodeAddress addr, NodeID node_id) -> int {  // NOLINT
         LOG(INFO) << "get node register info : (" << addr.ip << ":" << addr.port
@@ -487,6 +491,12 @@ RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
     PLOG(ERROR) << "failed to connect socket(" << ip << ":" << port << ")";
     return rFailure;
   }
+#ifdef NON_BLOCK_SOCKET
+  int flag = fcntl(fd, F_GETFL);
+  if (-1 == flag) PLOG(ERROR) << "failed to get fd flag";
+  if (-1 == fcntl(fd, F_SETFL, flag | O_NONBLOCK))
+    PLOG(ERROR) << "failed to set fd non-blocking";
+#endif
   *connected_fd = fd;
   return rSuccess;
 }
@@ -825,6 +835,13 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
         socket_fd, static_cast<const char*>(packet_buffer) + total_write_num,
         packet_length - total_write_num);
     if (-1 == write_num) {
+#ifdef NON_BLOCK_SOCKET
+      if (EAGAIN == errno) {
+        cout << "buffer is full, retry..." << endl;
+        usleep(1000);
+        continue;
+      }
+#endif
       std::cerr << "failed to send buffer to slave(" << socket_fd
                 << "): " << std::endl;
       PLOG(ERROR) << "failed to send buffer to slave(" << socket_fd << "): ";
