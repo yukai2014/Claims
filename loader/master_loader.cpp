@@ -82,7 +82,7 @@ using namespace claims::txn;  // NOLINT
 
 // #define SEND_THREAD
 
-// #define NON_BLOCK_SOCKET
+#define NON_BLOCK_SOCKET
 
 #define MASTER_LOADER_PREF
 // #define MASTER_LOADER_DEBUG
@@ -106,6 +106,7 @@ uint64_t MasterLoader::debug_consumed_message_count = 0;
 timeval MasterLoader::start_time;
 uint64_t MasterLoader::get_request_time = 0;
 uint64_t MasterLoader::txn_average_delay_ = 0;
+static int MasterLoader::buffer_full_time = 0;
 
 static const int txn_count_for_debug = 5000;
 static const char* txn_count_string = "5000";
@@ -122,7 +123,7 @@ void MasterLoader::IngestionRequest::Show() {
 MasterLoader::MasterLoader()
     : master_loader_ip_(Config::master_loader_ip),
       master_loader_port_(Config::master_loader_port),
-      send_thread_num_(Config::master_loader_thread_num / 4 + 1) {
+      send_thread_num_(Config::master_loader_thread_num / 2 + 1) {
 #ifdef SEND_THREAD
   packet_queues_ = new queue<LoadPacket*>[send_thread_num_];
   packet_queue_lock_ = new SpineLock[send_thread_num_];
@@ -247,6 +248,7 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
                    << "txn (from applied txn to finished txn) is:"
                    << txn_average_delay_ * 1.0 / txn_count_for_debug << " us"
                    << endl;
+              cout << "buffer full times:" << buffer_full_time << endl;
             } else if (debug_finished_txn_count < txn_count_for_debug) {
               txn_average_delay_ +=
                   GetCurrentUs() - mloader->txn_start_time_.at(txn_id);
@@ -259,7 +261,6 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
           //          abort();
           assert(false);
         }
-        //        return 1;
       },
       [=](RegNodeAtom, NodeAddress addr, NodeID node_id) -> int {  // NOLINT
         LOG(INFO) << "get node register info : (" << addr.ip << ":" << addr.port
@@ -837,8 +838,9 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
     if (-1 == write_num) {
 #ifdef NON_BLOCK_SOCKET
       if (EAGAIN == errno) {
-        cout << "buffer is full, retry..." << endl;
-        usleep(1000);
+        //        cout << "buffer is full, retry..." << endl;
+        ATOMIC_ADD(buffer_full_time, 1);
+        usleep(500);
         continue;
       }
 #endif

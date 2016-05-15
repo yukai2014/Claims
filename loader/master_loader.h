@@ -217,6 +217,7 @@ class MasterLoader {
   static uint64_t debug_consumed_message_count;
   static uint64_t get_request_time;
   static timeval start_time;
+  static int buffer_full_time;
 
   unordered_map<uint64_t, uint64_t> txn_start_time_;
   static uint64_t txn_average_delay_;
