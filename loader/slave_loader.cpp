@@ -30,9 +30,11 @@
 
 #include <glog/logging.h>
 #include <netinet/in.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <exception>
+#include <future>  //NOLINT
 #include <chrono>  //NOLINT
 #include "caf/all.hpp"
 #include "caf/io/all.hpp"
@@ -48,6 +50,7 @@
 #include "../storage/PartitionStorage.h"
 #include "../txn_manager/txn.hpp"
 #include "../utility/resource_guard.h"
+using caf::behavior;
 using caf::event_based_actor;
 using caf::io::remote_actor;
 using caf::spawn;
@@ -60,14 +63,16 @@ using claims::txn::GetTableIdFromGlobalPartId;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
-// #define WORK_THREAD
+// #define WORK_THREADS
+// #define ONE_WORK_THREAD
 
-#define NO_ACTUAL_WORK
-// #define MASTER_LOADER_DEBUG
+// #define NO_ACTUAL_WORK
 
-#define SLAVE_LOADER_PREF
+// #define SLAVE_LOADER_PREF
 
-#ifdef MASTER_LOADER_DEBUG
+// #define MASTER_LOADER_PREF
+
+#ifdef MASTER_LOADER_PREF
 #define PERFLOG(info) LOG(INFO) << info << endl;
 #else
 #define PERFLOG
@@ -81,21 +86,15 @@ using std::chrono::seconds;
 #define GET_TIME_SL(var)
 #endif
 
+caf::actor SlaveLoader::handle;
+
 static const int txn_count_for_debug = 5000;
 static const char* txn_count_string = "5000";
 
 namespace claims {
 namespace loader {
 
-SlaveLoader::SlaveLoader() {
-  //  try {
-  //    master_actor_ =
-  //        remote_actor(Config::master_loader_ip,
-  //        Config::master_loader_port);
-  //  } catch (const exception& e) {
-  //    cout << "master loader actor failed." << e.what() << endl;
-  //  }
-}
+SlaveLoader::SlaveLoader() {}
 SlaveLoader::~SlaveLoader() {}
 
 RetCode SlaveLoader::ConnectWithMaster() {
@@ -275,7 +274,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
 
     /// deserialization of packet
     PERFLOG("got all packet buffer");
-#ifdef WORK_THREAD
+#ifdef WORK_THREADS
     LoadPacket* packet = new LoadPacket();
     EXEC_AND_DLOG(ret, packet->Deserialize(head_buffer, data_buffer),
                   "deserialized packet", "failed to deserialize packet");
@@ -284,6 +283,14 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
       packet_queue_.push(packet);
     }
     packet_count_.post();
+#else
+#ifdef ONE_WORK_THREAD
+    LoadPacket* packet = new LoadPacket();
+    EXEC_AND_DLOG(ret, packet->Deserialize(head_buffer, data_buffer),
+                  "deserialized packet", "failed to deserialize packet");
+    //    std::async(std::launch::async, WorkInAsync, packet);  // too slow
+    caf::scoped_actor self;
+    self->send(handle, LoadPacketAtom::value, packet);
 #else
     LoadPacket packet;
 #ifndef NO_ACTUAL_WORK
@@ -300,6 +307,7 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
                  "sent commit result of " << packet.txn_id_
                                           << " to master loader",
                  "failed to send commit res to master loader");
+#endif
 #endif
 
 #ifdef SLAVE_LOADER_PREF
@@ -335,13 +343,13 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
              << " CHUNK SIZE is:" << CHUNK_SIZE
              << " last chunk id is:" << last_chunk_id;
-#ifdef WORK_THREAD
+#ifdef WORK_THREADS
   partition_storage_lock_.acquire();
 #endif
   EXEC_AND_DLOG_RETURN(
       ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
       "added chunk to " << last_chunk_id + 1, "failed to add chunk");
-#ifdef WORK_THREAD
+#ifdef WORK_THREADS
   partition_storage_lock_.release();
 #endif
 
@@ -358,12 +366,12 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   uint64_t total_written_length = 0;
   uint64_t data_length = packet.data_length_;
   HdfsInMemoryChunk chunk_info;
-  ChunkID current_chunk(PartitionID(ProjectionID(table_id, prj_id), part_id),
-                        cur_chunk_id);
   while (total_written_length < data_length) {
     /// get start position of current chunk
     if (BlockManager::getInstance()->getMemoryChunkStore()->getChunk(
-            current_chunk, chunk_info)) {
+            ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
+                    cur_chunk_id),
+            chunk_info)) {
       DLOG(INFO) << "start address of chunk:" << cur_chunk_id << " is "
                  << chunk_info.hook << ", end addr is "
                  << chunk_info.hook + CHUNK_SIZE;
@@ -426,6 +434,36 @@ RetCode SlaveLoader::SendAckToMasterLoader(const uint64_t& txn_id,
   }
 }
 
+// this method has the best performance
+static behavior SlaveLoader::WorkInCAF(event_based_actor* self) {
+  return {[=](LoadPacketAtom, LoadPacket* packet) {  // NOLINT
+    RetCode ret = rSuccess;
+    EXEC_AND_DLOG(ret, StoreDataInMemory(*packet), "stored data",
+                  "failed to store");
+    /// return result to master loader
+    EXEC_AND_LOG(ret, SendAckToMasterLoader(packet->txn_id_, rSuccess == ret),
+                 "sent commit result of " << packet->txn_id_
+                                          << " to master loader",
+                 "failed to send commit res to master loader");
+    DELETE_PTR(packet);
+  }};
+}
+
+// It's very slow
+void SlaveLoader::WorkInAsync(LoadPacket* packet) {
+  RetCode ret = rSuccess;
+  EXEC_AND_DLOG(ret, StoreDataInMemory(*packet), "stored data",
+                "failed to store");
+
+  /// return result to master loader
+  EXEC_AND_LOG(ret, SendAckToMasterLoader(packet->txn_id_, rSuccess == ret),
+               "sent commit result of " << packet->txn_id_
+                                        << " to master loader",
+               "failed to send commit res to master loader");
+  DELETE_PTR(packet);
+}
+
+// it is so slow to deliver message using queue
 void* SlaveLoader::HandleWork(void* arg) {
   SlaveLoader* slave_loader = static_cast<SlaveLoader*>(arg);
   while (1) {
@@ -438,13 +476,13 @@ void* SlaveLoader::HandleWork(void* arg) {
       slave_loader->packet_queue_.pop();
     }
 
-    EXEC_AND_DLOG(ret, slave_loader->StoreDataInMemory(*packet), "stored data",
+    EXEC_AND_DLOG(ret, SlaveLoader::StoreDataInMemory(*packet), "stored data",
                   "failed to store");
 
     /// return result to master loader
     EXEC_AND_LOG(
         ret,
-        slave_loader->SendAckToMasterLoader(packet->txn_id_, rSuccess == ret),
+        SlaveLoader::SendAckToMasterLoader(packet->txn_id_, rSuccess == ret),
         "sent commit result of " << packet->txn_id_ << " to master loader",
         "failed to send commit res to master loader");
     DELETE_PTR(packet);
@@ -466,7 +504,11 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
   cout << "connected with master loader" << endl;
 // TODO(YK): error handle
 
-#ifdef WORK_THREAD
+#ifdef ONE_WORK_THREAD
+  SlaveLoader::handle = caf::spawn(SlaveLoader::WorkInCAF);
+#endif
+
+#ifdef WORK_THREADS
   for (int i = 0; i < 1; ++i) {
     Environment::getInstance()->getThreadPool()->AddTask(
         SlaveLoader::HandleWork, slave_loader);

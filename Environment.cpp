@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <libconfig.h++>
 
+#include "loader/load_packet.h"
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #undef GLOG_NO_ABBREVIATED_SEVERITIES
@@ -43,6 +44,7 @@ using claims::common::InitOperatorFunc;
 using claims::common::InitTypeCastFunc;
 using claims::common::InitTypeConversionMatrix;
 using claims::common::rSuccess;
+using claims::loader::LoadPacket;
 using claims::loader::MasterLoader;
 using claims::loader::SlaveLoader;
 using claims::txn::TxnServer;
@@ -61,6 +63,11 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
                          &ProjectionID::projection_off);
   announce<PartitionID>("PartitionID", &PartitionID::projection_id,
                         &PartitionID::partition_off);
+
+  announce<LoadPacket>("LoadPacket", &LoadPacket::txn_id_,
+                       &LoadPacket::global_part_id_, &LoadPacket::pos_,
+                       &LoadPacket::offset_, &LoadPacket::data_length_,
+                       &LoadPacket::data_buffer_, &LoadPacket::socket_fd_);
   _instance = this;
   Config::getInstance();
   CodeGenerator::getInstance();

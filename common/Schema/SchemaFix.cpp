@@ -97,10 +97,8 @@ int SchemaFix::getColumnOffset(unsigned index) const {
 // WARNING: using carefully!!!!!
 RetCode SchemaFix::ToValue(std::string text_tuple, void* binary_tuple,
                            const string attr_separator) {
-  RetCode ret = rSuccess;
   string::size_type prev_pos = 0;
   string::size_type pos = 0;
-  string text_column;
   int attr_sep_length = attr_separator.length();
 
   /**

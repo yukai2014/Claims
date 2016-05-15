@@ -82,7 +82,7 @@ using namespace claims::txn;  // NOLINT
 
 // #define SEND_THREAD
 
-#define NON_BLOCK_SOCKET
+// #define NON_BLOCK_SOCKET
 
 #define MASTER_LOADER_PREF
 // #define MASTER_LOADER_DEBUG
@@ -104,12 +104,10 @@ using namespace claims::txn;  // NOLINT
 uint64_t MasterLoader::debug_finished_txn_count = 0;
 uint64_t MasterLoader::debug_consumed_message_count = 0;
 timeval MasterLoader::start_time;
-uint64_t MasterLoader::get_request_time = 0;
 uint64_t MasterLoader::txn_average_delay_ = 0;
 static int MasterLoader::buffer_full_time = 0;
 
-static const int txn_count_for_debug = 5000;
-static const char* txn_count_string = "5000";
+static const int txn_count_for_debug = 10000;
 
 namespace claims {
 namespace loader {
@@ -242,13 +240,14 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
             // FOR DEBUG
 #ifdef MASTER_LOADER_PREF
             if (++debug_finished_txn_count == txn_count_for_debug) {
-              cout << "\n" << txn_count_string << " txn used "
+              cout << "\n" << txn_count_for_debug << " txn used "
                    << GetElapsedTimeInUs(start_time) << " us" << endl;
-              cout << "average delay of " << txn_count_string
+              cout << "average delay of " << txn_count_for_debug
                    << "txn (from applied txn to finished txn) is:"
                    << txn_average_delay_ * 1.0 / txn_count_for_debug << " us"
                    << endl;
-              cout << "buffer full times:" << buffer_full_time << endl;
+              //              cout << "buffer full times:" << buffer_full_time
+              //              << endl;
             } else if (debug_finished_txn_count < txn_count_for_debug) {
               txn_average_delay_ +=
                   GetCurrentUs() - mloader->txn_start_time_.at(txn_id);
@@ -258,7 +257,6 @@ static behavior MasterLoader::ReceiveSlaveReg(event_based_actor* self,
         } catch (const std::out_of_range& e) {
           LOG(ERROR) << "no find " << txn_id << " in map";
           cout << "no find " << txn_id << " in map";
-          //          abort();
           assert(false);
         }
       },
@@ -301,6 +299,7 @@ RetCode MasterLoader::ConnectWithSlaves() {
 
 RetCode MasterLoader::Ingest(const string& message,
                              function<int()> ack_function) {
+  static uint64_t get_request_time = 0;
   static uint64_t get_tuple_time = 0;
   static uint64_t merge_tuple_time = 0;
 
@@ -311,11 +310,11 @@ RetCode MasterLoader::Ingest(const string& message,
     gettimeofday(&start_time, NULL);
   }
   if (txn_count_for_debug == temp_message_count) {
-    cout << txn_count_string << " txn get request used " << get_request_time
+    cout << txn_count_for_debug << " txn get request used " << get_request_time
          << " us" << endl;
-    cout << txn_count_string << " txn get tuples used " << get_tuple_time
+    cout << txn_count_for_debug << " txn get tuples used " << get_tuple_time
          << " us" << endl;
-    cout << txn_count_string << " txn merge tuples used " << merge_tuple_time
+    cout << txn_count_for_debug << " txn merge tuples used " << merge_tuple_time
          << " us" << endl;
   }
 #endif
@@ -555,6 +554,9 @@ RetCode MasterLoader::GetPartitionTuples(
     vector<vector<vector<void*>>>& tuple_buffer_per_part) {
 #endif
 
+  static uint64_t total_get_tuple_time = 0;
+  static uint64_t total_to_value_time = 0;
+
   RetCode ret = rSuccess;
   Schema* table_schema = table->getSchema();
   MemoryGuard<Schema> table_schema_guard(table_schema);
@@ -751,7 +753,6 @@ RetCode MasterLoader::SendPartitionTupleToSlave(
     const claims::txn::Ingest& ingest) {
   RetCode ret = rSuccess;
   uint64_t table_id = table->get_table_id();
-
   for (int prj_id = 0; prj_id < partition_buffers.size(); ++prj_id) {
     for (int part_id = 0; part_id < partition_buffers[prj_id].size();
          ++part_id) {
@@ -828,22 +829,20 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
   static uint64_t send_total_time = 0;
   size_t total_write_num = 0;
 
-  // just lock this socket file descriptor
+  /// just lock this socket file descriptor
   LockGuard<Lock> guard(socket_fd_to_lock_[socket_fd]);
-  GET_TIME_ML(send_start);
+  //  GET_TIME_ML(send_start);
   while (total_write_num < packet_length) {
     ssize_t write_num = write(
         socket_fd, static_cast<const char*>(packet_buffer) + total_write_num,
         packet_length - total_write_num);
     if (-1 == write_num) {
-#ifdef NON_BLOCK_SOCKET
       if (EAGAIN == errno) {
-        //        cout << "buffer is full, retry..." << endl;
+        cout << "buffer is full, retry..." << buffer_full_time << endl;
         ATOMIC_ADD(buffer_full_time, 1);
         usleep(500);
         continue;
       }
-#endif
       std::cerr << "failed to send buffer to slave(" << socket_fd
                 << "): " << std::endl;
       PLOG(ERROR) << "failed to send buffer to slave(" << socket_fd << "): ";
@@ -852,12 +851,13 @@ RetCode MasterLoader::SendPacket(const int socket_fd,
     total_write_num += write_num;
   }
 #ifdef MASTER_LOADER_PREF
-  if (__sync_add_and_fetch(&sent_packetcount, 1) == txn_count_for_debug * 4) {
-    cout << "send " << sent_packetcount << " packets used " << send_total_time
-         << ", average time is:" << send_total_time / sent_packetcount << endl;
-  } else {
-    ATOMIC_ADD(send_total_time, GetElapsedTimeInUs(send_start));
-  }
+//  if (__sync_add_and_fetch(&sent_packetcount, 1) == txn_count_for_debug * 4) {
+//    cout << "send " << sent_packetcount << " packets used " << send_total_time
+//         << ", average time is:" << send_total_time / sent_packetcount <<
+//         endl;
+//  } else {
+//    ATOMIC_ADD(send_total_time, GetElapsedTimeInUs(send_start));
+//  }
 #endif
   return rSuccess;
 }

@@ -30,15 +30,17 @@
 #define LOADER_SLAVE_LOADER_H_
 #include <assert.h>
 #include <iostream>
+#include <queue>
 #include <string>
 #include "../catalog/catalog.h"
 #include "../storage/BlockManager.h"
 #include "caf/all.hpp"
-#include <queue>
 
 namespace claims {
 namespace loader {
 
+using caf::behavior;
+using caf::event_based_actor;
 using std::string;
 using claims::catalog::Catalog;
 
@@ -70,19 +72,24 @@ class SlaveLoader {
 
   void OutputFdIpPort(int fd);
 
-  RetCode StoreDataInMemory(const LoadPacket& packet);
-  RetCode SendAckToMasterLoader(const uint64_t& txn_id, bool is_commited);
+  static RetCode StoreDataInMemory(const LoadPacket& packet);
+  static RetCode SendAckToMasterLoader(const uint64_t& txn_id,
+                                       bool is_commited);
 
+  static behavior WorkInCAF(event_based_actor* self);
+  static void WorkInAsync(LoadPacket* packet);
   static void* HandleWork(void* arg);
 
  private:
   int master_socket_fd_;
   string self_ip;
   int self_port;
-  caf::actor master_actor_;
 
   int listening_fd_ = -1;
   int master_fd_ = -1;
+
+ private:
+  static caf::actor handle;
 
  private:
   queue<LoadPacket*> packet_queue_;

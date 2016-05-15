@@ -35,6 +35,7 @@ namespace claims {
 namespace loader {
 
 using IpPortAtom = caf::atom_constant<caf::atom("ip_port")>;
+using LoadPacketAtom = caf::atom_constant<caf::atom("load_pack")>;
 using LoadAckAtom = caf::atom_constant<caf::atom("load_ack")>;
 using RegNodeAtom = caf::atom_constant<caf::atom("reg_node")>;
 using BindPartAtom = caf::atom_constant<caf::atom("bind_part")>;
@@ -55,7 +56,7 @@ struct LoadPacket {
   LoadPacket() {}
   LoadPacket(int socket_fd, const uint64_t txn_id, const uint64_t g_part_id,
              uint64_t pos, uint64_t offset, uint64_t data_length,
-             const void* data_buffer)
+             void* data_buffer)
       : txn_id_(txn_id),
         global_part_id_(g_part_id),
         pos_(pos),
@@ -70,6 +71,8 @@ struct LoadPacket {
 
  public:
   static const int kHeadLength = 5 * sizeof(uint64_t);
+  const void* getDataBuffer() { return data_buffer_; }
+  void setDataBuffer(void* data_buffer) { data_buffer_ = data_buffer; }
 
  public:
   uint64_t txn_id_;
@@ -83,6 +86,11 @@ struct LoadPacket {
   uint64_t packet_length_ = 0;
   void* packet_buffer_ = NULL;
 };
+
+inline bool operator==(const LoadPacket& a, const LoadPacket& b) {
+  return a.txn_id_ == b.txn_id_ && a.global_part_id_ == b.global_part_id_ &&
+         a.pos_ == b.pos_;
+}
 
 } /* namespace loader */
 } /* namespace claims */
