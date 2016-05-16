@@ -63,6 +63,7 @@
 #include "../txn_manager/txn.hpp"
 #include "../txn_manager/txn_client.hpp"
 #include "../txn_manager/txn_log.hpp"
+#include "../utility/cpu_scheduler.h"
 #include "../utility/resource_guard.h"
 #include "../utility/Timer.h"
 using caf::aout;
@@ -302,6 +303,7 @@ RetCode MasterLoader::Ingest(const string& message,
   static uint64_t get_request_time = 0;
   static uint64_t get_tuple_time = 0;
   static uint64_t merge_tuple_time = 0;
+  static uint64_t time_before_txn = 0;
 
 #ifdef MASTER_LOADER_PREF
   uint64_t temp_message_count =
@@ -316,6 +318,8 @@ RetCode MasterLoader::Ingest(const string& message,
          << " us" << endl;
     cout << txn_count_for_debug << " txn merge tuples used " << merge_tuple_time
          << " us" << endl;
+    cout << txn_count_for_debug << " txn before txn used " << time_before_txn
+         << " us" << endl;
   }
 #endif
   DLOG(INFO) << "consumed message :" << debug_consumed_message_count;
@@ -329,11 +333,11 @@ RetCode MasterLoader::Ingest(const string& message,
   IngestionRequest req;
   EXEC_AND_DLOG(ret, GetRequestFromMessage(message, &req), "got request!",
                 "failed to get request");
-  ATOMIC_ADD(get_request_time, GetElapsedTimeInUs(req_start));
+  //  ATOMIC_ADD(get_request_time, GetElapsedTimeInUs(req_start));
 
   /// parse message and get all tuples of all partitions, then
   /// check the validity of all tuple in message
-  GET_TIME_ML(get_tuple_start);
+  //  GET_TIME_ML(get_tuple_start);
   TableDescriptor* table =
       Environment::getInstance()->getCatalog()->getTable(req.table_name_);
   assert(table != NULL && "table is not exist!");
@@ -361,17 +365,18 @@ RetCode MasterLoader::Ingest(const string& message,
                 "got all tuples of every partition",
                 "failed to get all tuples of every partition");
 #endif
-  ATOMIC_ADD(get_tuple_time, GetElapsedTimeInUs(get_tuple_start));
+  //  ATOMIC_ADD(get_tuple_time, GetElapsedTimeInUs(get_tuple_start));
 
   /// merge all tuple buffers of partition into one partition buffer
-  GET_TIME_ML(merge_start);
+  //  GET_TIME_ML(merge_start);
   vector<vector<PartitionBuffer>> partition_buffers(
       table->getNumberOfProjection());
   EXEC_AND_DLOG(ret, MergePartitionTupleIntoOneBuffer(
                          table, tuple_buffers_per_part, partition_buffers),
                 "merged all tuple of same partition into one buffer",
                 "failed to merge tuples buffers into one buffer");
-  ATOMIC_ADD(merge_tuple_time, GetElapsedTimeInUs(merge_start));
+  //  ATOMIC_ADD(merge_tuple_time, GetElapsedTimeInUs(merge_start));
+  ATOMIC_ADD(time_before_txn, GetElapsedTimeInUs(req_start));
 
   /// start transaction from here
   claims::txn::Ingest ingest;
@@ -956,6 +961,8 @@ void* MasterLoader::StartMasterLoader(void* arg) {
   //  consumer.run(master_loader);
   for (int i = 0; i < Config::master_loader_thread_num - 1; ++i) {
     WorkerPara para(master_loader, brokerURI, destURI, use_topics, client_ack);
+    //    Environment::getInstance()->getThreadPool()->AddTaskInCpu(
+    //        MasterLoader::Work, &para, (i + 1) % GetNumberOfCpus());
     Environment::getInstance()->getThreadPool()->AddTask(MasterLoader::Work,
                                                          &para);
   }
