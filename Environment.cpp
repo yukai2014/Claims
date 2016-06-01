@@ -258,12 +258,21 @@ bool Environment::InitTxnManager() {
     auto cat = Catalog::getInstance();
     auto table_count = cat->getNumberOfTable();
     // cout << "table count:" << table_count << endl;
-    for (auto table_id = 0; table_id < table_count; table_id++) {
+    for (auto table_id : cat->getAllTableIDs()) {
       auto table = cat->getTable(table_id);
+      if (NULL == table) {
+        cout << " No table whose id is:" << table_id << endl;
+        assert(false);
+      }
       auto proj_count = table->getNumberOfProjection();
       // cout << "proj_count:" << proj_count << endl;
       for (auto proj_id = 0; proj_id < proj_count; proj_id++) {
         auto proj = table->getProjectoin(proj_id);
+        if (NULL == proj) {
+          cout << "No projection whose id is:" << proj_id
+               << " in table:" << table->getTableName() << endl;
+          assert(false);
+        }
         auto part = proj->getPartitioner();
         auto part_count = part->getNumberOfPartitions();
         // cout << "part_count:" << part_count << endl;
