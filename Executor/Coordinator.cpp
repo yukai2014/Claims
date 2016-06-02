@@ -18,7 +18,7 @@
 #include "../Debug.h"
 #include "../common/Message.h"
 #include "../Environment.h"
-#include "../common/TimeOutReceiver.h"
+// #include "../common/TimeOutReceiver.h"
 #include "../Config.h"
 Coordinator::Coordinator() {
   logging = new CoordinatorLogging();

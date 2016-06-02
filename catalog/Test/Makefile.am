@@ -1,11 +1,9 @@
-
 AM_CPPFLAGS= -fPIC -fpermissive \
 -I${BOOST_HOME} \
 -I${BOOST_HOME}/boost/serialization \
 -I${HADOOP_HOME}/include\
 -I${JAVA_HOME}/include\
--I${JAVA_HOME}/include/linux\
--I${THERON_HOME}/Include
+-I${JAVA_HOME}/include/linux
 
 AM_LDFLAGS=-lc -lm -lrt -lboost_serialization -lboost_date_time -lboost_system -lxs
 

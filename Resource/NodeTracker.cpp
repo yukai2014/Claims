@@ -9,6 +9,8 @@
 
 #include <assert.h>
 #include <glog/logging.h>
+#include <vector>
+#include "../Environment.h"
 NodeTracker* NodeTracker::instance_ = 0;
 NodeTracker::NodeTracker() : allocate_cur_(0) {}
 NodeTracker* NodeTracker::GetInstance() {
@@ -22,6 +24,7 @@ NodeTracker::~NodeTracker() {
 }
 
 int NodeTracker::RegisterNode(NodeAddress new_node_address) {
+  assert(false);
   if (address_to_id_.find(new_node_address) != address_to_id_.end()) {
     /*node_name already exists.*/
     return -1;
@@ -32,6 +35,7 @@ int NodeTracker::RegisterNode(NodeAddress new_node_address) {
 }
 
 std::string NodeTracker::GetNodeIP(const NodeID& target) const {
+#ifdef THERON
   boost::unordered_map<NodeAddress, NodeID>::const_iterator it =
       address_to_id_.cbegin();
   while (it != address_to_id_.cend()) {
@@ -41,15 +45,26 @@ std::string NodeTracker::GetNodeIP(const NodeID& target) const {
   return NULL;  // TODO avoid return NULL in case of no matching target by
                 // changing the return type to be boolean.*/
                 //	return NULL;
+#else
+  return Environment::getInstance()
+      ->get_master_node()
+      ->GetNodeAddrFromId(target)
+      .first;
+#endif
 }
+
 std::vector<NodeID> NodeTracker::GetNodeIDList() const {
   std::vector<NodeID> ret;
+#ifdef THERON
   boost::unordered_map<NodeAddress, NodeID>::const_iterator it =
       address_to_id_.cbegin();
   while (it != address_to_id_.cend()) {
     ret.push_back(it->second);
     it++;
   }
+#else
+  ret = Environment::getInstance()->get_slave_node()->GetAllNodeID();
+#endif
   return ret;
 }
 

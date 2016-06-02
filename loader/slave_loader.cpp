@@ -45,8 +45,8 @@
 #include "../common/error_define.h"
 #include "../common/ids.h"
 #include "../common/memory_handle.h"
+#include "../storage/BlockManager.h"
 #include "../storage/ChunkStorage.h"
-#include "../storage/MemoryStore.h"
 #include "../storage/PartitionStorage.h"
 #include "../txn_manager/txn.hpp"
 #include "../utility/resource_guard.h"
@@ -330,7 +330,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
       GetPartitionIdFromGlobalPartId(packet.global_part_id_);
 
   PartitionStorage* part_storage =
-      BlockManager::getInstance()->getPartitionHandle(
+      BlockManager::getInstance()->GetPartitionHandle(
           PartitionID(ProjectionID(table_id, prj_id), part_id));
   assert(part_storage != NULL);
 
@@ -368,7 +368,7 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   HdfsInMemoryChunk chunk_info;
   while (total_written_length < data_length) {
     /// get start position of current chunk
-    if (BlockManager::getInstance()->getMemoryChunkStore()->getChunk(
+    if (BlockManager::getInstance()->getMemoryChunkStore()->GetChunk(
             ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
                     cur_chunk_id),
             chunk_info)) {

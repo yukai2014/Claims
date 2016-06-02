@@ -38,6 +38,7 @@ using claims::utility::LockGuard;
 namespace claims {
 namespace catalog {
 
+// only for deserialization
 TableDescriptor::TableDescriptor() {}
 
 TableDescriptor::TableDescriptor(const string& name, const TableID table_id)
@@ -67,6 +68,12 @@ bool TableDescriptor::addAttribute(string attname, data_type dt,
                 can_be_null);
   attributes.push_back(att);
   return true;
+}
+
+RetCode TableDescriptor::InitFileConnector() {
+  write_connector_ = new TableFileConnector(
+      Config::local_disk_mode ? FilePlatform::kDisk : FilePlatform::kHdfs, this,
+      common::kAppendFile);
 }
 
 RetCode TableDescriptor::createHashPartitionedProjection(
@@ -201,6 +208,9 @@ vector<vector<string>> TableDescriptor::GetAllPartitionsPath() const {
     }
     write_paths.push_back(prj_write_path);
   }
+  LOG(INFO) << " table:" << getTableName() << " has the below partition:";
+  for (auto prj : write_paths)
+    for (auto part : prj) LOG(INFO) << part;
   return write_paths;
 }
 Schema* TableDescriptor::getSchema() const {

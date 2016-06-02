@@ -152,6 +152,8 @@ class TableDescriptor {
   TableFileConnector& get_connector() { return *write_connector_; }
 
  private:
+  RetCode InitFileConnector();
+
   RetCode createHashPartitionedProjection(
       const vector<Attribute>& attribute_list, Attribute partition_attr,
       unsigned number_of_partitions);
@@ -222,7 +224,8 @@ class TableDescriptor {
   void serialize(Archive& ar, const unsigned int version) {  // NOLINT
     ar& tableName& attributes& table_id_& projection_list_& row_number_&
         has_deleted_tuples_;
-    InitConnector();
+    //    InitLocks();
+    InitFileConnector();
   }
 };
 

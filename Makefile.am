@@ -2,13 +2,11 @@ AM_CPPFLAGS=-fPIC  -DTHERON_XS\
 -I${HADOOP_HOME}/include\
 -I${JAVA_HOME}/include\
 -I${JAVA_HOME}/include/linux \
--I${THERON_HOME}/Include \
 -I${BOOST_HOME} \
 -I${BOOST_HOME}/boost/serialization \
 -I${GTEST_HOME}/include \
 -I${CAF_HOME}/libcaf_io	\
 -I${CAF_HOME}/libcaf_core
-
 #-L/usr/local/lib \
 #-I/usr/local/include
 AM_LDFLAGS=  -lc -lm -lrt -lpthread -lactivemq-cpp\
@@ -23,6 +21,7 @@ LDADD =  \
 	Test/libtest.a \
 	Test/common/libcommon.a \
 	Test/utility/libutility.a \
+	node_manager/libnodemanager.a \
 	common/serialization/libserialization.a \
 	Client/libclient.a \
 	Daemon/libdaemon.a \
@@ -34,6 +33,7 @@ LDADD =  \
     sql_parser/Test/libparser_test.a	\
     sql_parser/parser/libparser.a \
     sql_parser/ast_node/libast_node.a \
+    exec_tracker/libexec_tracker.a	\
 	logical_operator/liblogicalqueryplan.a \
 	physical_operator/libphysicalqueryplan.a \
 	storage/libstorage.a \
@@ -58,6 +58,7 @@ LDADD =  \
 	txn_manager/libtxnmanager.a \
 	${CAF_HOME}/build/lib/libcaf_core.so \
 	${CAF_HOME}/build/lib/libcaf_io.so \
+	${BOOST_HOME}/stage/lib/libboost_serialization.a \
 	${BOOST_HOME}/stage/lib/libboost_serialization.so \
 	${BOOST_HOME}/stage/lib/libboost_system.so \
 	${BOOST_HOME}/stage/lib/libboost_date_time.so \
@@ -89,9 +90,7 @@ include_HEADERS = Config.h \
 				
 bin_PROGRAMS = claimsserver \
 				client \
-				test	\
-				txnclient \
-				txnserver
+				test
 				
 client_SOURCES = Client.cpp \
 					Environment.cpp \
@@ -108,15 +107,12 @@ test_SOURCES = Test/gtest_main.cpp\
 				IDsGenerator.cpp \
 				Config.cpp
 				
-txnclient_SOURCES = txn_manager/txn_client_test.cpp 
-
-txnserver_SOURCES = txn_manager/txn_server_test.cpp 
 
 SUBDIRS=  catalog Client common Daemon Executor IndexManager\
 loader physical_operator logical_operator  Resource \
-storage Test utility codegen sql_parser stmt_handler txn_manager
+storage Test utility codegen sql_parser stmt_handler txn_manager node_manager exec_tracker
 
 DIST_SUBDIRS =  catalog Client common Daemon Executor IndexManager\
 loader physical_operator logical_operator  Resource \
-storage Test utility codegen sql_parser stmt_handler txn_manager
+storage Test utility codegen sql_parser stmt_handler txn_manager node_manager exec_tracker
 

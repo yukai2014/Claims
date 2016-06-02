@@ -32,7 +32,6 @@ AS_IF([test "x$enable_debug" = "xyes"],[	CPPFLAGS+=" -g -DTHERON_XS "
 #	CPPFLAGS+=" -DNDEBUG"
 #fi
 
-
 AC_PROG_CXX
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([
@@ -53,6 +52,7 @@ AC_CONFIG_FILES([
   common/types/Makefile 
   common/types/Test/Makefile 
   common/types/ttmath/Makefile 
+  node_manager/Makefile
   Daemon/Makefile 
   Executor/Makefile 
   Executor/Test/Makefile 
@@ -65,6 +65,7 @@ AC_CONFIG_FILES([
   logical_operator/Makefile 
   Resource/Makefile 
   storage/Makefile 
+  exec_tracker/Makefile
   sql_parser/Makefile
   sql_parser/ast_node/Makefile
   sql_parser/parser/Makefile

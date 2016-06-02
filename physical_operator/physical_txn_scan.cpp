@@ -20,8 +20,8 @@
  *
  *  Created on: 2016年4月19日
  *      Author: imdb
- *		   Email: 
- * 
+ *		   Email:
+ *
  * Description:
  *
  */
@@ -69,7 +69,7 @@ PhysicalTxnScan::~PhysicalTxnScan() {
 }
 
 PhysicalTxnScan::State::State(ProjectionID projection_id, Schema* schema,
-                                     unsigned block_size, float sample_rate)
+                              unsigned block_size, float sample_rate)
     : schema_(schema),
       projection_id_(projection_id),
       block_size_(block_size),
@@ -88,7 +88,7 @@ bool PhysicalTxnScan::Open(const PartitionOffset& kPartitionOffset) {
     /* this is the first expanded thread*/
     PartitionStorage* partition_handle_;
     if (NULL ==
-        (partition_handle_ = BlockManager::getInstance()->getPartitionHandle(
+        (partition_handle_ = BlockManager::getInstance()->GetPartitionHandle(
              PartitionID(state_.projection_id_, kPartitionOffset)))) {
       LOG(ERROR) << PartitionID(state_.projection_id_, kPartitionOffset)
                         .getName()
@@ -96,7 +96,7 @@ bool PhysicalTxnScan::Open(const PartitionOffset& kPartitionOffset) {
       SetReturnStatus(false);
     } else {
       partition_reader_iterator_ =
-          partition_handle_->createAtomicReaderIterator();
+          partition_handle_->CreateAtomicReaderIterator();
       SetReturnStatus(true);
     }
 
@@ -179,7 +179,7 @@ bool PhysicalTxnScan::Next(BlockStreamBase* block) {
   }
   perf_info_->processed_one_block();
   // case(2)
-  return partition_reader_iterator_->nextBlock(block);
+  return partition_reader_iterator_->NextBlock(block);
 
 #endif
 }
@@ -207,7 +207,3 @@ bool PhysicalTxnScan::PassSample() const {
 
 }  // namespace physical_operator
 }  // namespace claims
-
-
-
-

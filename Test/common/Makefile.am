@@ -4,7 +4,6 @@ AM_CPPFLAGS= -fPIC -fpermissive\
 -I${JAVA_HOME}/include/linux \
 -I${BOOST_HOME} \
 -I${BOOST_HOME}/boost/serialization \
--I${THERON_HOME}/Include \
 -I${GTEST_HOME}/include
 
 AM_LDFLAGS=-lc -lm -lrt -lboost_serialization  -lxs

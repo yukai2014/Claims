@@ -1,7 +1,7 @@
 AM_CPPFLAGS= -fPIC -fpermissive -DTHERON_XS \
+-I${HADOOP_HOME}/include \
 -I${BOOST_HOME} \
 -I${BOOST_HOME}/boost/serialization \
--I${THERON_HOME}/Include \
 -I${GTEST_HOME}/include
 
 AM_LDFLAGS=-lc -lm -lrt -lboost_serialization -lpthread -lxs
@@ -32,7 +32,6 @@ libcommon_a_SOURCES = \
 	Logging.cpp 		Logging.h \
 	Mapping.cpp 		Mapping.h \
 	Message.cpp 		Message.h \
-	TimeOutReceiver.cpp 		TimeOutReceiver.h \
 	TypeCast.cpp 		TypeCast.h \
 	TypePromotionMap.cpp 		TypePromotionMap.h \
 	data_type.h 		data_type.cpp functions.h \

@@ -9,15 +9,21 @@
 #include <assert.h>
 #include <libconfig.h++>
 
-#include "loader/load_packet.h"
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <glog/logging.h>
 #undef GLOG_NO_ABBREVIATED_SEVERITIES
+#include <map>
+#include <utility>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <thread>  // NOLINT
 #include "caf/all.hpp"
+#include "common/Message.h"
+#include "exec_tracker/stmt_exec_tracker.h"
+#include "exec_tracker/segment_exec_tracker.h"
+#include "node_manager/base_node.h"
+#include "loader/load_packet.h"
 #include "loader/master_loader.h"
 #include "loader/slave_loader.h"
 #include "./Debug.h"
@@ -39,6 +45,8 @@
 #include "txn_manager/txn.hpp"
 
 using caf::announce;
+using claims::BaseNode;
+using claims::catalog::Catalog;
 using claims::common::InitAggAvgDivide;
 using claims::common::InitOperatorFunc;
 using claims::common::InitTypeCastFunc;
@@ -48,26 +56,17 @@ using claims::loader::LoadPacket;
 using claims::loader::MasterLoader;
 using claims::loader::SlaveLoader;
 using claims::txn::TxnServer;
-
-using claims::txn::TxnServer;
 using claims::txn::TxnClient;
 using claims::txn::LogServer;
 using claims::txn::LogClient;
 using claims::txn::GetGlobalPartId;
+using claims::NodeAddr;
+using claims::NodeSegmentID;
+using claims::StmtExecTracker;
 
 Environment* Environment::_instance = 0;
 
 Environment::Environment(bool ismaster) : ismaster_(ismaster) {
-  announce<NodeAddress>("NodeAddress", &NodeAddress::ip, &NodeAddress::port);
-  announce<ProjectionID>("ProjectionID", &ProjectionID::table_id,
-                         &ProjectionID::projection_off);
-  announce<PartitionID>("PartitionID", &PartitionID::projection_id,
-                        &PartitionID::partition_off);
-
-  announce<LoadPacket>("LoadPacket", &LoadPacket::txn_id_,
-                       &LoadPacket::global_part_id_, &LoadPacket::pos_,
-                       &LoadPacket::offset_, &LoadPacket::data_length_,
-                       &LoadPacket::data_buffer_, &LoadPacket::socket_fd_);
   _instance = this;
   Config::getInstance();
   CodeGenerator::getInstance();
@@ -76,11 +75,14 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
   initializeExpressionSystem();
   portManager = PortManager::getInstance();
 
-  if (ismaster) {
-    logging_->log("Initializing the Coordinator...");
-    initializeCoordinator();
-    logging_->log("Initializing the catalog ...");
+  catalog_ = claims::catalog::Catalog::getInstance();
+  logging_->log("restore the catalog ...");
+  if (rSuccess != catalog_->restoreCatalog()) {
+    LOG(ERROR) << "failed to restore catalog" << std::endl;
+    cerr << "ERROR: restore catalog failed" << endl;
   }
+  stmt_exec_tracker_ = new StmtExecTracker();
+  seg_exec_tracker_ = new SegmentExecTracker();
 
   if (true == g_thread_pool_used) {
     logging_->log("Initializing the ThreadPool...");
@@ -89,8 +91,6 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
       assert(false && "can't initialize thread pool");
     }
   }
-  logging_->log("Initializing the AdaptiveEndPoint...");
-  initializeEndPoint();
 
   logging_->log("Initializing the loader...");
   if (!InitLoader()) {
@@ -104,17 +104,13 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
          sleep() dose not needed.
           This is done in Aug.18 by Li :)
    */
+  AnnounceCafMessage();
   /*Before initializing Resource Manager, the instance ip and port should be
    * decided.*/
   logging_->log("Initializing the ResourceManager...");
   initializeResourceManager();
-
-  catalog_ = claims::catalog::Catalog::getInstance();
-  logging_->log("restore the catalog ...");
-  if (rSuccess != catalog_->restoreCatalog()) {
-    LOG(ERROR) << "failed to restore catalog" << std::endl;
-    cerr << "ERROR: restore catalog failed" << endl;
-  }
+  // should after above
+  InitMembership();
 
   logging_->log("Initializing the Storage...");
   initializeStorage();
@@ -149,7 +145,6 @@ Environment::~Environment() {
   delete logging_;
   delete portManager;
   delete catalog_;
-  delete coordinator;
   if (ismaster_) {
     delete iteratorExecutorMaster;
     delete resourceManagerMaster_;
@@ -163,7 +158,6 @@ Environment::~Environment() {
   delete resourceManagerSlave_;
   delete blockManager_;
   delete bufferManager_;
-  delete endpoint;
 }
 Environment* Environment::getInstance(bool ismaster) {
   if (_instance == 0) {
@@ -181,27 +175,31 @@ void Environment::readConfigFile() {
   cfg.readFile(Config::config_file.c_str());
   ip = (const char*)cfg.lookup("ip");
 }
-void Environment::initializeEndPoint() {
-  //  libconfig::Config cfg;
-  //  cfg.readFile("/home/claims/config/wangli/config");
-  //  std::string endpoint_ip=(const char*)cfg.lookup("ip");
-  //  std::string endpoint_port=(const char*)cfg.lookup("port");
-  std::string endpoint_ip = ip;
-  int endpoint_port;
-  if ((endpoint_port = portManager->applyPort()) == -1) {
-    logging_->elog("The ports in the PortManager is exhausted!");
-  }
-  port = endpoint_port;
-  logging_->log("Initializing the AdaptiveEndPoint as EndPoint://%s:%d.",
-                endpoint_ip.c_str(), endpoint_port);
-  std::ostringstream name, port_str;
-  port_str << endpoint_port;
-  name << "EndPoint://" << endpoint_ip << ":" << endpoint_port;
 
-  endpoint =
-      new AdaptiveEndPoint(name.str().c_str(), endpoint_ip, port_str.str());
+void Environment::AnnounceCafMessage() {
+  announce<NodeAddress>("NodeAddress", &NodeAddress::ip, &NodeAddress::port);
+  announce<ProjectionID>("ProjectionID", &ProjectionID::table_id,
+                         &ProjectionID::projection_off);
+  announce<PartitionID>("PartitionID", &PartitionID::projection_id,
+                        &PartitionID::partition_off);
+
+  announce<LoadPacket>("LoadPacket", &LoadPacket::txn_id_,
+                       &LoadPacket::global_part_id_, &LoadPacket::pos_,
+                       &LoadPacket::offset_, &LoadPacket::data_length_,
+                       &LoadPacket::data_buffer_, &LoadPacket::socket_fd_);
+  announce<StorageBudgetMessage>(
+      "StorageBudgetMessage", &StorageBudgetMessage::nodeid,
+      &StorageBudgetMessage::memory_budget, &StorageBudgetMessage::disk_budget);
+  announce<ProjectionID>("ProjectionID", &ProjectionID::table_id,
+                         &ProjectionID::projection_off);
+  announce<PartitionID>("PartitionID", &PartitionID::projection_id,
+                        &PartitionID::partition_off);
+  announce<ExchangeID>("ExchangeID", &ExchangeID::exchange_id,
+                       &ExchangeID::partition_offset);
+  announce<BaseNode>("BaseNode", &BaseNode::node_id_to_addr_);
+  announce<NodeSegmentID>("NodeSegmentID", &NodeSegmentID::first,
+                          &NodeSegmentID::second);
 }
-void Environment::initializeCoordinator() { coordinator = new Coordinator(); }
 void Environment::initializeStorage() {
   if (ismaster_) {
     blockManagerMaster_ = BlockManagerMaster::getInstance();
@@ -226,9 +224,16 @@ void Environment::initializeResourceManager() {
     DLOG(INFO) << "ResourceManagerMaster instanced ";
   }
   resourceManagerSlave_ = new InstanceResourceManager();
-  DLOG(INFO) << "resourceManagerSlave instanced ";
-
-  nodeid = resourceManagerSlave_->Register();
+  // DLOG(INFO) << "resourceManagerSlave instanced ";
+  //  nodeid = resourceManagerSlave_->Register();
+}
+void Environment::InitMembership() {
+  if (ismaster_) {
+    master_node_ = MasterNode::GetInstance();
+  }
+  slave_node_ = SlaveNode::GetInstance();
+  slave_node_->RegisterToMaster();
+  nodeid = slave_node_->get_node_id();
 }
 
 bool Environment::InitLoader() {
@@ -311,7 +316,6 @@ void Environment::initializeIndexManager() {
   indexManager_ = IndexManager::getInstance();
 }
 
-AdaptiveEndPoint* Environment::getEndPoint() { return endpoint; }
 ExchangeTracker* Environment::getExchangeTracker() { return exchangeTracker; }
 ResourceManagerMaster* Environment::getResourceManagerMaster() {
   return resourceManagerMaster_;

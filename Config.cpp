@@ -20,7 +20,7 @@ using namespace std;
 string gete() {
   char *p = getenv("CLAIMS_HOME");
   stringstream sp;
-  sp << string(p).c_str() << "/conf/config";
+  sp << string(p).c_str() << "conf/config";
   return sp.str();
   //	return "/home/imdb/config/wangli/config";
 }
@@ -89,6 +89,7 @@ std::string Config::catalog_file;
 int Config::thread_pool_init_thread_num;
 
 int Config::load_thread_num;
+int Config::memory_utilization;
 
 bool Config::is_master_loader;
 std::string Config::master_loader_ip;
@@ -186,6 +187,8 @@ void Config::initialize() {
   txn_log_path = getString("txn_log_path", ".");
 
   master_loader_thread_num = getInt("master_loader_thread_num", 4);
+
+  memory_utilization = getInt("memory_utilization", 100);
 
 #ifdef DEBUG_Config
   print_configure();

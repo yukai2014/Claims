@@ -1,11 +1,9 @@
-
 AM_CPPFLAGS= -fPIC -fpermissive \
 -I${BOOST_HOME} \
 -I${BOOST_HOME}/boost/serialization \
 -I${HADOOP_HOME}/include\
 -I${JAVA_HOME}/include\
--I${JAVA_HOME}/include/linux\
--I${THERON_HOME}/Include
+-I${JAVA_HOME}/include/linux
 
 #<boost/unordered_map.hpp>应该加什么编译选项
 AM_LDFLAGS=-lc -lm -lrt lboost_serialization -lxs

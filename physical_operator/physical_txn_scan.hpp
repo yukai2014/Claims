@@ -20,15 +20,14 @@
  *
  *  Created on: 2016年4月19日
  *      Author: imdb
- *		   Email: 
- * 
+ *		   Email:
+ *
  * Description:
  *
  */
 
 #ifndef PHYSICAL_OPERATOR_PHYSICAL_TXN_SCAN_HPP_
 #define PHYSICAL_OPERATOR_PHYSICAL_TXN_SCAN_HPP_
-
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <boost/archive/text_iarchive.hpp>
@@ -136,7 +135,7 @@ class PhysicalTxnScan : public PhysicalOperator {
 
  private:
   State state_;
-  PartitionStorage::PartitionReaderItetaor* partition_reader_iterator_;
+  PartitionStorage::PartitionReaderIterator* partition_reader_iterator_;
   std::list<ChunkReaderIterator*> remaining_chunk_iterator_list_;
   Lock chunk_reader_container_lock_;
   // like a buffer
@@ -156,6 +155,4 @@ class PhysicalTxnScan : public PhysicalOperator {
 }  // namespace physical_operator
 }  // namespace claims
 
-
-
-#endif //  PHYSICAL_OPERATOR_PHYSICAL_TXN_SCAN_HPP_ 
+#endif  //  PHYSICAL_OPERATOR_PHYSICAL_TXN_SCAN_HPP_
