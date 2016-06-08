@@ -117,9 +117,9 @@ void MasterNode::CreateActor() {
     caf::io::publish(master_actor_, get_node_port(), nullptr, 1);
     LOG(INFO) << "master ip port" << get_node_port() << " publish succeed!";
   } catch (caf::bind_failure& e) {
-    LOG(ERROR) << "the specified port " << get_node_port() << " is used!";
+    PLOG(ERROR) << "the specified port " << get_node_port() << " is used!";
   } catch (caf::network_error& e) {
-    LOG(ERROR) << "connection error in publishing master actor port";
+    PLOG(ERROR) << "connection error in publishing master actor port";
   }
 }
 void MasterNode::PrintNodeList() {

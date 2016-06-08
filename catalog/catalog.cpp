@@ -353,9 +353,10 @@ void Catalog::GetAllTables(ostringstream& ostr) const {
 
 vector<TableID> Catalog::getAllTableIDs() const {
   vector<TableID> ids;
-  for(auto it = tableid_to_table.begin(); it != tableid_to_table.end(); it ++)
+  for (auto it = tableid_to_table.begin(); it != tableid_to_table.end(); it++)
     ids.push_back(it->first);
 
+  return ids;
 }
 
 } /* namespace catalog */

@@ -871,7 +871,7 @@ void* MasterLoader::SendPacketWork(void* arg) {
   MasterLoader* loader = static_cast<MasterLoader*>(arg);
   int index = __sync_fetch_and_add(&(loader->thread_index_), 1);
   LOG(INFO) << " I got id :" << index;
-  assert(index < send_thread_num_);
+  assert(index < loader->send_thread_num_);
   while (1) {
     loader->packet_queue_to_send_count_[index].wait();
     LoadPacket* packet = nullptr;

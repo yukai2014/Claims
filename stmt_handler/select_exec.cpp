@@ -324,7 +324,8 @@ void* SelectExec::SendAllSegments(void* arg) {
 
         LOG(INFO) << "sending plan of "
                   << select_exec->get_stmt_exec_status()->get_query_id()
-                  << " , " << segment_id << "succeed!!!" << endl;
+                  << " , " << segment_id << " , partition:" << i
+                  << " succeed!!!" << endl;
       }
     } else {
       LOG(ERROR) << "asking upper exchange failed!" << endl;

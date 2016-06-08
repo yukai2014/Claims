@@ -212,32 +212,29 @@ RetCode SlaveNode::RegisterToMaster() {
   }
 
   // register to master loader
-  //  {
-  //    int retry_max_time = 10;
-  //    int time = 0;
-  //    while (1) {
-  //      try {
-  //        caf::actor master_actor =
-  //            remote_actor(Config::master_loader_ip,
-  //            Config::master_loader_port);
-  //        caf::scoped_actor self;
-  //        self->sync_send(
-  //                  master_actor, RegNodeAtom::value,
-  //                  NodeAddress(Environment::getInstance()->getIp(),
-  //                              to_string(Environment::getInstance()->getPort())),
-  //                  ret).await([&](int r) {
-  //          LOG(INFO) << "sent node info and received response";
-  //        });
-  //        break;
-  //      } catch (exception& e) {
-  //        cout << "new remote actor " << Config::master_loader_ip << ","
-  //             << Config::master_loader_port << "failed for " << ++time
-  //             << " time. " << e.what() << endl;
-  //        usleep(100 * 1000);
-  //        if (time >= retry_max_time) return false;
-  //      }
-  //    }
-  //  }
+  {
+    int retry_max_time = 10;
+    int time = 0;
+    caf::actor master_actor =
+        remote_actor(Config::master_loader_ip, Config::master_loader_port);
+    while (1) {
+      try {
+        caf::scoped_actor self;
+        self->sync_send(master_actor, RegNodeAtom::value,
+                        NodeAddress(get_node_ip(), to_string(get_node_port())),
+                        (int)node_id_).await([&](int r) {
+          LOG(INFO) << "sent node info and received response";
+        });
+        break;
+      } catch (exception& e) {
+        cout << "new remote actor " << Config::master_loader_ip << ","
+             << Config::master_loader_port << "failed for " << ++time
+             << " time. " << e.what() << endl;
+        usleep(100 * 1000);
+        if (time >= retry_max_time) return false;
+      }
+    }
+  }
 
   return ret;
 }

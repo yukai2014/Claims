@@ -660,6 +660,8 @@ void* DataIngestion::HandleTuple(void* ptr) {
   DataIngestion* injestion = static_cast<DataIngestion*>(ptr);
   string tuple_to_handle = "";
   string file_name = "";
+  uint64_t got_tuple_count = 0;
+  uint64_t handled_tuple_count = 0;
   uint64_t row_id_in_file = 0;
   DataIngestion::LoadTask task;
   RetCode ret = rSuccess;
@@ -699,6 +701,9 @@ void* DataIngestion::HandleTuple(void* ptr) {
         ATOMIC_ADD(injestion->total_read_sem_time_,
                    GetElapsedTimeInUs(start_read_sem));
         DLOG_DI("all tuple in pool is handled ");
+        DLOG(INFO) << " thread " << self_thread_index << " got "
+                   << got_tuple_count << " tuples and handled "
+                   << handled_tuple_count << " tuples";
 
         EXEC_AND_LOG(
             ret, injestion->FlushNotFullBlock(block_to_write, local_pj_buffer),
@@ -744,6 +749,7 @@ void* DataIngestion::HandleTuple(void* ptr) {
       injestion->task_lists_[self_thread_index].pop_front();   ///// lock/sem
     }
 
+    ++got_tuple_count;
     tuple_to_handle = task.tuple_;
     file_name = task.file_name_;
     row_id_in_file = task.row_id_in_file_;
@@ -804,6 +810,8 @@ void* DataIngestion::HandleTuple(void* ptr) {
       injestion->multi_thread_status_ = ret;
       break;
     }
+
+    ++handled_tuple_count;
     ATOMIC_ADD(injestion->total_insert_time_,
                GetElapsedTimeInUs(start_insert_time));
   }

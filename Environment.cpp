@@ -75,6 +75,8 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
   initializeExpressionSystem();
   portManager = PortManager::getInstance();
 
+  AnnounceCafMessage();
+
   catalog_ = claims::catalog::Catalog::getInstance();
   logging_->log("restore the catalog ...");
   if (rSuccess != catalog_->restoreCatalog()) {
@@ -104,7 +106,6 @@ Environment::Environment(bool ismaster) : ismaster_(ismaster) {
          sleep() dose not needed.
           This is done in Aug.18 by Li :)
    */
-  AnnounceCafMessage();
   /*Before initializing Resource Manager, the instance ip and port should be
    * decided.*/
   logging_->log("Initializing the ResourceManager...");
@@ -231,6 +232,7 @@ void Environment::InitMembership() {
   if (ismaster_) {
     master_node_ = MasterNode::GetInstance();
   }
+  sleep(2);
   slave_node_ = SlaveNode::GetInstance();
   slave_node_->RegisterToMaster();
   nodeid = slave_node_->get_node_id();
@@ -243,11 +245,8 @@ bool Environment::InitLoader() {
     std::thread master_thread(&MasterLoader::StartMasterLoader, nullptr);
     master_thread.detach();
     DLOG(INFO) << "started thread as master loader";
-
-    //    TxnServer::Init(6);
   }
 
-  usleep(10000);
   DLOG(INFO) << "starting create thread as slave loader";
   slave_loader_ = new SlaveLoader();
   std::thread slave_thread(&SlaveLoader::StartSlaveLoader, nullptr);
@@ -262,15 +261,16 @@ bool Environment::InitTxnManager() {
     TxnServer::Init(Config::txn_server_cores, Config::txn_server_port);
     auto cat = Catalog::getInstance();
     auto table_count = cat->getNumberOfTable();
-    // cout << "table count:" << table_count << endl;
-    for (auto table_id : cat->getAllTableIDs()) {
+    cout << "table count:" << table_count << endl;
+    for (unsigned table_id : cat->getAllTableIDs()) {
+      cout << "table id :" << table_id << endl;
       auto table = cat->getTable(table_id);
       if (NULL == table) {
         cout << " No table whose id is:" << table_id << endl;
         assert(false);
       }
       auto proj_count = table->getNumberOfProjection();
-      // cout << "proj_count:" << proj_count << endl;
+      cout << "proj_count:" << proj_count << endl;
       for (auto proj_id = 0; proj_id < proj_count; proj_id++) {
         auto proj = table->getProjectoin(proj_id);
         if (NULL == proj) {
@@ -280,10 +280,10 @@ bool Environment::InitTxnManager() {
         }
         auto part = proj->getPartitioner();
         auto part_count = part->getNumberOfPartitions();
-        // cout << "part_count:" << part_count << endl;
+        cout << "part_count:" << part_count << endl;
         for (auto part_id = 0; part_id < part_count; part_id++) {
           auto global_part_id = GetGlobalPartId(table_id, proj_id, part_id);
-          //   cout << global_part_id << endl;
+          cout << global_part_id << endl;
           TxnServer::pos_list_[global_part_id] =
               TxnServer::logic_cp_list_[global_part_id] =
                   TxnServer::phy_cp_list_[global_part_id] =

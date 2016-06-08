@@ -492,6 +492,7 @@ void* SlaveLoader::HandleWork(void* arg) {
 void* SlaveLoader::StartSlaveLoader(void* arg) {
   Config::getInstance();
   LOG(INFO) << "start slave loader...";
+  sleep(2);
 
   SlaveLoader* slave_loader = Environment::getInstance()->get_slave_loader();
   int ret = rSuccess;

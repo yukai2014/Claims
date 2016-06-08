@@ -9,7 +9,7 @@ AM_CPPFLAGS=-fPIC  -DTHERON_XS\
 -I${CAF_HOME}/libcaf_core
 #-L/usr/local/lib \
 #-I/usr/local/include
-AM_LDFLAGS=  -lc -lm -lrt -lpthread -lactivemq-cpp\
+AM_LDFLAGS=  -lc -lm -lrt -lpthread -lactivemq-cpp -lprofiler\
 	-lconfig++ -lxs -lnuma -lreadline -lhistory -lz -ltinfo -Wl,--no-as-needed -ldl -rdynamic -lglog
 
 if OPT_TCMALLOC
