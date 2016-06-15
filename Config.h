@@ -93,6 +93,7 @@ class Config {
   static std::string txn_log_path;
 
   static int master_loader_thread_num;
+  static int slave_loader_thread_num;
 
  private:
   static Config* instance_;

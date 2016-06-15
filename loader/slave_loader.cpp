@@ -63,7 +63,7 @@ using claims::txn::GetTableIdFromGlobalPartId;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
-// #define WORK_THREADS
+#define WORK_THREADS
 // #define ONE_WORK_THREAD
 
 // #define NO_ACTUAL_WORK
@@ -87,6 +87,7 @@ using std::chrono::seconds;
 #endif
 
 caf::actor SlaveLoader::handle;
+caf::actor* SlaveLoader::handles_;
 
 static const int txn_count_for_debug = 5000;
 static const char* txn_count_string = "5000";
@@ -278,11 +279,12 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     LoadPacket* packet = new LoadPacket();
     EXEC_AND_DLOG(ret, packet->Deserialize(head_buffer, data_buffer),
                   "deserialized packet", "failed to deserialize packet");
-    {
-      LockGuard<SpineLock> guard(queue_lock_);
-      packet_queue_.push(packet);
-    }
-    packet_count_.post();
+
+    static int handle_index = 0;
+    caf::scoped_actor self;
+    self->send(handles_[handle_index], LoadPacketAtom::value, packet);
+    if (++handle_index == Config::slave_loader_thread_num) handle_index = 0;
+
 #else
 #ifdef ONE_WORK_THREAD
     LoadPacket* packet = new LoadPacket();
@@ -343,15 +345,9 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
   DLOG(INFO) << "position+offset is:" << packet.pos_ + packet.offset_
              << " CHUNK SIZE is:" << CHUNK_SIZE
              << " last chunk id is:" << last_chunk_id;
-#ifdef WORK_THREADS
-  partition_storage_lock_.acquire();
-#endif
   EXEC_AND_DLOG_RETURN(
       ret, part_storage->AddChunkWithMemoryToNum(last_chunk_id + 1, HDFS),
       "added chunk to " << last_chunk_id + 1, "failed to add chunk");
-#ifdef WORK_THREADS
-  partition_storage_lock_.release();
-#endif
 
   /// copy data into applied memory
   const uint64_t tuple_size = Catalog::getInstance()
@@ -510,9 +506,15 @@ void* SlaveLoader::StartSlaveLoader(void* arg) {
 #endif
 
 #ifdef WORK_THREADS
-  for (int i = 0; i < 1; ++i) {
-    Environment::getInstance()->getThreadPool()->AddTask(
-        SlaveLoader::HandleWork, slave_loader);
+  //  for (int i = 0; i < 1; ++i) {
+  //    Environment::getInstance()->getThreadPool()->AddTask(
+  //        SlaveLoader::HandleWork, slave_loader);
+  //  }
+
+  handles_ = new caf::actor[Config::slave_loader_thread_num];
+
+  for (int i = 0; i < Config::slave_loader_thread_num; ++i) {
+    SlaveLoader::handles_[i] = caf::spawn(SlaveLoader::WorkInCAF);
   }
 #endif
 

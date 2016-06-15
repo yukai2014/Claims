@@ -104,6 +104,7 @@ bool Config::enable_txn_log;
 std::string Config::txn_log_path;
 
 int Config::master_loader_thread_num;
+int Config::slave_loader_thread_num;
 
 Config *Config::getInstance() {
   if (instance_ == 0) {
@@ -187,6 +188,7 @@ void Config::initialize() {
   txn_log_path = getString("txn_log_path", ".");
 
   master_loader_thread_num = getInt("master_loader_thread_num", 4);
+  slave_loader_thread_num = getInt("slave_loader_thread_num", 4);
 
   memory_utilization = getInt("memory_utilization", 100);
 

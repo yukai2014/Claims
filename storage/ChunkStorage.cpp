@@ -104,7 +104,7 @@ RetCode ChunkStorage::ApplyMemory() {
 ChunkReaderIterator* ChunkStorage::CreateChunkReaderIterator() {
   ChunkReaderIterator* ret;
 
-  lock_.acquire();
+  //  lock_.acquire();
   HdfsInMemoryChunk chunk_info;
   if (current_storage_level_ == MEMORY &&
       !BlockManager::getInstance()->getMemoryChunkStore()->GetChunk(
@@ -177,7 +177,7 @@ ChunkReaderIterator* ChunkStorage::CreateChunkReaderIterator() {
     }
     default: { WLOG(rUnkownStroageLevel, "current storage level: unknown!"); }
   }
-  lock_.release();
+  //  lock_.release();
   return ret;
 }
 
@@ -422,6 +422,8 @@ void ChunkReaderIterator::InMemeryBlockAccessor::GetBlock(
   int tuple_count =
       *(unsigned*)((char*)target_block_start_address_ +
                    block->getSerializedBlockSize() - sizeof(unsigned));
+  DLOG(INFO) << "Get Block whose tuple counts is:" << tuple_count
+             << ", start address is:" << target_block_start_address_;
   dynamic_cast<BlockStreamFix*>(block)->setTuplesInBlock(tuple_count);
 //  ((BlockStreamFix*)block)->free_ =
 //      (char*)block->getBlock() +
@@ -450,27 +452,32 @@ uint64_t InMemoryChunkWriterIterator::Write(const void* const buffer_to_write,
   void* block_offset = chunk_offset_ + block_id_ * block_size_;
   assert(block_offset < chunk_offset_ + CHUNK_SIZE &&
          "this block is not in this chunk");
+
   unsigned* tuple_count_in_block = reinterpret_cast<unsigned*>(
       block_offset + block_size_ - sizeof(unsigned));
-  int can_store_tuple_count =
-      (block_size_ - sizeof(unsigned)) / tuple_size_ - *tuple_count_in_block;
+  int left_space = block_size_ - sizeof(unsigned) - pos_in_block_;
+  int can_store_tuple_count = left_space / tuple_size_;
+
+  //  int can_store_tuple_count =
+  //      (block_size_ - sizeof(unsigned)) / tuple_size_ -
+  //      *tuple_count_in_block;
   assert(can_store_tuple_count >= 0);
   DLOG(INFO) << "block whose id is " << block_id_ << " stored "
              << *tuple_count_in_block << " tuple and leaf "
              << can_store_tuple_count
              << " tuple space. and tuple size is:" << tuple_size_;
 
-  // there are space to store data
+  /// there are space to store data
   if (can_store_tuple_count > 0) {
-    int actual_written_tuple_count =
-        length_to_write / tuple_size_ > can_store_tuple_count
-            ? can_store_tuple_count
-            : length_to_write / tuple_size_;
-    DLOG(INFO) << "memcpy start pos is "
-               << block_offset + (*tuple_count_in_block) * tuple_size_
+    int actual_written_tuple_count = length_to_write > left_space
+                                         ? can_store_tuple_count
+                                         : length_to_write / tuple_size_;
+    DLOG(INFO) << "memcpy " << actual_written_tuple_count
+               << " tuples to memory whose start pos is "
+               << block_offset + pos_in_block_
                << ". buffer to write: " << buffer_to_write;
-    memcpy(block_offset + (*tuple_count_in_block) * tuple_size_,
-           buffer_to_write, actual_written_tuple_count * tuple_size_);
+    memcpy(block_offset + pos_in_block_, buffer_to_write,
+           actual_written_tuple_count * tuple_size_);
     DLOG(INFO) << "copy " << actual_written_tuple_count * tuple_size_
                << " bytes into block:" << block_id_;
 

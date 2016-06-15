@@ -30,13 +30,18 @@
 #include "PartitionStorage.h"
 
 #include <assert.h>
+#include <vector>
+
 #include "../common/error_define.h"
 #include "../Debug.h"
 #include "./MemoryManager.h"
+#include "../common/memory_handle.h"
 #include "../Config.h"
 #include "../Resource/BufferManager.h"
+#include "../utility/lock_guard.h"
 
 using claims::common::rSuccess;
+using claims::utility::LockGuard;
 
 /**
  * According to number_of_chunks, construct chunk from partition and add into
@@ -65,7 +70,7 @@ PartitionStorage::PartitionStorage(const PartitionID& partition_id,
 
 PartitionStorage::~PartitionStorage() {
   for (unsigned i = 0; i < chunk_list_.size(); i++) {
-    chunk_list_[i]->~ChunkStorage();
+    DELETE_PTR(chunk_list_[i]);
   }
   chunk_list_.clear();
 }
@@ -73,12 +78,15 @@ PartitionStorage::~PartitionStorage() {
 void PartitionStorage::AddNewChunk() { number_of_chunks_++; }
 
 RetCode PartitionStorage::AddChunkWithMemoryToNum(
-    const unsigned& expected_number_of_chunks,
-    const StorageLevel& storage_level) {
+    unsigned expected_number_of_chunks, const StorageLevel& storage_level) {
   RetCode ret = rSuccess;
   if (number_of_chunks_ >= expected_number_of_chunks) return ret;
   DLOG(INFO) << "now chunk number:" << number_of_chunks_
              << ". expected chunk num:" << expected_number_of_chunks;
+
+  LockGuard<Lock> guard(write_lock_);
+  if (number_of_chunks_ >= expected_number_of_chunks) return ret;
+
   for (unsigned i = number_of_chunks_; i < expected_number_of_chunks; i++) {
     ChunkStorage* chunk =
         new ChunkStorage(ChunkID(partition_id_, i), BLOCK_SIZE, storage_level);
@@ -103,6 +111,7 @@ RetCode PartitionStorage::AddChunkWithMemoryToNum(
 void PartitionStorage::UpdateChunksWithInsertOrAppend(
     const PartitionID& partition_id, const unsigned& number_of_chunks,
     const StorageLevel& storage_level) {
+  LockGuard<Lock> guard(write_lock_);
   if (!chunk_list_.empty()) {
     MemoryChunkStore::GetInstance()->ReturnChunk(
         chunk_list_.back()->GetChunkID());
@@ -147,6 +156,7 @@ PartitionStorage::PartitionReaderIterator::PartitionReaderIterator(
 PartitionStorage::PartitionReaderIterator::~PartitionReaderIterator() {}
 
 ChunkReaderIterator* PartitionStorage::PartitionReaderIterator::NextChunk() {
+  LockGuard<Lock> guard(ps_->write_lock_);
   if (chunk_cur_ < ps_->number_of_chunks_)
     return ps_->chunk_list_[chunk_cur_++]->CreateChunkReaderIterator();
   else
@@ -159,6 +169,7 @@ PartitionStorage::AtomicPartitionReaderIterator::
 ChunkReaderIterator*
 PartitionStorage::AtomicPartitionReaderIterator::NextChunk() {
   ChunkReaderIterator* ret = NULL;
+  LockGuard<Lock> guard(ps_->write_lock_);
   if (chunk_cur_ < ps_->number_of_chunks_)
     ret = ps_->chunk_list_[chunk_cur_++]->CreateChunkReaderIterator();
   else

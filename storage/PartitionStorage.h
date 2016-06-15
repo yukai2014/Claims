@@ -29,6 +29,7 @@
 
 #ifndef PARTITIONSTORAGE_H_
 #define PARTITIONSTORAGE_H_
+#include <atomic>
 #include <vector>
 
 #include "../common/error_define.h"
@@ -121,7 +122,7 @@ class PartitionStorage {
 
   void AddNewChunk();
 
-  RetCode AddChunkWithMemoryToNum(const unsigned& expected_number_of_chunks,
+  RetCode AddChunkWithMemoryToNum(unsigned expected_number_of_chunks,
                                   const StorageLevel& storage_level);
 
   const int GetChunkNum() const { return chunk_list_.size(); }
@@ -156,9 +157,11 @@ class PartitionStorage {
 
  protected:
   PartitionID partition_id_;
-  unsigned number_of_chunks_;
+  atomic<unsigned> number_of_chunks_;
   std::vector<ChunkStorage*> chunk_list_;
   StorageLevel desirable_storage_level_;
+
+  Lock write_lock_;
 };
 //}  // namespace storage
 //}  // namespace claims

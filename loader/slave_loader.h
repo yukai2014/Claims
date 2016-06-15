@@ -90,6 +90,7 @@ class SlaveLoader {
 
  private:
   static caf::actor handle;
+  static caf::actor* handles_;
 
  private:
   queue<LoadPacket*> packet_queue_;

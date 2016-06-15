@@ -30,6 +30,7 @@
 #ifndef CHUNKSTORAGE_H_
 #define CHUNKSTORAGE_H_
 #include <hdfs.h>
+#include <atomic>
 #include <string>
 
 #include "./StorageLevel.h"
@@ -331,7 +332,7 @@ class ChunkStorage {
   unsigned block_size_;
   unsigned chunk_size_;
   StorageLevel desirable_storage_level_;
-  StorageLevel current_storage_level_;
+  atomic<StorageLevel> current_storage_level_;
   ChunkID chunk_id_;
   Lock lock_;
 };
