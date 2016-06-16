@@ -410,77 +410,6 @@ RetCode MasterLoader::Ingest(const string& message,
   return ret;
 }
 
-string MasterLoader::GetMessage() {
-  // for testing
-  string ret =
-      "LINEITEM,|,\n,"
-      "1|155190|7706|1|17|21168.23|0.04|0.02|N|O|1996-03-13|1996-"
-      "02-12|1996-03-22|DELIVER IN PERSON|TRUCK|egular courts above the|\n"
-      "1|67310|7311|2|36|45983.16|0.09|0.06|N|O|1996-04-12|1996-02-28|1996-"
-      "04-"
-      "20|TAKE BACK RETURN|MAIL|ly final dependencies: slyly bold |\n"
-      "1|63700|3701|3|8|13309.60|0.10|0.02|N|O|1996-01-29|1996-03-05|1996-01-"
-      "31|TAKE BACK RETURN|REG AIR|riously. regular, express dep|\n"
-      "1|2132|4633|4|28|28955.64|0.09|0.06|N|O|1996-04-21|1996-03-30|1996-05-"
-      "16|NONE|AIR|lites. fluffily even de|\n"
-      "1|24027|1534|5|24|22824.48|0.10|0.04|N|O|1996-03-30|1996-03-14|1996-"
-      "04-"
-      "01|NONE|FOB| pending foxes. slyly re|\n"
-      "1|15635|638|6|32|49620.16|0.07|0.02|N|O|1996-01-30|1996-02-07|1996-02-"
-      "03|DELIVER IN PERSON|MAIL|arefully slyly ex|\n"
-      "2|106170|1191|1|38|44694.46|0.00|0.05|N|O|1997-01-28|1997-01-14|1997-"
-      "02-"
-      "02|TAKE BACK RETURN|RAIL|ven requests. deposits breach a|\n"
-      "3|4297|1798|1|45|54058.05|0.06|0.00|R|F|1994-02-02|1994-01-04|1994-02-"
-      "23|NONE|AIR|ongside of the furiously brave acco|\n"
-      "3|19036|6540|2|49|46796.47|0.10|0.00|R|F|1993-11-09|1993-12-20|1993-"
-      "11-"
-      "24|TAKE BACK RETURN|RAIL| unusual accounts. eve|\n"
-      "3|128449|3474|3|27|39890.88|0.06|0.07|A|F|1994-01-16|1993-11-22|1994-"
-      "01-"
-      "23|DELIVER IN PERSON|SHIP|nal foxes wake. |\n"
-      "3|29380|1883|4|2|2618.76|0.01|0.06|A|F|1993-12-04|1994-01-07|1994-01-"
-      "01|"
-      "NONE|TRUCK|y. fluffily pending d|\n"
-      "7|145243|7758|2|9|11594.16|0.08|0.08|N|O|1996-02-01|1996-03-02|1996-"
-      "02-"
-      "19|TAKE BACK RETURN|SHIP|es. instructions|\n"
-      "7|94780|9799|3|46|81639.88|0.10|0.07|N|O|1996-01-15|1996-03-27|1996-"
-      "02-"
-      "03|COLLECT COD|MAIL| unusual reques|\n"
-      "7|163073|3074|4|28|31809.96|0.03|0.04|N|O|1996-03-21|1996-04-08|1996-"
-      "04-"
-      "20|NONE|FOB|. slyly special requests haggl|\n"
-      "7|151894|9440|5|38|73943.82|0.08|0.01|N|O|1996-02-11|1996-02-24|1996-"
-      "02-"
-      "18|DELIVER IN PERSON|TRUCK|ns haggle carefully ironic deposits. bl|\n"
-      "7|79251|1759|6|35|43058.75|0.06|0.03|N|O|1996-01-16|1996-02-23|1996-"
-      "01-"
-      "22|TAKE BACK RETURN|FOB|jole. excuses wake carefully alongside of |\n"
-      "7|157238|2269|7|5|6476.15|0.04|0.02|N|O|1996-02-10|1996-03-26|1996-02-"
-      "13|NONE|FOB|ithely regula|\n"
-      "32|82704|7721|1|28|47227.60|0.05|0.08|N|O|1995-10-23|1995-08-27|1995-"
-      "10-"
-      "26|TAKE BACK RETURN|TRUCK|sleep quickly. req|\n"
-      "32|197921|441|2|32|64605.44|0.02|0.00|N|O|1995-08-14|1995-10-07|1995-"
-      "08-"
-      "27|COLLECT COD|AIR|lithely regular deposits. fluffily |\n"
-      "32|44161|6666|3|2|2210.32|0.09|0.02|N|O|1995-08-07|1995-10-07|1995-08-"
-      "23|DELIVER IN PERSON|AIR| express accounts wake according to the|\n"
-      "32|2743|7744|4|4|6582.96|0.09|0.03|N|O|1995-08-04|1995-10-01|1995-09-"
-      "03|"
-      "NONE|REG AIR|e slyly final pac|\n"
-      "32|85811|8320|5|44|79059.64|0.05|0.06|N|O|1995-08-28|1995-08-20|1995-"
-      "09-"
-      "14|DELIVER IN PERSON|AIR|symptotes nag according to the ironic "
-      "depo|\n";
-  return ret;
-}
-
-// bool MasterLoader::CheckValidity() {}
-//
-// void MasterLoader::DistributeSubIngestion() {}
-
 RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
                                                     int* connected_fd) {
   int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -509,7 +438,7 @@ RetCode MasterLoader::GetSocketFdConnectedWithSlave(string ip, int port,
 // get every tuples and add row id for it
 RetCode MasterLoader::GetRequestFromMessage(const string& message,
                                             IngestionRequest* req) {
-  //  AddRowIdColumn()
+  // TODO(ANYONE): get the real row_id of table
   static uint64_t row_id = 10000000;
   RetCode ret = rSuccess;
   size_t pos = message.find(',', 0);

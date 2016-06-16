@@ -38,6 +38,8 @@
 #include <unordered_map>
 #include "caf/all.hpp"
 #include <queue>
+#include <set>
+#include <unordered_set>
 
 #include "./validity.h"
 #include "../common/error_define.h"
@@ -46,7 +48,9 @@
 #include "../utility/lock.h"
 
 using std::function;
+using std::set;
 using std::unordered_map;
+using std::unordered_set;
 
 namespace claims {
 namespace catalog {

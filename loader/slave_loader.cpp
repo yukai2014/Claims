@@ -368,6 +368,12 @@ RetCode SlaveLoader::StoreDataInMemory(const LoadPacket& packet) {
             ChunkID(PartitionID(ProjectionID(table_id, prj_id), part_id),
                     cur_chunk_id),
             chunk_info)) {
+      // In this version, the last chunk info don't updated their member: length
+      // after inserting data,
+      // so the data inserted into last chunk is invisible.
+      // This leads to no new data is show in the beginning of loading.
+      // The new applied chunk has updated its length to CHUNK_SIZE,
+      // so they performs well
       DLOG(INFO) << "start address of chunk:" << cur_chunk_id << " is "
                  << chunk_info.hook << ", end addr is "
                  << chunk_info.hook + CHUNK_SIZE;

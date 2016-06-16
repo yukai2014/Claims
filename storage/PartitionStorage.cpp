@@ -156,7 +156,7 @@ PartitionStorage::PartitionReaderIterator::PartitionReaderIterator(
 PartitionStorage::PartitionReaderIterator::~PartitionReaderIterator() {}
 
 ChunkReaderIterator* PartitionStorage::PartitionReaderIterator::NextChunk() {
-  LockGuard<Lock> guard(ps_->write_lock_);
+  //  LockGuard<Lock> guard(ps_->write_lock_);
   if (chunk_cur_ < ps_->number_of_chunks_)
     return ps_->chunk_list_[chunk_cur_++]->CreateChunkReaderIterator();
   else
@@ -168,13 +168,11 @@ PartitionStorage::AtomicPartitionReaderIterator::
 
 ChunkReaderIterator*
 PartitionStorage::AtomicPartitionReaderIterator::NextChunk() {
-  ChunkReaderIterator* ret = NULL;
   LockGuard<Lock> guard(ps_->write_lock_);
   if (chunk_cur_ < ps_->number_of_chunks_)
-    ret = ps_->chunk_list_[chunk_cur_++]->CreateChunkReaderIterator();
+    return ps_->chunk_list_[chunk_cur_++]->CreateChunkReaderIterator();
   else
-    ret = NULL;
-  return ret;
+    return NULL;
 }
 
 bool PartitionStorage::PartitionReaderIterator::NextBlock(
@@ -208,7 +206,7 @@ bool PartitionStorage::AtomicPartitionReaderIterator::NextBlock(
       delete chunk_it_;
       chunk_it_ = NULL;
     }
-    if ((chunk_it_ = PartitionReaderIterator::NextChunk()) > 0) {
+    if ((chunk_it_ = NextChunk()) > 0) {
       lock_.release();
       return NextBlock(block);
     } else {
