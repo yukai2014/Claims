@@ -100,7 +100,7 @@ int Config::txn_server_cores;
 std::string Config::txn_server_ip;
 int Config::txn_server_port;
 
-bool Config::enable_txn_log;
+bool Config::enable_txn_log = false;
 std::string Config::txn_log_path;
 
 int Config::master_loader_thread_num;

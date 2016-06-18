@@ -76,6 +76,7 @@ caf::behavior TxnCore::make_behavior() {
   // this->delayed_send(this, seconds(kGCTime + CoreId), GCAtom::value);
   return {
       [=](IngestAtom, const FixTupleIngestReq& request) -> caf::message {
+
         // cout << "begin" << endl;
         auto ingest = make_shared<Ingest>();
         //      RetCode ret = rSuccess;
@@ -94,7 +95,7 @@ caf::behavior TxnCore::make_behavior() {
           ingest->InsertStrip(strip);
         }
         size_++;
-        /// cout << ingest.ToString() << endl;
+        // cout << ingest.ToString() << endl;
         if (LogServer::active_) {
           current_message() = caf::make_message(IngestAtom::value, ingest);
           this->forward_to(LogServer::proxy_);
@@ -102,21 +103,25 @@ caf::behavior TxnCore::make_behavior() {
         return caf::make_message(ret, *ingest);
       },
       [=](CommitIngestAtom, const UInt64 id) -> caf::message {
-        // cout << "commit" << endl;
+        // cout << "commit ingest txn id :" << id << endl;
         if (txn_index_.find(id) == txn_index_.end())
           return caf::make_message(-1 /*rCommitIngestTxnFail*/);
         commit_[txn_index_[id]] = true;
+        //  cout << "Logserver active:" << LogServer::active_ << endl;
         if (LogServer::active_) {
+          // assert(false);
           this->forward_to(LogServer::proxy_);
         }
+
         return caf::make_message(0 /*rSuccess*/);
       },
       [=](AbortIngestAtom, const UInt64 id) -> caf::message {
-        //  cout << "abort" << endl;
+        // cout << "abort ingest txn id :" << id << endl;
         if (txn_index_.find(id) == txn_index_.end())
           return caf::make_message(-1 /*rBeginIngestTxnFail*/);
         abort_[txn_index_[id]] = true;
         if (LogServer::active_) {
+          // assert(false);
           this->forward_to(LogServer::proxy_);
         }
         return caf::make_message(0 /*rAbortIngestTxnFail*/);

@@ -180,7 +180,7 @@ class DataIngestion {
                                        const string& terminator);
 
  private:
-  TableDescriptor* table_;
+  const TableDescriptor* table_;
   TableFileConnector& connector_;
 
   Schema* table_schema_;

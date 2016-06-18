@@ -152,8 +152,8 @@ DataIngestion::DataIngestion(TableDescriptor* table, const string col_separator,
     : table_(table),
       col_separator_(col_separator),
       row_separator_(row_separator),
-      row_id_in_table_(table_->row_number_),
-      connector_(table_->get_connector()) {
+      row_id_in_table_(table->row_number_),
+      connector_(table->get_connector()) {
   sub_tuple_generator_.clear();
   table_schema_ = table_->getSchema();
   for (int i = 0; i < table_->getNumberOfProjection(); i++) {
