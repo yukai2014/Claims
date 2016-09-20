@@ -44,11 +44,11 @@ using OkAtom = caf::atom_constant<caf::atom("ok")>;
 /**************  LoadPacket format  *****************/
 /** field             type          length **********/
 /****************************************************/
-/** transaction_id    uint64_t      4              **/
-/** global_part_id    uint64_t      4              **/
-/** position          uint64_t      4              **/
-/** offset            uint64_t      4              **/
-/** date_length       uint64_t      4              **/
+/** transaction_id    uint64_t      8              **/
+/** global_part_id    uint64_t      8              **/
+/** position          uint64_t      8              **/
+/** offset            uint64_t      8              **/
+/** date_length       uint64_t      8              **/
 /** data              void*         data_length    **/
 /****************************************************/
 struct LoadPacket {
@@ -67,7 +67,8 @@ struct LoadPacket {
   ~LoadPacket();
   RetCode Serialize();
 
-  RetCode Deserialize(const void* const head_buffer, void* data_buffer);
+  RetCode Deserialize(const void* const head_buffer,
+                      const void* const data_buffer);
 
  public:
   static const int kHeadLength = 5 * sizeof(uint64_t);

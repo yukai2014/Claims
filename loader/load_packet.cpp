@@ -61,7 +61,7 @@ RetCode LoadPacket::Serialize() {
 }
 
 RetCode LoadPacket::Deserialize(const void* const head_buffer,
-                                void* data_buffer) {
+                                const void* const data_buffer) {
   txn_id_ = *reinterpret_cast<const uint64_t*>(head_buffer);
   global_part_id_ =
       *reinterpret_cast<const uint64_t*>(head_buffer + sizeof(uint64_t));

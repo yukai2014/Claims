@@ -258,6 +258,11 @@ void Config::print_configure() const {
 
   std::cout << "enable_txn_log:" << enable_txn_log << std::endl;
   std::cout << "txn_log_path:" << txn_log_path << std::endl;
+
+  std::cout << "master_loader_thread_num:" << master_loader_thread_num
+            << std::endl;
+  std::cout << "slave_loader_thread_num:" << slave_loader_thread_num
+            << std::endl;
 }
 
 void Config::setConfigFile(std::string file_name) { config_file = file_name; }

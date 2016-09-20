@@ -260,7 +260,6 @@ RetCode SlaveLoader::ReceiveAndWorkLoop() {
     assert(data_length >= 4 && data_length <= 10000000);
 
     char* data_buffer = Malloc(data_length);
-    MemoryGuard<char> guard(data_buffer);  // auto-release
     if (NULL == data_buffer) {
       ELOG((ret = claims::common::rNoMemory),
            "no memory to hold data of message from master");

@@ -19,14 +19,9 @@ unsigned Schema::getncolumns() const { return columns.size(); }
 void Schema::displayTuple(const void* tuple_start_address,
                           const char* spliter) const {
   for (unsigned i = 0; i < columns.size(); i++) {
-    DLOG(INFO) << columns[i].operate->toString(
-                      getColumnAddess(i, tuple_start_address)) << spliter;
+    DLOG(INFO) << getColumnValue(tuple_start_address, i) << spliter;
   }
   DLOG(INFO) << endl;
-}
-
-std::string Schema::getColumnValue(const void* tuple_start_address, int i) {
-  return columns[i].operate->toString(getColumnAddess(i, tuple_start_address));
 }
 
 bool Schema::hasSameSchema(Schema* schema) {

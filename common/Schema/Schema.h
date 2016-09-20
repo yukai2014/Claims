@@ -77,7 +77,18 @@ class Schema {
   bool hasSameSchema(Schema* schema);
   std::vector<column_type> columns;
 
-  virtual std::string getColumnValue(const void* tuple_start_address, int i);
+  inline std::string getColumnValue(const void* tuple_start_address, int i) {
+    return columns[i].operate->toString(
+        getColumnAddess(i, tuple_start_address));
+  }
+
+  inline void PrintTupleString(ostream& ost, const void* tuple_start_address,
+                               const char* spliter = "|") {
+    for (unsigned i = 0; i < columns.size(); i++) {
+      ost << getColumnValue(tuple_start_address, i) << spliter;
+    }
+    ost << endl;
+  }
 
  private:
   friend class boost::serialization::access;
